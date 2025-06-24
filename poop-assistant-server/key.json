@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "poopalooza-451605",
+  "private_key_id": "4d152259002394a944ca53b74f123e5c7a9c39c7",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCo2Dlo5DzEucqU\nqUGnesrI4N16mYoJuXiTdWjwSosRNjTJ0RxybiUXw+BXeZ0i4F+GhVskLB2I9rT0\nCUwvVGusV1ajP0DWdbhGGtKxM7i/6h67C1TrMCwNDDp2W06HXQDc1poaQ9otCt7o\nNW1nHYU0SXTHfyrV7E5+0fxXugNlDcwiN/wuFdID0NZmUoSnnMYgl4P7fkXe4Qdg\n5vnwtjRTLrQaqkJW33wqbwNXikM6Fu6782Q3eIgbTcoviGMkY2GU7un9tdgS2Uwh\ncNdUnnRdkqN9SRfPLuxv9DRcJ8AS6JNEQ/B5GQIlct4oroIjGQvutKsKL+Rml3IJ\nlnZjmCJPAgMBAAECggEAAq1Z6d0sN35/7div6gnzzIo6Zd+ouZvuA4yKFAK/qRs/\n4MCYSI6RK+gRIoTYt8MT0KwtRdKZyuwGIPFazB3dmkjQx1uWzenlpzrpMX9GISX3\nfiLs5+gdxCWPWnkphBiTvA+Vw0zw8EDlAi+ll2MxqqKeQoo/92Xre24dkJWemm7J\n5ZA6dOyci7scXxnHRNjZFxqD2RHtXnLm4APtbxIHnoov7oh0HiiCVUEgSIiEsatk\nrdzbb9C403Qtie5l3vG24h6ZKs8MTEmYyhBcv1EsdN330cotHhhwv6Ku66FTigYQ\n8I6bCDamNaRLLl9L9fTb7jkggzu7mlLKaz9phT5K+QKBgQDnQJYVTLpqoC84lxgT\nxoPFc/gDp+JXxGKu8ZrE6J1rw1Pfn7a7oI4E9sVnrGjDGbdYhs+vhFgN6r5jqNFs\nzThQscO7PvzbI1dZjZfo8MxgXuJXvwv9yX9b8dMKA7xrWX5p5+wE5b4pl1B8qCoT\nkvVlX8FhEdWAkLEBXvBWgHDomQKBgQC66ekd7RwEy4iY12ZKj+HvQDMMXyGgz6J4\nGdwmI38QpkD/U3M/kMA6cXD+CcgHD+ybtcCEgV4+rzW3djDQF9JogjsuZfsE9dlo\nhW6Bjlv7jPIVZwGmvOf8Pp6U6GN5E6JilheWZw4liad93At/9WGGjmvKKrqZhyAS\ntHpI+ssrJwKBgCfzVnpTiRkGl2HVaIlyEC26fSxUgpvbB5llj/FYpmmJkyHc+7qq\nYB6nay8f7/FUrgITOCoAWR3+Yenhrlx3j7URINlmZlSNZHfKKGZLw2MawUuba7zq\nZKBDxMvEHXcGPPqa4IFwF0wkIfmHK825478hrczRQes2E/5Coo6vHdJxAoGBAKno\nM6amgU/CjLsTIsMoo+LOYxkd6P27gR7Xsw1gOwMxfegbPapMtNDriiEDVzdEPHsW\n7pgE2Vz1/Eh3QcwHu5aQu6djwJkzupuOn3NZqzexWeYmqpOdKOxdJ96ImNPZC0W+\n1lY7+9oXlY+NVU7OCgc8s7MkwFcLRBZ8xKROhh0FAoGBAI5uKm3E6ZZpEfV3SJcA\nhX/e8lCGMK8e285wXew2hLC9kz2i+fdFW8GXgX2sx8cbYTkoOwUVOeYaQWF5a/YM\n/8eQC9qCF8mOMANYVy2v54cOaimobAB1VlbpJDqbefZppDj8Y19zpe0ewzkFN2dz\n67+V8JXX9/wOwGD+/hwaujXA\n-----END PRIVATE KEY-----\n",
+  "client_email": "poop-ai-assistant-12@poopalooza-451605.iam.gserviceaccount.com",
+  "client_id": "109650435515994065177",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/poop-ai-assistant-12%40poopalooza-451605.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}
