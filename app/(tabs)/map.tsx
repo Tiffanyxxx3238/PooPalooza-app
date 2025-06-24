@@ -786,8 +786,7 @@ export default function MapScreen() {
   };
 
   // Reset check-in form
-  const resetCheckInForm = () => {
-    setShowCheckInModal(false);
+  const resetCheckInForm = (closeModal = true) => {
     setCheckInNote('');
     setCheckInMood('');
     setCheckInRating(5);
@@ -798,6 +797,8 @@ export default function MapScreen() {
     setIsPrivateCheckIn(false);
     setIsAnonymousCheckIn(false);
     setCustomMessage('');
+    setSelectedBathroom(null);
+    if (closeModal) setShowCheckInModal(false);
   };
 
   // Submit review
@@ -1147,10 +1148,36 @@ export default function MapScreen() {
   };
 
   // Handle check-in button
-  const handleCheckIn = (bathroom: Bathroom) => {
+  const handleCheckIn = (bathroom: Bathroom | null | undefined) => {
+    // 先重置表單，確保每次都是乾淨的
+    resetCheckInForm(false); // 傳 false 代表暫時不關閉 Modal
+    if (!bathroom) {
+      Alert.alert('錯誤', '無法取得打卡地點資料，請稍後再試');
+      setShowCheckInModal(false);
+      return;
+    }
     setSelectedBathroom(bathroom);
     setShowCheckInModal(true);
   };
+  // 選擇心情 emoji
+const handleMoodSelect = (emoji: string) => {
+  setCheckInMood(emoji);
+};
+
+// 選擇場景 tag
+const handleTagSelect = (tag: string) => {
+  setCheckInQuickTag(tag);
+};
+
+// 選擇 Bristol Scale 型態
+const handleBristolSelect = (type: number) => {
+  setCheckInBristolType(type);
+};
+
+// 選擇舒適度評分
+const handleRatingSelect = (star: number) => {
+  setCheckInRating(star);
+};
 
   // Handle review button
   const handleReview = (bathroom: Bathroom) => {
@@ -1159,230 +1186,17 @@ export default function MapScreen() {
   };
 
   // Handle tab press
-const handleTabPress = (tab: string) => {
-  console.log(`🔄 切換到 ${tab} 標籤`);
-  setActiveTab(tab);
-  
-  if ((tab === 'map' || tab === 'visited' || tab === 'journey' || tab === 'poopline') && location) {
-    console.log('🗺️ 切換到地圖頁面，準備移動到用戶位置');
-    setTimeout(() => {
-      centerMapOnUser();
-    }, 500);
-  }
-};
-
-  // Check-in modal component
-  const CheckInModal = () => (
-    <Modal
-      visible={showCheckInModal}
-      animationType="slide"
-      transparent={true}
-      onRequestClose={() => setShowCheckInModal(false)}
-    >
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContainer}>
-          <KeyboardAvoidingView
-    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    style={{ flex: 1 }}
-  >
-          <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
-            <Text style={styles.modalTitle}>
-              Check in at {selectedBathroom?.name} 🚽
-            </Text>
-            
-            {/* Mood selection */}
-            <Text style={styles.sectionTitle}>Mood / Poop Status *</Text>
-            <View style={styles.emojiContainer}>
-              {MOOD_EMOJIS.map((emoji) => (
-                <TouchableOpacity
-                  key={emoji}
-                  style={[
-                    styles.emojiButton,
-                    checkInMood === emoji && styles.selectedEmoji
-                  ]}
-                  onPress={() => setCheckInMood(emoji)}
-                >
-                  <Text style={styles.emojiText}>{emoji}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {/* Quick tags */}
-            <Text style={styles.sectionTitle}>Scene Tag *</Text>
-            <View style={styles.tagsContainer}>
-              {QUICK_TAGS.map((tag) => (
-                <TouchableOpacity
-                  key={tag}
-                  style={[
-                    styles.tagButton,
-                    checkInQuickTag === tag && styles.selectedTag
-                  ]}
-                  onPress={() => setCheckInQuickTag(tag)}
-                >
-                  <Text style={[
-                    styles.tagText,
-                    checkInQuickTag === tag && styles.selectedTagText
-                  ]}>{tag}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {/* Custom message */}
-            <Text style={styles.sectionTitle}>One-line Description</Text>
-            <TextInput
-              style={styles.messageInput}
-              placeholder="e.g., 😤 Maximum relief feeling, 💩 First airport poop of my life..."
-              value={customMessage}
-              onChangeText={setCustomMessage}
-            />
-            
-            {/* Bristol Scale selection */}
-            <Text style={styles.sectionTitle}>Poop Type (Bristol Scale)</Text>
-            <View style={styles.bristolContainer}>
-              {Object.entries(BRISTOL_EMOJIS).map(([type, emoji]) => (
-                <TouchableOpacity
-                  key={type}
-                  style={[
-                    styles.bristolButton,
-                    checkInBristolType === parseInt(type) && styles.selectedBristol
-                  ]}
-                  onPress={() => setCheckInBristolType(parseInt(type))}
-                >
-                  <Text style={styles.bristolEmoji}>{emoji}</Text>
-                  <Text style={styles.bristolType}>Type {type}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            
-            {/* Rating */}
-            <Text style={styles.sectionTitle}>Comfort Rating</Text>
-            <View style={styles.ratingContainer}>
-              {[1, 2, 3, 4, 5].map((star) => (
-                <TouchableOpacity
-                  key={star}
-                  onPress={() => setCheckInRating(star)}
-                >
-                  <Text style={[
-                    styles.ratingStarLarge,
-                    star <= checkInRating ? styles.activeStar : styles.inactiveStar
-                  ]}>
-                    ★
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            
-            {/* Notes */}
-            <Text style={styles.sectionTitle}>Detailed Notes</Text>
-            <TextInput
-              style={styles.noteInput}
-              placeholder="Share your toilet experience..."
-              value={checkInNote}
-              onChangeText={setCheckInNote}
-              multiline
-              numberOfLines={3}
-            />
-
-            {/* Media uploads */}
-            <Text style={styles.sectionTitle}>Add Photo</Text>
-            <View style={styles.mediaContainer}>
-              <TouchableOpacity style={styles.mediaButton} onPress={takePhoto}>
-                <Camera size={24} color={Colors.primary.accent} />
-                <Text style={styles.mediaButtonText}>Take Photo</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.mediaButton} onPress={pickImage}>
-                <Upload size={24} color={Colors.primary.accent} />
-                <Text style={styles.mediaButtonText}>Choose Photo</Text>
-              </TouchableOpacity>
-            </View>
-            
-            {checkInImage && (
-              <View style={styles.imagePreview}>
-                <Image source={{ uri: checkInImage }} style={styles.previewImage} />
-                <TouchableOpacity 
-                  style={styles.removeImageButton}
-                  onPress={() => setCheckInImage(null)}
-                >
-                  <Text style={styles.removeImageText}>✕</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {/* Audio recording */}
-            <Text style={styles.sectionTitle}>Voice Note</Text>
-            <View style={styles.audioContainer}>
-              <TouchableOpacity 
-                style={[styles.recordButton, isRecording && styles.recordingActive]}
-                onPress={isRecording ? stopRecording : startRecording}
-              >
-                {isRecording ? (
-                  <MicOff size={24} color="#FFFFFF" />
-                ) : (
-                  <Mic size={24} color="#FFFFFF" />
-                )}
-                <Text style={styles.recordButtonText}>
-                  {isRecording ? 'Stop Recording' : 'Start Recording'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {checkInAudio && (
-              <View style={styles.audioPreview}>
-                <Text style={styles.audioPreviewText}>🎵 Audio Saved</Text>
-                <TouchableOpacity 
-                  style={styles.removeAudioButton}
-                  onPress={() => setCheckInAudio(null)}
-                >
-                  <Text style={styles.removeAudioText}>Delete</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {/* Privacy settings */}
-            <Text style={styles.sectionTitle}>Privacy Settings</Text>
-            <View style={styles.privacyContainer}>
-              <TouchableOpacity 
-                style={styles.privacyOption}
-                onPress={() => setIsPrivateCheckIn(!isPrivateCheckIn)}
-              >
-                {isPrivateCheckIn ? (
-                  <EyeOff size={20} color={Colors.primary.accent} />
-                ) : (
-                  <Eye size={20} color={Colors.primary.lightText} />
-                )}
-                <Text style={styles.privacyText}>Private check-in (don't share with friends)</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={styles.privacyOption}
-                onPress={() => setIsAnonymousCheckIn(!isAnonymousCheckIn)}
-              >
-                <Text style={[styles.privacyText, isAnonymousCheckIn && styles.activePrivacyText]}>
-                  {isAnonymousCheckIn ? '✅' : '☐'} Anonymous sharing
-                </Text>
-              </TouchableOpacity>
-            </View>
-            
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={styles.cancelButton}
-                onPress={() => setShowCheckInModal(false)}
-              >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.checkInButton}
-                onPress={performCheckIn}
-              >
-                <Text style={styles.checkInButtonText}>Check In 🎯</Text>
-              </TouchableOpacity>
-            </View>
-          </ScrollView>
-          </KeyboardAvoidingView>
-        </View>
-      </View>
-    </Modal>
-  );
+  const handleTabPress = (tab: string) => {
+    console.log(`🔄 切換到 ${tab} 標籤`);
+    setActiveTab(tab);
+    
+    if ((tab === 'map' || tab === 'visited' || tab === 'journey' || tab === 'poopline') && location) {
+      console.log('🗺️ 切換到地圖頁面，準備移動到用戶位置');
+      setTimeout(() => {
+        centerMapOnUser();
+      }, 500);
+    }
+  };
 
   // Review modal component
   const ReviewModal = () => (
@@ -2103,91 +1917,267 @@ const handleTabPress = (tab: string) => {
     );
   };
 
-const renderContent = () => {
-  if (errorMsg) {
-    return (
-      <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>{errorMsg}</Text>
-        <Text style={styles.errorSubtext}>
-          Please enable location services to find nearby bathrooms.
-        </Text>
-        <TouchableOpacity 
-          style={styles.retryButton} 
-          onPress={retryLocationRequest}
-        >
-          <Text style={styles.retryButtonText}>Retry Location</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
-  switch (activeTab) {
-    case 'map':
-      return <MapComponent />;
-    case 'nearby':
-      return renderNearbyList();
-    case 'visited':
-      return renderVisitedContent();
-    case 'journey':
-      return renderJourneyContent();
-    case 'poopline':
-      return renderJourneyContent();
-    default:
-      return renderNearbyList();
-  }
-};
-
-  return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>PooPalooza 💩</Text>
-        
-        <View style={styles.tabContainer}>
-          {Platform.OS !== 'web' && (
-            <TouchableOpacity
-              style={[styles.tab, activeTab === 'map' && styles.activeTab]}
-              onPress={() => handleTabPress('map')}
-              activeOpacity={0.7}
-            >
-              <MapPin size={16} color={activeTab === 'map' ? '#FFFFFF' : Colors.primary.lightText} />
-              <Text style={[styles.tabText, activeTab === 'map' && styles.activeTabText]}>Map</Text>
-            </TouchableOpacity>
-          )}
-          
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'nearby' && styles.activeTab]}
-            onPress={() => handleTabPress('nearby')}
-            activeOpacity={0.7}
+  const renderContent = () => {
+    if (errorMsg) {
+      return (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{errorMsg}</Text>
+          <Text style={styles.errorSubtext}>
+            Please enable location services to find nearby bathrooms.
+          </Text>
+          <TouchableOpacity 
+            style={styles.retryButton} 
+            onPress={retryLocationRequest}
           >
-            <List size={16} color={activeTab === 'nearby' ? '#FFFFFF' : Colors.primary.lightText} />
-            <Text style={[styles.tabText, activeTab === 'nearby' && styles.activeTabText]}>
-              Nearby ({nearbyBathrooms.length})
-            </Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'visited' && styles.activeTab]}
-            onPress={() => handleTabPress('visited')}
-            activeOpacity={0.7}
-          >
-            <Trophy size={16} color={activeTab === 'visited' ? '#FFFFFF' : Colors.primary.lightText} />
-            <Text style={[styles.tabText, activeTab === 'visited' && styles.activeTabText]}>
-              Check-ins ({checkInRecords.length})
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'poopline' && styles.activeTab]}
-            onPress={() => handleTabPress('poopline')}
-            activeOpacity={0.7}
-          >
-            <Route size={16} color={activeTab === 'poopline' ? '#FFFFFF' : Colors.primary.lightText} />
-            <Text style={[styles.tabText, activeTab === 'poopline' && styles.activeTabText]}>Poop Line</Text>
+            <Text style={styles.retryButtonText}>Retry Location</Text>
           </TouchableOpacity>
         </View>
+      );
+    }
+
+    switch (activeTab) {
+      case 'map':
+        return <MapComponent />;
+      case 'nearby':
+        return renderNearbyList();
+      case 'visited':
+        return renderVisitedContent();
+      case 'journey':
+        return renderJourneyContent();
+      case 'poopline':
+        return renderJourneyContent();
+      default:
+        return renderNearbyList();
+    }
+  };
+
+const CheckInModal = () => {
+  // 添加一個本地狀態來穩定 Modal
+  const [isModalStable, setIsModalStable] = useState(false);
+  
+  useEffect(() => {
+    if (showCheckInModal && selectedBathroom) {
+      // 延遲一點點讓 Modal 穩定
+      const timer = setTimeout(() => setIsModalStable(true), 50);
+      return () => clearTimeout(timer);
+    } else {
+      setIsModalStable(false);
+    }
+  }, [showCheckInModal, selectedBathroom]);
+
+  if (!showCheckInModal) return null;
+
+  return (
+    <Modal
+      visible={showCheckInModal}
+      animationType="slide"
+      transparent={true}
+      onRequestClose={() => setShowCheckInModal(false)}
+    >
+      <View style={styles.modalOverlay} onStartShouldSetResponder={() => true}>
+        <View style={styles.modalContainer}>
+          {!selectedBathroom ? (
+            <View style={{ padding: 32, alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ fontSize: 18, color: 'red', textAlign: 'center' }}>
+                無法取得打卡地點資料，請關閉後重試。
+              </Text>
+              <TouchableOpacity 
+                style={[styles.cancelButton, { marginTop: 24 }]} 
+                onPress={() => setShowCheckInModal(false)}
+              >
+                <Text style={styles.cancelButtonText}>關閉</Text>
+              </TouchableOpacity>
+            </View>
+          ) : isModalStable ? (
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+              style={{ flex: 1 }}
+            >
+              <ScrollView 
+                style={styles.modalContent} 
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled" // 重要：防止鍵盤影響
+              >
+                <Text style={styles.modalTitle}>
+                  Check in at {selectedBathroom.name} 🚽
+                </Text>
+                
+                {/* Mood selection - 使用優化後的處理函數 */}
+                <Text style={styles.sectionTitle}>Mood / Poop Status *</Text>
+                <View style={styles.emojiContainer}>
+                  {MOOD_EMOJIS.map((emoji) => (
+                    <TouchableOpacity
+                      key={emoji}
+                      style={[
+                        styles.emojiButton,
+                        checkInMood === emoji && styles.selectedEmoji
+                      ]}
+                      onPress={() => handleMoodSelect(emoji)}
+                      activeOpacity={0.7} // 添加這個防止快速點擊
+                    >
+                      <Text style={styles.emojiText}>{emoji}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                {/* Quick tags - 使用優化後的處理函數 */}
+                <Text style={styles.sectionTitle}>Scene Tag *</Text>
+                <View style={styles.tagsContainer}>
+                  {QUICK_TAGS.map((tag) => (
+                    <TouchableOpacity
+                      key={tag}
+                      style={[
+                        styles.tagButton,
+                        checkInQuickTag === tag && styles.selectedTag
+                      ]}
+                      onPress={() => handleTagSelect(tag)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[
+                        styles.tagText,
+                        checkInQuickTag === tag && styles.selectedTagText
+                      ]}>{tag}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                {/* 其他表單內容保持不變... */}
+                <Text style={styles.sectionTitle}>One-line Description</Text>
+                <TextInput
+                  style={styles.messageInput}
+                  placeholder="e.g., 😤 Maximum relief feeling, 💩 First airport poop of my life..."
+                  value={customMessage}
+                  onChangeText={setCustomMessage}
+                />
+                
+                {/* Bristol Scale selection */}
+                <Text style={styles.sectionTitle}>Poop Type (Bristol Scale)</Text>
+                <View style={styles.bristolContainer}>
+                  {Object.entries(BRISTOL_EMOJIS).map(([type, emoji]) => (
+                    <TouchableOpacity
+                      key={type}
+                      style={[
+                        styles.bristolButton,
+                        checkInBristolType === parseInt(type) && styles.selectedBristol
+                      ]}
+                      onPress={() => handleBristolSelect(parseInt(type))}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.bristolEmoji}>{emoji}</Text>
+                      <Text style={styles.bristolType}>Type {type}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                
+                {/* Rating */}
+                <Text style={styles.sectionTitle}>Comfort Rating</Text>
+                <View style={styles.ratingContainer}>
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <TouchableOpacity
+                      key={star}
+                      onPress={() => handleRatingSelect(star)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[
+                        styles.ratingStarLarge,
+                        star <= checkInRating ? styles.activeStar : styles.inactiveStar
+                      ]}>
+                        ★
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                
+                {/* 其他內容保持原樣... */}
+                
+                <View style={styles.modalButtons}>
+                  <TouchableOpacity
+                    style={styles.cancelButton}
+                    onPress={() => setShowCheckInModal(false)}
+                  >
+                    <Text style={styles.cancelButtonText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.checkInButton}
+                    onPress={performCheckIn}
+                  >
+                    <Text style={styles.checkInButtonText}>Check In 🎯</Text>
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
+            </KeyboardAvoidingView>
+          ) : (
+            // 載入中狀態
+            <View style={{ padding: 32, alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ fontSize: 16, color: Colors.primary.text }}>載入中...</Text>
+            </View>
+          )}
+        </View>
+      </View>
+    </Modal>
+  );
+};
+  return (
+    <View style={styles.container}>
+      {/* 主内容 (头部 + 地图/列表/记录) */}
+      <View
+        style={{ flex: 1 }}
+        pointerEvents={showCheckInModal ? 'none' : 'auto'}
+      >
+        {/* 头部 */}
+        <View style={styles.header}>
+          <Text style={styles.title}>PooPalooza 💩</Text>
+          <View style={styles.tabContainer}>
+            {Platform.OS !== 'web' && (
+              <TouchableOpacity
+                style={[styles.tab, activeTab === 'map' && styles.activeTab]}
+                onPress={() => handleTabPress('map')}
+                activeOpacity={0.7}
+              >
+                <MapPin size={16} color={activeTab === 'map' ? '#fff' : Colors.primary.lightText} />
+                <Text style={[styles.tabText, activeTab === 'map' && styles.activeTabText]}>
+                  Map
+                </Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity
+              style={[styles.tab, activeTab === 'nearby' && styles.activeTab]}
+              onPress={() => handleTabPress('nearby')}
+              activeOpacity={0.7}
+            >
+              <List size={16} color={activeTab === 'nearby' ? '#fff' : Colors.primary.lightText} />
+              <Text style={[styles.tabText, activeTab === 'nearby' && styles.activeTabText]}>
+                Nearby ({nearbyBathrooms.length})
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.tab, activeTab === 'visited' && styles.activeTab]}
+              onPress={() => handleTabPress('visited')}
+              activeOpacity={0.7}
+            >
+              <Trophy size={16} color={activeTab === 'visited' ? '#fff' : Colors.primary.lightText} />
+              <Text style={[styles.tabText, activeTab === 'visited' && styles.activeTabText]}>
+                Check-ins ({checkInRecords.length})
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.tab, activeTab === 'poopline' && styles.activeTab]}
+              onPress={() => handleTabPress('poopline')}
+              activeOpacity={0.7}
+            >
+              <Route size={16} color={activeTab === 'poopline' ? '#fff' : Colors.primary.lightText} />
+              <Text style={[styles.tabText, activeTab === 'poopline' && styles.activeTabText]}>
+                Poop Line
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* 根据 activeTab 渲染地图 / 列表 / 记录 / 路线 */}
+        {renderContent()}
       </View>
 
-      {renderContent()}
+      {/* 无论 Modal 是否打开，都挂在最外层 */}
       <CheckInModal />
       <ReviewModal />
     </View>
@@ -2322,7 +2312,7 @@ const styles = StyleSheet.create({
   mapControls: {
     position: 'absolute',
     top: 16,
-    right: 16,
+    right: 20,
   },
   mapControlButton: {
     width: 40,
@@ -2467,7 +2457,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: Colors.primary.text,
+    color: '#4d3900',
     marginBottom: 8,
   },
   statsContainer: {
@@ -2647,9 +2637,11 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: '80%',
+    minHeight: 300,
   },
   modalContent: {
     padding: 20,
+    backgroundColor: Colors.primary.background,
   },
   modalTitle: {
     fontSize: 20,
@@ -2711,7 +2703,7 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 20,
     fontSize: 16,
-    color: Colors.primary.text,
+    color: '#4d3900',
   },
   bristolContainer: {
     flexDirection: 'row',
