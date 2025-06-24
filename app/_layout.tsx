@@ -339,10 +339,10 @@ const styles = StyleSheet.create({
     width: FAB_SIZE + 20,
     height: FAB_SIZE + 20,
     borderRadius: (FAB_SIZE + 20) / 2,
-    backgroundColor: '#D2B48C', // 改為淺棕色光暈
-    shadowColor: '#D2B48C',
+    backgroundColor: '#00D4FF', // 改回藍色光暈
+    shadowColor: '#00D4FF',
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6,
+    shadowOpacity: 0.8,
     shadowRadius: 15,
     elevation: 10,
   },
@@ -351,8 +351,8 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#F5E6C4', // 改為奶茶色
-    shadowColor: '#F5E6C4',
+    backgroundColor: '#FFFFFF', // 改回白色思考泡泡
+    shadowColor: '#FFFFFF',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.8,
     shadowRadius: 3,
@@ -361,13 +361,13 @@ const styles = StyleSheet.create({
     width: FAB_SIZE,
     height: FAB_SIZE,
     borderRadius: FAB_SIZE / 2,
-    backgroundColor: '#8B4513', // 改為深棕色背景
+    backgroundColor: '#667eea', // 改回藍紫色背景
     borderWidth: 3,
-    borderColor: '#D2B48C', // 改為淺棕色邊框
+    borderColor: '#00D4FF', // 改回藍色邊框
     alignItems: 'center',
     justifyContent: 'center',
     elevation: 8,
-    shadowColor: '#8B4513',
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -384,7 +384,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     width: 20,
     height: 12,
-    backgroundColor: '#F5E6C4',
+    backgroundColor: '#FFFFFF', // 改回白色便便
     borderRadius: 10,
     borderBottomLeftRadius: 12,
     borderBottomRightRadius: 12,
@@ -395,7 +395,7 @@ const styles = StyleSheet.create({
     bottom: 8,
     width: 16,
     height: 10,
-    backgroundColor: '#F5E6C4',
+    backgroundColor: '#FFFFFF', // 改回白色便便
     borderRadius: 8,
   },
   poopTop: {
@@ -404,7 +404,7 @@ const styles = StyleSheet.create({
     bottom: 14,
     width: 12,
     height: 8,
-    backgroundColor: '#F5E6C4',
+    backgroundColor: '#FFFFFF', // 改回白色便便
     borderRadius: 6,
     borderTopLeftRadius: 8,
     borderTopRightRadius: 8,
@@ -415,7 +415,7 @@ const styles = StyleSheet.create({
     bottom: 6,
     width: 3,
     height: 3,
-    backgroundColor: '#8B4513',
+    backgroundColor: '#667eea', // 藍紫色眼睛
     borderRadius: 1.5,
   },
   poopEyeRight: {
@@ -424,7 +424,7 @@ const styles = StyleSheet.create({
     bottom: 6,
     width: 3,
     height: 3,
-    backgroundColor: '#8B4513',
+    backgroundColor: '#667eea', // 藍紫色眼睛
     borderRadius: 1.5,
   },
   poopMouth: {
@@ -433,7 +433,7 @@ const styles = StyleSheet.create({
     bottom: 3,
     width: 4,
     height: 2,
-    backgroundColor: '#8B4513',
+    backgroundColor: '#667eea', // 藍紫色嘴巴
     borderRadius: 2,
   },
   aiGlowDot: {
@@ -442,18 +442,18 @@ const styles = StyleSheet.create({
     top: 2,
     width: 6,
     height: 6,
-    backgroundColor: '#DEB887',
+    backgroundColor: '#00D4FF', // 改回藍色發光點
     borderRadius: 3,
-    shadowColor: '#DEB887',
+    shadowColor: '#00D4FF',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 1,
     shadowRadius: 4,
   },
   aiText: {
-    color: '#F5E6C4', // 改為奶茶色文字
+    color: '#FFFFFF', // 改回白色文字
     fontSize: 12,
     fontWeight: 'bold',
-    textShadowColor: '#DEB887', // 改為中等棕色陰影
+    textShadowColor: '#00D4FF', // 改回藍色陰影
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 5,
   },
