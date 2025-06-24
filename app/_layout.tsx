@@ -48,7 +48,7 @@ const FAB_SIZE = 70; // 稍微加大一點
 function RootLayoutNav() {
   const [showChat, setShowChat] = useState(false);
   const [positionLoaded, setPositionLoaded] = useState(false);
-  const pan = useState(new Animated.ValueXY({ x: 20, y: screenHeight / 2 - FAB_SIZE / 2 }))[0];
+  const pan = useState(new Animated.ValueXY({ x: 15, y: screenHeight / 2 - FAB_SIZE / 2 }))[0];
   
   // AI 動畫效果
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -136,13 +136,13 @@ function RootLayoutNav() {
             pan.setValue(validPosition);
           } else {
             const defaultY = screenHeight / 2 - FAB_SIZE / 2;
-            pan.setValue({ x: 20, y: defaultY });
+            pan.setValue({ x: 15, y: defaultY });
           }
         }
       } catch (error) {
         console.log('載入位置時發生錯誤:', error);
         const defaultY = screenHeight / 2 - FAB_SIZE / 2;
-        pan.setValue({ x: 20, y: defaultY });
+        pan.setValue({ x: 15, y: defaultY });
       }
       setPositionLoaded(true);
     })();
@@ -201,8 +201,14 @@ function RootLayoutNav() {
         const currentY = pan.y._value;
         
         const validPosition = validatePosition(currentX, currentY);
-        const snapX = validPosition.x < screenWidth / 2 ? 20 : screenWidth - FAB_SIZE - 20;
+        // 精確計算左右對稱位置
+        const edgeOffset = 15;
+        const snapX = validPosition.x < screenWidth / 2 ? edgeOffset : screenWidth - FAB_SIZE - edgeOffset;
         const finalPosition = { x: snapX, y: validPosition.y };
+        
+        console.log('螢幕寬度:', screenWidth, 'FAB大小:', FAB_SIZE);
+        console.log('左側位置:', edgeOffset, '右側位置:', screenWidth - FAB_SIZE - edgeOffset);
+        console.log('最終位置:', finalPosition);
 
         Animated.spring(pan, {
           toValue: finalPosition,
@@ -283,13 +289,24 @@ function RootLayoutNav() {
           ]}
           {...panResponder.panHandlers}
         >
-          {/* AI 大腦圖案 */}
-          <View style={styles.brainContainer}>
-            <View style={styles.brainLeft} />
-            <View style={styles.brainRight} />
+          {/* 便便圖案 */}
+          <View style={styles.poopContainer}>
+            {/* 便便主體 */}
+            <View style={styles.poopBottom} />
+            <View style={styles.poopMiddle} />
+            <View style={styles.poopTop} />
+            
+            {/* 便便的眼睛 */}
+            <View style={styles.poopEyeLeft} />
+            <View style={styles.poopEyeRight} />
+            
+            {/* 便便的嘴巴 */}
+            <View style={styles.poopMouth} />
+            
+            {/* AI 發光點 */}
             <Animated.View 
               style={[
-                styles.brainCenter,
+                styles.aiGlowDot,
                 {
                   opacity: glowAnim,
                 }
@@ -312,8 +329,8 @@ function RootLayoutNav() {
 const styles = StyleSheet.create({
   fabContainer: {
     position: 'absolute',
-    width: FAB_SIZE + 30,
-    height: FAB_SIZE + 30,
+    width: FAB_SIZE,
+    height: FAB_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -322,10 +339,10 @@ const styles = StyleSheet.create({
     width: FAB_SIZE + 20,
     height: FAB_SIZE + 20,
     borderRadius: (FAB_SIZE + 20) / 2,
-    backgroundColor: '#00D4FF',
-    shadowColor: '#00D4FF',
+    backgroundColor: '#D2B48C', // 改為淺棕色光暈
+    shadowColor: '#D2B48C',
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
+    shadowOpacity: 0.6,
     shadowRadius: 15,
     elevation: 10,
   },
@@ -334,8 +351,8 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#FFFFFF',
+    backgroundColor: '#F5E6C4', // 改為奶茶色
+    shadowColor: '#F5E6C4',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.8,
     shadowRadius: 3,
@@ -344,62 +361,99 @@ const styles = StyleSheet.create({
     width: FAB_SIZE,
     height: FAB_SIZE,
     borderRadius: FAB_SIZE / 2,
-    backgroundColor: '#667eea',
+    backgroundColor: '#8B4513', // 改為深棕色背景
     borderWidth: 3,
-    borderColor: '#00D4FF',
+    borderColor: '#D2B48C', // 改為淺棕色邊框
     alignItems: 'center',
     justifyContent: 'center',
     elevation: 8,
-    shadowColor: '#000',
+    shadowColor: '#8B4513',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
   },
-  brainContainer: {
-    width: 28,
-    height: 20,
-    marginBottom: 5,
+  poopContainer: {
+    width: 32,
+    height: 24,
+    marginBottom: 4,
+    position: 'relative',
   },
-  brainLeft: {
+  poopBottom: {
     position: 'absolute',
-    left: 0,
-    top: 2,
-    width: 12,
-    height: 14,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 6,
-    borderTopLeftRadius: 8,
-    borderBottomLeftRadius: 6,
+    left: 6,
+    bottom: 0,
+    width: 20,
+    height: 12,
+    backgroundColor: '#F5E6C4',
+    borderRadius: 10,
+    borderBottomLeftRadius: 12,
+    borderBottomRightRadius: 12,
   },
-  brainRight: {
+  poopMiddle: {
     position: 'absolute',
-    right: 0,
-    top: 2,
-    width: 12,
-    height: 14,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 6,
-    borderTopRightRadius: 8,
-    borderBottomRightRadius: 6,
+    left: 8,
+    bottom: 8,
+    width: 16,
+    height: 10,
+    backgroundColor: '#F5E6C4',
+    borderRadius: 8,
   },
-  brainCenter: {
+  poopTop: {
     position: 'absolute',
     left: 10,
-    top: 6,
-    width: 8,
+    bottom: 14,
+    width: 12,
     height: 8,
-    backgroundColor: '#00D4FF',
-    borderRadius: 4,
-    shadowColor: '#00D4FF',
+    backgroundColor: '#F5E6C4',
+    borderRadius: 6,
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+  },
+  poopEyeLeft: {
+    position: 'absolute',
+    left: 12,
+    bottom: 6,
+    width: 3,
+    height: 3,
+    backgroundColor: '#8B4513',
+    borderRadius: 1.5,
+  },
+  poopEyeRight: {
+    position: 'absolute',
+    left: 17,
+    bottom: 6,
+    width: 3,
+    height: 3,
+    backgroundColor: '#8B4513',
+    borderRadius: 1.5,
+  },
+  poopMouth: {
+    position: 'absolute',
+    left: 14,
+    bottom: 3,
+    width: 4,
+    height: 2,
+    backgroundColor: '#8B4513',
+    borderRadius: 2,
+  },
+  aiGlowDot: {
+    position: 'absolute',
+    right: 2,
+    top: 2,
+    width: 6,
+    height: 6,
+    backgroundColor: '#DEB887',
+    borderRadius: 3,
+    shadowColor: '#DEB887',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 1,
-    shadowRadius: 5,
+    shadowRadius: 4,
   },
   aiText: {
-    color: '#FFFFFF',
+    color: '#F5E6C4', // 改為奶茶色文字
     fontSize: 12,
     fontWeight: 'bold',
-    textShadowColor: '#00D4FF',
+    textShadowColor: '#DEB887', // 改為中等棕色陰影
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 5,
   },

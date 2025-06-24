@@ -2,7 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { View, StyleSheet, SafeAreaView, TouchableOpacity, Text, Alert } from 'react-native';
 import { GiftedChat, Bubble, InputToolbar, IMessage } from 'react-native-gifted-chat';
 import axios, { AxiosResponse } from 'axios';
-import { API_CONFIG } from './config'; // 引入配置
+import { API_CONFIG } from './config';
 
 interface ChatScreenProps {
   onClose: () => void;
@@ -18,23 +18,17 @@ interface ApiResponse {
   timestamp?: string;
 }
 
-// 客戶端文字格式化函數 - 添加顏色和區塊，支援多語言
+// 客戶端文字格式化函數
 const formatBotMessage = (text: string): string => {
   return text
-    // 移除多餘的星號和格式標記
     .replace(/\*\*\*/g, '')
     .replace(/\*\*/g, '')
     .replace(/\*/g, '• ')
-    
-    // 添加區塊分隔線（多語言支援）
     .replace(/^(建議|症狀|原因|注意|重要|提醒|Suggestion|Symptom|Cause|Attention|Important|Reminder|提案|症状|原因|注意|重要|思い出させる|제안|증상|원인|주의|중요|알림)/gm, '━━━ $1 ━━━')
-    
-    // 改善段落間距
     .split('\n')
     .map(line => line.trim())
     .filter(line => line.length > 0)
     .map(line => {
-      // 為重要資訊添加特殊標記（多語言關鍵詞）
       if (line.includes('建議') || line.includes('推薦') || 
           line.includes('suggest') || line.includes('recommend') || 
           line.includes('提案') || line.includes('推奨') ||
@@ -69,15 +63,9 @@ const formatBotMessage = (text: string): string => {
       return line;
     })
     .join('\n\n')
-    
-    // 確保列表項目格式正確
     .replace(/^• /gm, '• ')
     .replace(/^([0-9]+)\./gm, '$1. ')
-    
-    // 清理多餘空白
     .trim()
-    
-    // 限制連續空行
     .replace(/\n{3,}/g, '\n\n');
 };
 
@@ -90,7 +78,6 @@ const ColoredText = ({ text }: { text: string }) => {
       {lines.map((line: string, index: number) => {
         if (line.trim() === '') return null;
         
-        // 區塊分隔線
         if (line.startsWith('━━━')) {
           return (
             <View key={index} style={styles.sectionDivider}>
@@ -99,7 +86,6 @@ const ColoredText = ({ text }: { text: string }) => {
           );
         }
         
-        // 不同類型的內容使用不同顏色
         let textStyle = styles.normalText;
         let containerStyle = styles.normalContainer;
         
@@ -157,7 +143,6 @@ export default function ChatScreen({ onClose }: ChatScreenProps) {
     console.log('🚀 發送請求到:', `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.ASSISTANT}`);
     console.log('📝 問題:', question);
     
-    // 使用配置中的 URL
     axios.post<ApiResponse>(
       `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.ASSISTANT}`, 
       { question },
@@ -172,7 +157,6 @@ export default function ChatScreen({ onClose }: ChatScreenProps) {
       setIsTyping(false);
       console.log('✅ API 回應成功:', res.data);
       
-      // 格式化回應文字
       const formattedAnswer = formatBotMessage(res.data.answer);
       
       const botMessage: IMessage = {
@@ -198,7 +182,6 @@ export default function ChatScreen({ onClose }: ChatScreenProps) {
       
       let errorMessage = 'Sorry, something went wrong. Please try again later.';
       
-      // 錯誤處理
       if (error.response?.status === 429) {
         errorMessage = 'Too many requests. Please wait a moment before trying again.\n\nFree version has usage limits.';
       } else if (error.response?.status === 500) {
@@ -226,14 +209,18 @@ export default function ChatScreen({ onClose }: ChatScreenProps) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Text style={styles.headerTitle}>PooPa Health Assistant</Text>
-          <Text style={styles.subtitle}>Free AI Health Consultation</Text>
+      {/* 精緻的標題欄 - 仿造實際聊天 app */}
+      <View style={styles.headerContainer}>
+        <View style={styles.headerContent}>
+          <View style={styles.titleSection}>
+            <Text style={styles.headerTitle}>AI Health Assistant</Text>
+            <Text style={styles.subtitle}>Free Digestive Health Consultation</Text>
+          </View>
+          <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+            <Text style={styles.closeButtonText}>×</Text>
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
-          <Text style={styles.closeText}>×</Text>
-        </TouchableOpacity>
+        <View style={styles.headerSeparator} />
       </View>
       
       <GiftedChat
@@ -242,77 +229,71 @@ export default function ChatScreen({ onClose }: ChatScreenProps) {
         user={{ _id: 1 }}
         isTyping={isTyping}
         renderBubble={props => (
-          <View>
-            <Bubble
-              {...props}
-          wrapperStyle={{
+          <View style={styles.bubbleWrapper}>
+            {/* 強制左對齊容器 */}
+            {props.position === 'left' ? (
+              <View style={styles.leftMessageWrapper}>
+                <View style={styles.botMessageContainer}>
+                  {/* 機器人頭像和標題 */}
+                  <View style={styles.botHeader}>
+                    <View style={styles.botAvatarWrapper}>
+                      <Text style={styles.botAvatar}>💩</Text>
+                    </View>
+                    <View style={styles.botInfo}>
+                      <Text style={styles.botName}>PoopBot Health Assistant</Text>
+                      <Text style={styles.botTimestamp}>
+                        {new Date(props.currentMessage.createdAt).toLocaleTimeString('en-US', { 
+                          hour: '2-digit', 
+                          minute: '2-digit' 
+                        })}
+                      </Text>
+                    </View>
+                  </View>
+                  
+                  {/* 訊息內容氣泡 */}
+                  <View style={styles.botMessageBubble}>
+                    <ColoredText text={props.currentMessage.text} />
+                  </View>
+                </View>
+              </View>
+            ) : (
+              <Bubble
+                {...props}
+                wrapperStyle={{
                   right: { 
-                    backgroundColor: '#CDA581',
-                    borderRadius: 25,
+                    backgroundColor: '#8B4513',
+                    borderRadius: 18,
                     marginVertical: 2,
-                    marginHorizontal: 8,
-                    paddingHorizontal: 12,
-                    paddingVertical: 8,
-                    minWidth: 80,
-                    minHeight: 40,
+                    marginLeft: 50,
+                    marginRight: 12,
+                    paddingHorizontal: 2,
+                    paddingVertical: 2,
                     maxWidth: '75%',
-                    elevation: 2,
-                    shadowColor: '#000',
+                    minHeight: 40,
+                    elevation: 1,
+                    shadowColor: '#8B4513',
                     shadowOffset: { width: 0, height: 1 },
-                    shadowOpacity: 0.15,
+                    shadowOpacity: 0.1,
                     shadowRadius: 2,
                   },
-                left: { 
-                  backgroundColor: 'transparent',
-                  borderRadius: 0,
-                  marginVertical: 4,
-                },
-              }}
-          textStyle={{
-                  right: { 
-                    color: '#fff',
-                    fontSize: 16,
-                    lineHeight: 24,
-                    fontWeight: '500',
-                    textAlign: 'center',    // ★ 這裡讓文字水平置中
-                  },
-                  left: { /* ... */ },
                 }}
-              containerStyle={{
-                right: {
-                  marginBottom: 4, // 為時間留出空間
-                }
-              }}
-              renderMessageText={props => {
-                if (props.position === 'left') {
-                  return (
-                    <View style={styles.aiMessageWrapper}>
-                      <View style={styles.aiMessageHeader}>
-                        <Text style={styles.aiMessageHeaderText}>💩 PoopBot Health Assistant</Text>
-                        <Text style={styles.timestampText}>
-                          {new Date(props.currentMessage.createdAt).toLocaleTimeString('en-US', { 
-                            hour: '2-digit', 
-                            minute: '2-digit' 
-                          })}
-                        </Text>
-                      </View>
-                      <View style={styles.aiMessageContent}>
-                        <ColoredText text={props.currentMessage.text} />
-                      </View>
-                    </View>
-                  );
-                }
-                return (
-                  <Text style={props.textStyle?.right || {}}>
-                    {props.currentMessage.text}
-                  </Text>
-                );
-              }}
-              renderTime={() => null} // 隱藏默認時間
-            />
-            {/* 用戶訊息的自定義時間顯示 */}
+                textStyle={{
+                  right: { 
+                    color: '#FFFFFF',
+                    fontSize: 16,
+                    lineHeight: 20,
+                    fontWeight: '400',
+                    paddingHorizontal: 12,
+                    paddingVertical: 8,
+                  },
+                }}
+                renderTime={() => null}
+              />
+            )}
+            
+            {/* 用戶訊息時間標籤 */}
             {props.position === 'right' && (
-              <View style={styles.userTimeContainer}>
+              <View style={styles.userTimeWrapper}>
                 <Text style={styles.userTimeText}>
                   {new Date(props.currentMessage.createdAt).toLocaleTimeString('zh-TW', { 
                     hour: '2-digit', 
@@ -324,11 +305,21 @@ export default function ChatScreen({ onClose }: ChatScreenProps) {
           </View>
         )}
         renderInputToolbar={props => (
-          <InputToolbar 
-            {...props} 
-            containerStyle={styles.inputToolbar}
-            primaryStyle={styles.inputPrimary}
-          />
+          <View style={styles.inputContainer}>
+            <InputToolbar 
+              {...props} 
+              containerStyle={styles.inputToolbar}
+              primaryStyle={styles.inputPrimary}
+              renderSend={sendProps => (
+                <TouchableOpacity 
+                  style={styles.sendButton}
+                  onPress={() => sendProps.onSend && sendProps.onSend({ text: sendProps.text?.trim() || '' }, true)}
+                >
+                  <Text style={styles.sendButtonText}>Send</Text>
+                </TouchableOpacity>
+              )}
+            />
+          </View>
         )}
         placeholder="Ask me about your digestive health..."
         showAvatarForEveryMessage={false}
@@ -338,8 +329,20 @@ export default function ChatScreen({ onClose }: ChatScreenProps) {
         messagesContainerStyle={styles.messagesContainer}
         bottomOffset={0}
         keyboardShouldPersistTaps="never"
-        minInputToolbarHeight={64}
-        renderTime={() => null} // 隱藏默認時間，使用自定義時間
+        minInputToolbarHeight={60}
+        renderTime={() => null}
+        // 添加正在輸入指示器
+        renderTypingIndicator={() => (
+          <View style={styles.typingContainer}>
+            <View style={styles.typingBubble}>
+              <View style={styles.typingDots}>
+                <View style={[styles.typingDot, styles.typingDot1]} />
+                <View style={[styles.typingDot, styles.typingDot2]} />
+                <View style={[styles.typingDot, styles.typingDot3]} />
+              </View>
+            </View>
+          </View>
+        )}
       />
     </SafeAreaView>
   );
@@ -348,138 +351,272 @@ export default function ChatScreen({ onClose }: ChatScreenProps) {
 const styles = StyleSheet.create({
   container: { 
     flex: 1, 
-    backgroundColor: '#f5f5f5' 
+    backgroundColor: '#F5E6C4',
   },
-  header: {
-    width: '100%',
+  
+  // 精緻的標題欄設計
+  headerContainer: {
+    backgroundColor: '#F5E6C4',
+  },
+  headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: 10,
-    paddingHorizontal: 15,
-    paddingBottom: 12,
-    backgroundColor: '#f8f8f8',
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-    zIndex: 2,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
-  headerLeft: {
+  titleSection: {
     flex: 1,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 20,
+    fontWeight: '600',
     color: '#8B4513',
     marginBottom: 2,
   },
   subtitle: {
-    fontSize: 12,
-    color: '#666',
+    fontSize: 13,
+    color: '#A67C52',
     fontWeight: '400',
   },
-  closeBtn: {
+  closeButton: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#999',
+    backgroundColor: '#8B4513',
     justifyContent: 'center',
     alignItems: 'center',
-    marginLeft: 10,
+    elevation: 2,
+    shadowColor: '#8B4513',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
   },
-  closeText: { 
-    color: '#fff', 
-    fontSize: 24, 
-    lineHeight: 24,
+  closeButtonText: { 
+    color: '#FFFFFF', 
+    fontSize: 20, 
+    lineHeight: 20,
     fontWeight: '300',
   },
-  messagesContainer: {
-    paddingHorizontal: 4,
-    paddingBottom: 20,
-    backgroundColor: '#f5f5f5',
-  },
-  inputToolbar: {
-    borderTopWidth: 1,
-    borderTopColor: '#DDD',
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    backgroundColor: '#fff',
-    minHeight: 64,
-  },
-  inputPrimary: {
-    alignItems: 'center',
-    paddingVertical: 4,
+  headerSeparator: {
+    height: 0.5,
+    backgroundColor: '#E0D0B0',
+    marginHorizontal: 16,
   },
   
-  // AI 訊息樣式 - 確保不被截斷
-  aiMessageWrapper: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    marginVertical: 2,
-    marginHorizontal: 4,
-    marginBottom: 8,
-    width: '100%', // 確保寬度足夠
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+  // 訊息容器
+  messagesContainer: {
+    paddingHorizontal: 0, // 移除水平間距
+    paddingVertical: 8,
+    backgroundColor: '#F5E6C4',
   },
-  aiMessageHeader: {
-    backgroundColor: '#4A90E2',
-    paddingVertical: 10,
-    paddingHorizontal: 15,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
+  
+  bubbleWrapper: {
+    marginVertical: 1,
+    width: '100%', // 確保容器佔滿寬度
+  },
+  
+  // 強制左對齊的包裝器
+  leftMessageWrapper: {
+    width: '100%',
+    alignItems: 'flex-start', // 強制內容靠左
+    paddingLeft: 0, // 移除左邊距
+    paddingRight: 60, // 右邊留空間給用戶訊息
+  },
+  
+  // 機器人訊息設計 - 更像真實聊天 app
+  botMessageContainer: {
+    backgroundColor: 'transparent',
+    marginVertical: 4,
+    marginLeft: 4, // 減少左邊距
+    width: 'auto', // 自動寬度
+    maxWidth: '90%', // 增加最大寬度
+  },
+  
+  botHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 6,
+    paddingHorizontal: 0,
   },
-  aiMessageHeaderText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
+  
+  botAvatarWrapper: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: '#E0D0B0',
+  },
+  
+  botAvatar: {
+    fontSize: 16,
+  },
+  
+  botInfo: {
     flex: 1,
   },
-  timestampText: {
-    fontSize: 11,
-    color: '#E3F2FD',
-    marginLeft: 10,
+  
+  botName: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#8B4513',
+    marginBottom: 1,
   },
-  aiMessageContent: {
-    padding: 15,
-    width: '100%', // 確保內容寬度足夠
+  
+  botTimestamp: {
+    fontSize: 11,
+    color: '#A67C52',
+    fontWeight: '400',
+  },
+  
+  // 機器人訊息氣泡
+  botMessageBubble: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    borderTopLeftRadius: 4, // 左上角小圓角，模仿聊天氣泡
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginLeft: 32, // 減少左邊距，更靠近頭像
+    elevation: 1,
+    shadowColor: '#8B4513',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    borderWidth: 0.5,
+    borderColor: '#F0E6D2',
+  },
+  
+  // 用戶時間顯示
+  userTimeWrapper: {
+    alignItems: 'flex-end',
+    marginTop: 2,
+    marginRight: 16,
+    marginBottom: 4,
+  },
+  
+  userTimeText: {
+    fontSize: 11,
+    color: '#A67C52',
+    fontWeight: '400',
+  },
+  
+  // 精緻的輸入欄設計
+  inputContainer: {
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 0.5,
+    borderTopColor: '#E0D0B0',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  
+  inputToolbar: {
+    backgroundColor: 'transparent',
+    borderTopWidth: 0,
+    paddingVertical: 4,
+    minHeight: 44,
+  },
+  
+  inputPrimary: {
+    alignItems: 'center',
+    flexDirection: 'row',
+  },
+  
+  sendButton: {
+    backgroundColor: '#8B4513',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    marginLeft: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    minWidth: 60,
+  },
+  
+  sendButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  
+  // 正在輸入指示器
+  typingContainer: {
+    paddingHorizontal: 4, // 減少左邊距
+    paddingVertical: 8,
+    alignItems: 'flex-start',
+  },
+  
+  typingBubble: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    borderTopLeftRadius: 4,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginLeft: 32, // 與訊息氣泡對齊
+    elevation: 1,
+    shadowColor: '#8B4513',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+  },
+  
+  typingDots: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  
+  typingDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#A67C52',
+    marginHorizontal: 2,
+  },
+  
+  typingDot1: {
+    // 可以加動畫
+  },
+  
+  typingDot2: {
+    // 可以加動畫延遲
+  },
+  
+  typingDot3: {
+    // 可以加動畫延遲
   },
   
   // 彩色文字容器
   coloredTextContainer: {
-    width: '100%', // 確保容器寬度足夠
-  },
-  
-  // 區塊分隔樣式
-  sectionDivider: {
-    backgroundColor: '#E8EAF6',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    marginVertical: 8,
-    borderRadius: 8,
-    alignItems: 'center',
     width: '100%',
   },
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#3F51B5',
-  },
   
-  // 不同類型內容的樣式
+  // 調整內容樣式
   normalContainer: {
-    marginVertical: 3,
-    width: '100%',
+    marginVertical: 2,
   },
   normalText: {
     fontSize: 15,
-    lineHeight: 24,
-    color: '#333',
+    lineHeight: 22,
+    color: '#2C2C2C',
+  },
+  
+  sectionDivider: {
+    backgroundColor: '#F8F5F0',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    marginVertical: 6,
+    borderRadius: 6,
+    alignItems: 'center',
+    borderWidth: 0.5,
+    borderColor: '#E8DCC0',
+  },
+  sectionTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#8B4513',
   },
   
   suggestionContainer: {
@@ -487,29 +624,27 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 8,
     marginVertical: 3,
-    borderLeftWidth: 4,
+    borderLeftWidth: 3,
     borderLeftColor: '#4CAF50',
-    width: '100%',
   },
   suggestionText: {
-    fontSize: 15,
-    lineHeight: 24,
+    fontSize: 14,
+    lineHeight: 22,
     color: '#2E7D32',
     fontWeight: '500',
   },
   
   warningContainer: {
-    backgroundColor: '#FFF3E0',
+    backgroundColor: '#FFF8E1',
     padding: 10,
     borderRadius: 8,
     marginVertical: 3,
-    borderLeftWidth: 4,
-    borderLeftColor: '#FF9800',
-    width: '100%',
+    borderLeftWidth: 3,
+    borderLeftColor: '#FF8F00',
   },
   warningText: {
-    fontSize: 15,
-    lineHeight: 24,
+    fontSize: 14,
+    lineHeight: 22,
     color: '#E65100',
     fontWeight: '500',
   },
@@ -519,13 +654,12 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 8,
     marginVertical: 3,
-    borderLeftWidth: 4,
-    borderLeftColor: '#9C27B0',
-    width: '100%',
+    borderLeftWidth: 3,
+    borderLeftColor: '#8E24AA',
   },
   symptomText: {
-    fontSize: 15,
-    lineHeight: 24,
+    fontSize: 14,
+    lineHeight: 22,
     color: '#6A1B9A',
   },
   
@@ -534,13 +668,12 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 8,
     marginVertical: 3,
-    borderLeftWidth: 4,
+    borderLeftWidth: 3,
     borderLeftColor: '#8BC34A',
-    width: '100%',
   },
   foodText: {
-    fontSize: 15,
-    lineHeight: 24,
+    fontSize: 14,
+    lineHeight: 22,
     color: '#558B2F',
   },
   
@@ -549,13 +682,12 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 8,
     marginVertical: 3,
-    borderLeftWidth: 4,
-    borderLeftColor: '#2196F3',
-    width: '100%',
+    borderLeftWidth: 3,
+    borderLeftColor: '#42A5F5',
   },
   exerciseText: {
-    fontSize: 15,
-    lineHeight: 24,
+    fontSize: 14,
+    lineHeight: 22,
     color: '#1565C0',
   },
   
@@ -564,40 +696,27 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 8,
     marginVertical: 3,
-    borderLeftWidth: 4,
-    borderLeftColor: '#00BCD4',
-    width: '100%',
+    borderLeftWidth: 3,
+    borderLeftColor: '#26C6DA',
   },
   waterText: {
-    fontSize: 15,
-    lineHeight: 24,
+    fontSize: 14,
+    lineHeight: 22,
     color: '#00838F',
   },
   
   listContainer: {
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#F8F5F0',
     padding: 8,
     borderRadius: 6,
     marginVertical: 2,
     marginLeft: 10,
-    width: '100%',
+    borderLeftWidth: 2,
+    borderLeftColor: '#D7CCC8',
   },
   listText: {
-    fontSize: 14,
-    lineHeight: 22,
-    color: '#555',
-  },
-  
-  // 用戶時間樣式
-  userTimeContainer: {
-    alignItems: 'flex-end',
-    marginTop: 2,
-    marginRight: 12,
-    marginBottom: 8,
-  },
-  userTimeText: {
-    fontSize: 12,
-    color: '#999', // 調整時間文字顏色以配合淺奶茶色主題
-    fontWeight: '400',
+    fontSize: 13,
+    lineHeight: 20,
+    color: '#5D4E37',
   },
 });
