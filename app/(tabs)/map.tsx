@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform, Dimensions, Alert, Modal, TextInput, ScrollView, Image, Share, KeyboardAvoidingView } from 'react-native';
+import React, { useState, useEffect, useRef,useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Platform, Dimensions, Alert, Modal, TextInput, ScrollView, Image, Share, KeyboardAvoidingView, Linking} from 'react-native';
 import Colors from '@/constants/colors';
 import { MapPin, Navigation, Compass, List, Heart, Camera, Calendar, Trophy, Route, MessageCircle, Star, Upload, Mic, MicOff, Share2, Eye, EyeOff, Filter, ChevronDown, ChevronUp } from 'lucide-react-native';
 import MapView, { Marker, Polyline } from 'react-native-maps';
@@ -480,8 +480,8 @@ export default function MapScreen() {
           note: '超順暢的早上',
           quickTag: 'Cafe',
           rating: 4,
-          image: null,
-          audioUri: null,
+          image: undefined,
+          audioUri: undefined,
           location: {
             lat: mockBathrooms[0].latitude,
             lng: mockBathrooms[0].longitude,
@@ -500,8 +500,8 @@ export default function MapScreen() {
           note: '有點急的狀況',
           quickTag: 'Mall',
           rating: 3,
-          image: null,
-          audioUri: null,
+          image: undefined,
+          audioUri: undefined,
           location: {
             lat: mockBathrooms[1].latitude,
             lng: mockBathrooms[1].longitude,
@@ -520,8 +520,8 @@ export default function MapScreen() {
           note: '安靜舒適',
           quickTag: 'Library',
           rating: 5,
-          image: null,
-          audioUri: null,
+          image: undefined,
+          audioUri: undefined,
           location: {
             lat: mockBathrooms[2].latitude,
             lng: mockBathrooms[2].longitude,
@@ -540,8 +540,8 @@ export default function MapScreen() {
           note: '卡住很久...',
           quickTag: 'Airport',
           rating: 2,
-          image: null,
-          audioUri: null,
+          image: undefined,
+          audioUri: undefined,
           location: {
             lat: internationalBathrooms[0].latitude,
             lng: internationalBathrooms[0].longitude,
@@ -560,8 +560,8 @@ export default function MapScreen() {
           note: '可能水土不服',
           quickTag: 'Tourist',
           rating: 3,
-          image: null,
-          audioUri: null,
+          image: undefined,
+          audioUri: undefined,
           location: {
             lat: internationalBathrooms[1].latitude,
             lng: internationalBathrooms[1].longitude,
@@ -751,8 +751,8 @@ export default function MapScreen() {
       note: checkInNote,
       quickTag: checkInQuickTag,
       rating: checkInRating,
-      image: checkInImage,
-      audioUri: checkInAudio,
+      image: checkInImage || undefined,
+      audioUri: checkInAudio || undefined,
       location: {
         lat: selectedBathroom.latitude,
         lng: selectedBathroom.longitude,
@@ -980,7 +980,6 @@ export default function MapScreen() {
         console.log('📍 獲取當前位置...');
         const currentLocation = await Location.getCurrentPositionAsync({
           accuracy: Location.Accuracy.Balanced,
-          timeout: 8000,
           maximumAge: 30000,
         });
         
@@ -1055,10 +1054,14 @@ export default function MapScreen() {
         
       } catch (error) {
         console.error('❌ 位置獲取失敗：', error);
-        if (error.code === 'LOCATION_REQUEST_TIMEOUT') {
-          setErrorMsg('Location request timed out. Please try again.');
-        } else if (error.code === 'LOCATION_UNAVAILABLE') {
-          setErrorMsg('Location services are not available.');
+        if (error && typeof error === 'object' && 'code' in error) {
+          if (error.code === 'LOCATION_REQUEST_TIMEOUT') {
+            setErrorMsg('Location request timed out. Please try again.');
+          } else if (error.code === 'LOCATION_UNAVAILABLE') {
+            setErrorMsg('Location services are not available.');
+          } else {
+            setErrorMsg('Could not get your location. Please check your GPS settings.');
+          }
         } else {
           setErrorMsg('Could not get your location. Please check your GPS settings.');
         }
@@ -1101,7 +1104,6 @@ export default function MapScreen() {
     try {
       const currentLocation = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.High,
-        timeout: 10000,
         maximumAge: 5000,
       });
       
@@ -1137,15 +1139,45 @@ export default function MapScreen() {
     );
   };
 
-  const handleNavigate = (bathroom: Bathroom) => {
-    Alert.alert('Navigate to Bathroom', `Would you like to get directions to ${bathroom.name}?`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Yes',
-        onPress: () => Alert.alert('Navigation', `Navigating to ${bathroom.name}`),
-      },
-    ]);
-  };
+const handleNavigate = (bathroom: Bathroom) => {
+  Alert.alert('Navigate to Bathroom', `Would you like to get directions to ${bathroom.name}?`, [
+    { text: 'Cancel', style: 'cancel' },
+    {
+      text: 'Yes',
+      onPress: () => openMaps(bathroom),
+    },
+  ]);
+};
+
+const openMaps = (bathroom: Bathroom) => {
+  // 假設 bathroom 物件有 latitude 和 longitude 屬性
+  const { latitude, longitude, name } = bathroom;
+  
+  let url = '';
+  
+  if (Platform.OS === 'ios') {
+    // iOS 使用 Apple Maps
+    url = `maps:${latitude},${longitude}?q=${encodeURIComponent(name)}`;
+  } else {
+    // Android 使用 Google Maps
+    url = `geo:${latitude},${longitude}?q=${latitude},${longitude}(${encodeURIComponent(name)})`;
+  }
+  
+  Linking.canOpenURL(url)
+    .then((supported) => {
+      if (supported) {
+        return Linking.openURL(url);
+      } else {
+        // 如果內建地圖不支援，使用 Google Maps 網頁版
+        const webUrl = `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
+        return Linking.openURL(webUrl);
+      }
+    })
+    .catch((err) => {
+      console.error('An error occurred opening maps:', err);
+      Alert.alert('Error', 'Unable to open maps');
+    });
+};
 
   // Handle check-in button
   const handleCheckIn = (bathroom: Bathroom | null | undefined) => {
@@ -1160,24 +1192,21 @@ export default function MapScreen() {
     setShowCheckInModal(true);
   };
   // 選擇心情 emoji
-const handleMoodSelect = (emoji: string) => {
+const handleMoodSelect = useCallback((emoji: string) => {
   setCheckInMood(emoji);
-};
+}, []);
 
-// 選擇場景 tag
-const handleTagSelect = (tag: string) => {
+const handleTagSelect = useCallback((tag: string) => {
   setCheckInQuickTag(tag);
-};
+}, []);
 
-// 選擇 Bristol Scale 型態
-const handleBristolSelect = (type: number) => {
+const handleBristolSelect = useCallback((type: number) => {
   setCheckInBristolType(type);
-};
+}, []);
 
-// 選擇舒適度評分
-const handleRatingSelect = (star: number) => {
-  setCheckInRating(star);
-};
+const handleRatingSelect = useCallback((rating: number) => {
+  setCheckInRating(rating);
+}, []);
 
   // Handle review button
   const handleReview = (bathroom: Bathroom) => {
@@ -1236,6 +1265,7 @@ const handleRatingSelect = (star: number) => {
             <TextInput
               style={styles.noteInput}
               placeholder="Share your thoughts about this bathroom..."
+              placeholderTextColor="#666666"
               value={reviewText}
               onChangeText={setReviewText}
               multiline
@@ -1420,7 +1450,7 @@ const handleRatingSelect = (star: number) => {
             >
               <Compass size={24} color={location ? Colors.primary.accent : Colors.primary.lightText} />
             </TouchableOpacity>
-            
+              </View>
             {/* Show bathroom statistics */}
             <View style={styles.locationStatus}>
               <Text style={styles.locationStatusText}>
@@ -1439,7 +1469,7 @@ const handleRatingSelect = (star: number) => {
                 </Text>
               )}
             </View>
-          </View>
+        
 
           {selectedBathroom && (
             <View style={styles.bathroomDetailCard}>
@@ -1971,8 +2001,9 @@ const CheckInModal = () => {
     <Modal
       visible={showCheckInModal}
       animationType="slide"
-      transparent={true}
+      presentationStyle="pageSheet"
       onRequestClose={() => setShowCheckInModal(false)}
+      statusBarTranslucent={false} // 防止狀態欄影響
     >
       <View style={styles.modalOverlay} onStartShouldSetResponder={() => true}>
         <View style={styles.modalContainer}>
@@ -1989,14 +2020,25 @@ const CheckInModal = () => {
               </TouchableOpacity>
             </View>
           ) : isModalStable ? (
-            <KeyboardAvoidingView
-              behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            <KeyboardAvoidingView 
               style={{ flex: 1 }}
+              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+              keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
             >
               <ScrollView 
-                style={styles.modalContent} 
-                showsVerticalScrollIndicator={false}
-                keyboardShouldPersistTaps="handled" // 重要：防止鍵盤影響
+                  style={styles.modalContent} 
+                  contentContainerStyle={{ paddingBottom: 50 }} // 新增這個
+                  showsVerticalScrollIndicator={false}
+                  keyboardShouldPersistTaps="handled"
+                  nestedScrollEnabled={false}
+                  bounces={false} // 這個很重要！
+                  overScrollMode="never"
+                  scrollEventThrottle={16}
+                  keyboardDismissMode="none" // 改成 none
+                  maintainVisibleContentPosition={{ // 新增這個
+                    minIndexForVisible: 0,
+                  }}
+                  removeClippedSubviews={false} // 新增這個
               >
                 <Text style={styles.modalTitle}>
                   Check in at {selectedBathroom.name} 🚽
@@ -2331,6 +2373,10 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   locationStatus: {
+    position: 'absolute', // 加上這個
+    top: 60,           // 定位在底部
+    //left: 20,            // 左邊距
+    right: 20,           // 右邊距
     backgroundColor: '#FFFFFF',
     padding: 8,
     borderRadius: 16,
