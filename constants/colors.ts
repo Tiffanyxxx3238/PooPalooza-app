@@ -11,5 +11,10 @@ export default {
     success: "#4CAF50", // Success color
     warning: "#FFC107", // Warning color
     error: "#F44336", // Error color
+    chart: {
+      line: "#8b5a2b",
+      grid: "#e6d7b8",
+      dot: "#a67c52",
+    }
   }
 };

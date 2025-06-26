@@ -4,6 +4,61 @@ import { usePoopStore } from '@/store/poopStore';
 import Colors from '@/constants/colors';
 import { poopTypes, poopVolumes, poopFeelings, poopColors } from '@/constants/poopTypes';
 import { getWeekRange, getMonthRange } from '@/utils/dateUtils';
+import { TrendingUp } from 'lucide-react-native'; // Add this import
+
+// New component for Line Chart
+const LineChart = ({ data, title }: { data: any[], title: string }) => {
+  const maxValue = Math.max(...data.map(d => d.value), 1);
+  
+  return (
+    <View style={styles.chartWrapper}>
+      <Text style={styles.chartTitle}>{title}</Text>
+      <View style={styles.lineChartContainer}>
+        {data.map((item, index) => (
+          <View key={index} style={styles.lineChartItem}>
+            <View style={styles.barContainer}>
+              <View 
+                style={[
+                  styles.lineBar, 
+                  { 
+                    height: `${(item.value / maxValue) * 100}%`,
+                    backgroundColor: item.value >= 7 ? '#4caf50' : item.value >= 4 ? '#ff9800' : '#f44336',
+                  }
+                ]} 
+              />
+            </View>
+            <Text style={styles.lineChartLabel}>{item.day}</Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+};
+
+// New component for Analysis Card
+const AnalysisCard = ({ title, description, icon }: { title: string, description: string, icon: React.ReactNode }) => {
+  return (
+    <View style={styles.analysisCard}>
+      <View style={styles.analysisHeader}>
+        {icon}
+        <Text style={styles.analysisTitle}>{title}</Text>
+      </View>
+      <Text style={styles.analysisDescription}>{description}</Text>
+    </View>
+  );
+};
+
+// New component for Recommendation Card
+const RecommendationCard = ({ title, recommendations }: { title: string, recommendations: string[] }) => {
+  return (
+    <View style={styles.recommendationCard}>
+      <Text style={styles.recommendationTitle}>{title}</Text>
+      {recommendations.map((rec, index) => (
+        <Text key={index} style={styles.recommendationItem}>• {rec}</Text>
+      ))}
+    </View>
+  );
+};
 
 export default function StatsScreen() {
   const { entries } = usePoopStore();
@@ -34,7 +89,140 @@ export default function StatsScreen() {
     }
   };
   
-  // Calculate statistics
+  // Generate weekly bowel health data
+  const generateWeeklyBowelData = () => {
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const now = new Date();
+    const { startDate } = getWeekRange(now);
+    
+    return days.map((day, index) => {
+      const dayDate = new Date(startDate);
+      dayDate.setDate(startDate.getDate() + index);
+      
+      const dayEntries = filteredEntries.filter(entry => {
+        const entryDate = new Date(entry.date);
+        return entryDate.toDateString() === dayDate.toDateString();
+      });
+      
+      // Calculate health score based on Bristol Stool Scale and other factors
+      let healthScore = 5; // Default neutral score
+      
+      if (dayEntries.length > 0) {
+        const avgType = dayEntries.reduce((sum, entry) => sum + entry.type, 0) / dayEntries.length;
+        const avgFeeling = dayEntries.reduce((sum, entry) => sum + entry.feeling, 0) / dayEntries.length;
+        
+        // Bristol Stool Scale scoring (types 3-4 are ideal)
+        if (avgType >= 3 && avgType <= 4) {
+          healthScore = 8;
+        } else if (avgType >= 2 && avgType <= 5) {
+          healthScore = 6;
+        } else {
+          healthScore = 3;
+        }
+        
+        // Adjust based on feeling
+        if (avgFeeling >= 4) {
+          healthScore = Math.min(10, healthScore + 1);
+        } else if (avgFeeling <= 2) {
+          healthScore = Math.max(1, healthScore - 2);
+        }
+        
+        // Frequency adjustment
+        if (dayEntries.length >= 1 && dayEntries.length <= 3) {
+          healthScore = Math.min(10, healthScore + 1);
+        } else if (dayEntries.length > 3) {
+          healthScore = Math.max(1, healthScore - 1);
+        }
+      }
+      
+      return {
+        day,
+        value: Math.round(healthScore),
+        date: dayDate.toISOString(),
+      };
+    });
+  };
+  
+  // Generate health analysis
+  const generateHealthAnalysis = () => {
+    if (filteredEntries.length === 0) {
+      return {
+        title: "Start Your Health Journey",
+        description: "Begin tracking your bowel movements to receive personalized health insights and recommendations."
+      };
+    }
+    
+    const avgType = filteredEntries.reduce((sum, entry) => sum + entry.type, 0) / filteredEntries.length;
+    const weeklyData = generateWeeklyBowelData();
+    const avgHealthScore = weeklyData.reduce((sum, day) => sum + day.value, 0) / weeklyData.length;
+    
+    let title = "Good Health Trend";
+    let description = "Your bowel health is looking good this week.";
+    
+    if (avgHealthScore >= 7) {
+      title = "Excellent Health Trend";
+      description = "Your bowel health is excellent this week! Your digestive system appears to be functioning optimally with regular, well-formed stools.";
+    } else if (avgHealthScore >= 5) {
+      title = "Good Health Trend";
+      description = "Your bowel health is generally good this week. There may be some minor variations, but overall your digestive health is on track.";
+    } else {
+      title = "Needs Attention";
+      description = "Your bowel health could use some attention this week. Consider reviewing your diet, hydration, and stress levels.";
+    }
+    
+    return { title, description };
+  };
+  
+  // Generate diet recommendations
+  const generateDietRecommendations = () => {
+    if (filteredEntries.length === 0) {
+      return {
+        title: "General Digestive Health Tips",
+        recommendations: [
+          "Drink plenty of water throughout the day",
+          "Include fiber-rich foods like fruits and vegetables",
+          "Maintain regular meal times",
+          "Consider probiotic foods like yogurt"
+        ]
+      };
+    }
+    
+    const avgType = filteredEntries.reduce((sum, entry) => sum + entry.type, 0) / filteredEntries.length;
+    const hardStools = filteredEntries.filter(entry => entry.type <= 2).length;
+    const looseStools = filteredEntries.filter(entry => entry.type >= 6).length;
+    
+    let recommendations = [];
+    
+    if (hardStools > looseStools) {
+      recommendations = [
+        "Increase fiber intake with whole grains and vegetables",
+        "Drink more water throughout the day",
+        "Add healthy fats like avocados and nuts",
+        "Consider prunes or other natural laxatives"
+      ];
+    } else if (looseStools > hardStools) {
+      recommendations = [
+        "Reduce caffeine and spicy foods",
+        "Include binding foods like bananas and rice",
+        "Stay hydrated but avoid excessive fluids with meals",
+        "Consider probiotics to support gut health"
+      ];
+    } else {
+      recommendations = [
+        "Maintain your current balanced diet",
+        "Continue regular hydration habits",
+        "Include diverse fiber sources",
+        "Keep up with regular meal timing"
+      ];
+    }
+    
+    return {
+      title: "Personalized Dietary Recommendations",
+      recommendations
+    };
+  };
+  
+  // Calculate statistics (existing functions)
   const calculateTypeStats = () => {
     const typeCounts = poopTypes.map(type => ({
       id: type.id,
@@ -119,6 +307,10 @@ export default function StatsScreen() {
   const avgDuration = calculateAverageDuration();
   const frequency = calculateFrequency();
   
+  const weeklyBowelData = generateWeeklyBowelData();
+  const healthAnalysis = generateHealthAnalysis();
+  const dietRecommendations = generateDietRecommendations();
+  
   const formatDuration = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = seconds % 60;
@@ -167,6 +359,39 @@ export default function StatsScreen() {
           All Time
         </Text>
       </View>
+      
+      {/* Weekly Health Report - Only show when "This Week" is selected */}
+      {timeRange === 'week' && (
+        <>
+          <View style={styles.healthReportHeader}>
+            <Text style={styles.healthReportTitle}>Weekly Health Report</Text>
+          </View>
+          
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Weekly Bowel Health</Text>
+            <View style={styles.card}>
+              <LineChart data={weeklyBowelData} title="Bowel Health Score (1-10)" />
+            </View>
+          </View>
+          
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Analysis</Text>
+            <AnalysisCard
+              title={healthAnalysis.title}
+              description={healthAnalysis.description}
+              icon={<TrendingUp size={20} color="#4caf50" />}
+            />
+          </View>
+          
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Dietary Recommendations</Text>
+            <RecommendationCard
+              title={dietRecommendations.title}
+              recommendations={dietRecommendations.recommendations}
+            />
+          </View>
+        </>
+      )}
       
       <View style={styles.summaryContainer}>
         <View style={styles.summaryItem}>
@@ -297,6 +522,8 @@ export default function StatsScreen() {
           )}
         </Text>
       </View>
+      
+      <View style={styles.bottomSpacer} />
     </ScrollView>
   );
 }
@@ -337,6 +564,104 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: 'bold',
   },
+  
+  // New styles for Weekly Health Report
+  healthReportHeader: {
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.primary.card,
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  healthReportTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: Colors.primary.text,
+  },
+  section: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: Colors.primary.text,
+    marginBottom: 12,
+  },
+  card: {
+    backgroundColor: Colors.primary.card,
+    borderRadius: 16,
+    padding: 16,
+  },
+  
+  // Line Chart Styles
+  chartWrapper: {
+    marginBottom: 16,
+  },
+  lineChartContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+    height: 120,
+    marginTop: 12,
+  },
+  lineChartItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  lineBar: {
+    width: 20,
+    minHeight: 4,
+    borderRadius: 2,
+    marginBottom: 8,
+  },
+  lineChartLabel: {
+    fontSize: 12,
+    color: Colors.primary.lightText,
+  },
+  
+  // Analysis Card Styles
+  analysisCard: {
+    backgroundColor: Colors.primary.card,
+    borderRadius: 16,
+    padding: 16,
+  },
+  analysisHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  analysisTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.primary.text,
+    marginLeft: 8,
+  },
+  analysisDescription: {
+    fontSize: 14,
+    color: Colors.primary.text,
+    lineHeight: 20,
+  },
+  
+  // Recommendation Card Styles
+  recommendationCard: {
+    backgroundColor: Colors.primary.card,
+    borderRadius: 16,
+    padding: 16,
+  },
+  recommendationTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.primary.text,
+    marginBottom: 12,
+  },
+  recommendationItem: {
+    fontSize: 14,
+    color: Colors.primary.text,
+    lineHeight: 20,
+    marginBottom: 8,
+  },
+  
+  // Existing styles
   summaryContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -424,5 +749,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.primary.text,
     lineHeight: 20,
+  },
+  bottomSpacer: {
+    height: 60,
   },
 });
