@@ -31,6 +31,7 @@ import Taitung from '@/assets/public_bathroom/Taitung.json';
 import Taoyuan from '@/assets/public_bathroom/Taoyuan.json';
 import Yilan from '@/assets/public_bathroom/Yilan.json';
 import Yunlin from '@/assets/public_bathroom/Yunlin.json';
+import changGungData from '@/assets/public_bathroom/CGU.json';
 
 // Define bathroom type
 interface Bathroom {
@@ -918,6 +919,32 @@ export default function MapScreen() {
       .filter(bathroom => bathroom.distance <= 0.5) // 500公尺內
       .sort((a, b) => a.distance - b.distance); // 按距離排序
   };
+  const convertChangGungData = (jsonData) => {
+  return jsonData.map((toilet) => ({
+    id: toilet.id,
+    name: toilet.name,
+    distance: 0, // 會在後續計算
+    rating: Math.round((Math.random() * 1.5 + 3.5) * 10) / 10, // 3.5-5.0 隨機評分
+    type: toilet.type,
+    address: toilet.address,
+    latitude: toilet.latitude,
+    longitude: toilet.longitude,
+    source: 'gov', // 大學廁所歸類為政府設施
+    reviews: [],
+    funnyQuote: FUNNY_QUOTES[Math.floor(Math.random() * FUNNY_QUOTES.length)],
+    
+    // 大學廁所特有屬性
+    university: '長庚大學',
+    building: toilet.building,
+    campusArea: toilet.campus_area,
+    needCard: toilet.needCard,
+    floors: toilet.floors,
+    locationDetail: toilet.location_detail || '',
+    side: toilet.side || '',
+    price: toilet.price,
+    originalDescription: toilet.description,
+  }));
+};
 
   // Filter nearby bathrooms when location is obtained
   useEffect(() => {
@@ -953,9 +980,18 @@ export default function MapScreen() {
     console.log('🚀 初始化應用資料');
     loadCheckInRecords();
     loadAchievements();
-    
-    // 先載入 mock 資料和國際資料
-    setAllBathrooms([...mockBathrooms, ...internationalBathrooms]);
+      // 轉換長庚大學廁所資料
+  const changGungBathrooms = convertChangGungData(changGungData);
+  console.log(`🏫 載入長庚大學廁所：${changGungBathrooms.length} 個`);
+    // 載入所有廁所資料（包含長庚大學）
+  const allBathroomsData = [
+    ...mockBathrooms,
+    ...changGungBathrooms,        // 👈 新增這一行
+    ...internationalBathrooms
+  ];
+  
+  setAllBathrooms(allBathroomsData);
+  console.log(`📊 總計載入：${allBathroomsData.length} 個廁所`);
   }, []);
 
   // Get location and government data - run in background, non-blocking
@@ -1012,6 +1048,7 @@ export default function MapScreen() {
           ...Yilan,
           ...Yunlin,
         ];
+        
 
         const govBathrooms: Bathroom[] = govDataRaw
           .filter((item) => item.latitude && item.longitude)
