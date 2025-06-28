@@ -1,206 +1,305 @@
+// app/(tabs)/calendar.tsx - 改為成就徽章頁面
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, Platform } from 'react-native';
-import { useRouter } from 'expo-router';
-import { usePoopStore } from '@/store/poopStore';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, ScrollView } from 'react-native';
 import Colors from '@/constants/colors';
-import PoopCard from '@/components/PoopCard';
-import { ChevronLeft, ChevronRight } from 'lucide-react-native';
+import { usePoopStore } from '@/store/poopStore';
+
+interface Calendar {
+  id: string;
+  title: string;
+  description: string;
+  icon: string;
+  isUnlocked: boolean;
+  progress?: number;
+  maxProgress?: number;
+  category: 'daily' | 'streak' | 'health' | 'milestone' | 'special';
+  color: string;
+}
 
 export default function CalendarScreen() {
-  const router = useRouter();
   const { entries } = usePoopStore();
-  
-  const [selectedDate, setSelectedDate] = useState(new Date());
-  const [currentMonth, setCurrentMonth] = useState(new Date());
-  
-  // Generate days for the current month
-  const getDaysInMonth = (year: number, month: number) => {
-    return new Date(year, month + 1, 0).getDate();
-  };
-  
-  const getFirstDayOfMonth = (year: number, month: number) => {
-    return new Date(year, month, 1).getDay();
-  };
-  
-  const generateCalendarDays = () => {
-    const year = currentMonth.getFullYear();
-    const month = currentMonth.getMonth();
-    
-    const daysInMonth = getDaysInMonth(year, month);
-    const firstDay = getFirstDayOfMonth(year, month);
-    
-    const days = [];
-    
-    // Add empty spaces for days before the first day of the month
-    for (let i = 0; i < firstDay; i++) {
-      days.push({ day: 0, date: null });
-    }
-    
-    // Add days of the month
-    for (let i = 1; i <= daysInMonth; i++) {
-      const date = new Date(year, month, i);
-      days.push({ day: i, date });
-    }
-    
-    return days;
-  };
-  
-  const calendarDays = generateCalendarDays();
-  
-  // Get entries for the selected date
-  const getEntriesForDate = (date: Date) => {
-    if (!date) return [];
-    
-    return entries.filter(entry => {
-      const entryDate = new Date(entry.date);
-      return (
-        entryDate.getDate() === date.getDate() &&
-        entryDate.getMonth() === date.getMonth() &&
-        entryDate.getFullYear() === date.getFullYear()
-      );
-    });
-  };
-  
-  const selectedEntries = getEntriesForDate(selectedDate);
-  
-  // Check if a date has entries
-  const hasEntries = (date: Date | null) => {
-    if (!date) return false;
-    
-    return entries.some(entry => {
-      const entryDate = new Date(entry.date);
-      return (
-        entryDate.getDate() === date.getDate() &&
-        entryDate.getMonth() === date.getMonth() &&
-        entryDate.getFullYear() === date.getFullYear()
-      );
-    });
-  };
-  
-  const handlePrevMonth = () => {
-    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
-  };
-  
-  const handleNextMonth = () => {
-    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
-  };
-  
-  const handleDayPress = (date: Date | null) => {
-    if (date) {
-      setSelectedDate(date);
-    }
-  };
-  
-  const handleEntryPress = (id: string) => {
-    router.push({
-      pathname: '/entry-details',
-      params: { id }
-    });
-  };
-  
-  const isToday = (date: Date | null) => {
-    if (!date) return false;
-    
+  const [selectedTab, setSelectedTab] = useState<'achievements' | 'challenges'>('achievements');
+
+  // 計算成就進度
+  const calculateAchievements = (): Achievement[] => {
+    const totalEntries = entries.length;
     const today = new Date();
-    return (
-      date.getDate() === today.getDate() &&
-      date.getMonth() === today.getMonth() &&
-      date.getFullYear() === today.getFullYear()
-    );
+    const thisWeek = entries.filter(entry => {
+      const entryDate = new Date(entry.date);
+      const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+      return entryDate >= weekAgo;
+    }).length;
+
+    return [
+      {
+        id: '1',
+        title: 'First Drop',
+        description: 'Record your first poop entry',
+        icon: '💩',
+        isUnlocked: totalEntries >= 1,
+        category: 'milestone',
+        color: '#4CAF50'
+      },
+      {
+        id: '2',
+        title: 'Healthy Week',
+        description: 'Track your bathroom visits for 7 days',
+        icon: '📅',
+        isUnlocked: thisWeek >= 7,
+        progress: Math.min(thisWeek, 7),
+        maxProgress: 7,
+        category: 'streak',
+        color: '#2196F3'
+      },
+      {
+        id: '3',
+        title: 'Poop Tracker Pro',
+        description: 'Record 10 entries in total',
+        icon: '🏆',
+        isUnlocked: totalEntries >= 10,
+        progress: Math.min(totalEntries, 10),
+        maxProgress: 10,
+        category: 'milestone',
+        color: '#FF9800'
+      },
+      {
+        id: '4',
+        title: 'Consistency King',
+        description: 'Maintain regular bathroom habits',
+        icon: '👑',
+        isUnlocked: totalEntries >= 20,
+        progress: Math.min(totalEntries, 20),
+        maxProgress: 20,
+        category: 'health',
+        color: '#9C27B0'
+      },
+      {
+        id: '5',
+        title: 'Health Guardian',
+        description: 'Track for 30 days',
+        icon: '🛡️',
+        isUnlocked: false,
+        progress: Math.min(totalEntries, 30),
+        maxProgress: 30,
+        category: 'special',
+        color: '#607D8B'
+      },
+      {
+        id: '6',
+        title: 'Bathroom Master',
+        description: 'Complete 50 entries',
+        icon: '🎯',
+        isUnlocked: false,
+        progress: Math.min(totalEntries, 50),
+        maxProgress: 50,
+        category: 'milestone',
+        color: '#795548'
+      }
+    ];
   };
-  
-  const isSelectedDate = (date: Date | null) => {
-    if (!date || !selectedDate) return false;
-    
-    return (
-      date.getDate() === selectedDate.getDate() &&
-      date.getMonth() === selectedDate.getMonth() &&
-      date.getFullYear() === selectedDate.getFullYear()
-    );
-  };
+
+  const achievements = calculateAchievements();
+  const unlockedCount = achievements.filter(a => a.isUnlocked).length;
+
+  const challenges = [
+    {
+      id: '1',
+      title: '7-Day Hydration Challenge',
+      description: 'Drink 8 glasses of water daily for a week',
+      icon: '💧',
+      color: '#2196F3',
+      difficulty: 'Easy'
+    },
+    {
+      id: '2',
+      title: 'Fiber Focus Week',
+      description: 'Include fiber-rich foods in every meal',
+      icon: '🥬',
+      color: '#4CAF50',
+      difficulty: 'Medium'
+    },
+    {
+      id: '3',
+      title: 'Mindful Bathroom Breaks',
+      description: 'Practice relaxation during bathroom visits',
+      icon: '🧘',
+      color: '#9C27B0',
+      difficulty: 'Easy'
+    }
+  ];
+
+  const renderAchievement = ({ item }: { item: Achievement }) => (
+    <View style={[
+      styles.achievementCard,
+      { backgroundColor: item.isUnlocked ? item.color + '20' : Colors.primary.lightBackground }
+    ]}>
+      <View style={[
+        styles.achievementIcon,
+        { backgroundColor: item.isUnlocked ? item.color : '#E0E0E0' }
+      ]}>
+        <Text style={styles.achievementEmoji}>{item.icon}</Text>
+        {item.isUnlocked && (
+          <View style={styles.unlockedBadge}>
+            <Text style={styles.checkmark}>✓</Text>
+          </View>
+        )}
+      </View>
+      
+      <View style={styles.achievementContent}>
+        <Text style={[
+          styles.achievementTitle,
+          { color: item.isUnlocked ? Colors.primary.text : Colors.primary.lightText }
+        ]}>
+          {item.title}
+        </Text>
+        <Text style={styles.achievementDescription}>
+          {item.description}
+        </Text>
+        
+        {item.maxProgress && (
+          <View style={styles.progressContainer}>
+            <View style={styles.progressBar}>
+              <View 
+                style={[
+                  styles.progressFill,
+                  { 
+                    width: `${((item.progress || 0) / item.maxProgress) * 100}%`,
+                    backgroundColor: item.isUnlocked ? item.color : '#BDBDBD'
+                  }
+                ]} 
+              />
+            </View>
+            <Text style={styles.progressText}>
+              {item.progress || 0}/{item.maxProgress}
+            </Text>
+          </View>
+        )}
+      </View>
+    </View>
+  );
+
+  const renderChallenge = ({ item }: { item: any }) => (
+    <View style={[styles.challengeCard, { backgroundColor: item.color + '20' }]}>
+      <View style={[styles.challengeIcon, { backgroundColor: item.color }]}>
+        <Text style={styles.challengeEmoji}>{item.icon}</Text>
+      </View>
+      
+      <View style={styles.challengeContent}>
+        <View style={styles.challengeHeader}>
+          <Text style={styles.challengeTitle}>{item.title}</Text>
+          <View style={[styles.difficultyBadge, { backgroundColor: item.color }]}>
+            <Text style={styles.difficultyText}>{item.difficulty}</Text>
+          </View>
+        </View>
+        <Text style={styles.challengeDescription}>{item.description}</Text>
+        
+        <TouchableOpacity style={[styles.startButton, { backgroundColor: item.color }]}>
+          <Text style={styles.startButtonText}>Start Challenge</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
 
   return (
     <View style={styles.container}>
-      <View style={styles.calendarContainer}>
-        <View style={styles.monthSelector}>
-          <TouchableOpacity onPress={handlePrevMonth}>
-            <ChevronLeft size={24} color={Colors.primary.text} />
+      {/* Header */}
+      <View style={styles.header}>
+        <View style={styles.tabContainer}>
+          <TouchableOpacity
+            style={[
+              styles.tab,
+              selectedTab === 'achievements' && styles.activeTab
+            ]}
+            onPress={() => setSelectedTab('achievements')}
+          >
+            <Text style={[
+              styles.tabText,
+              selectedTab === 'achievements' && styles.activeTabText
+            ]}>
+              Achievements
+            </Text>
           </TouchableOpacity>
           
-          <Text style={styles.monthText}>
-            {currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}
-          </Text>
-          
-          <TouchableOpacity onPress={handleNextMonth}>
-            <ChevronRight size={24} color={Colors.primary.text} />
+          <TouchableOpacity
+            style={[
+              styles.tab,
+              selectedTab === 'challenges' && styles.activeTab
+            ]}
+            onPress={() => setSelectedTab('challenges')}
+          >
+            <Text style={[
+              styles.tabText,
+              selectedTab === 'challenges' && styles.activeTabText
+            ]}>
+              Challenges
+            </Text>
           </TouchableOpacity>
-        </View>
-        
-        <View style={styles.weekdaysContainer}>
-          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, index) => (
-            <Text key={index} style={styles.weekdayText}>{day}</Text>
-          ))}
-        </View>
-        
-        <View style={styles.daysContainer}>
-          {calendarDays.map((item, index) => (
-            <TouchableOpacity
-              key={index}
-              style={[
-                styles.dayItem,
-                item.day === 0 && styles.emptyDay,
-                isToday(item.date) && styles.todayItem,
-                isSelectedDate(item.date) && styles.selectedDayItem,
-              ]}
-              onPress={() => handleDayPress(item.date)}
-              disabled={item.day === 0}
-            >
-              {item.day !== 0 && (
-                <>
-                  <Text style={[
-                    styles.dayText,
-                    isToday(item.date) && styles.todayText,
-                    isSelectedDate(item.date) && styles.selectedDayText,
-                  ]}>
-                    {item.day}
-                  </Text>
-                  
-                  {hasEntries(item.date) && (
-                    <View style={[
-                      styles.entryIndicator,
-                      isSelectedDate(item.date) && styles.selectedEntryIndicator,
-                    ]} />
-                  )}
-                </>
-              )}
-            </TouchableOpacity>
-          ))}
         </View>
       </View>
-      
-      <View style={styles.entriesContainer}>
-        <Text style={styles.entriesTitle}>
-          {selectedDate.toLocaleDateString('default', { month: 'long', day: 'numeric', year: 'numeric' })}
-        </Text>
-        
-        {selectedEntries.length === 0 ? (
-          <View style={styles.emptyEntriesContainer}>
-            <Text style={styles.emptyEntriesText}>No entries for this date</Text>
-          </View>
-        ) : (
-          <FlatList
-            data={selectedEntries}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <PoopCard 
-                entry={item} 
-                onPress={() => handleEntryPress(item.id)}
+
+      {/* Content */}
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {selectedTab === 'achievements' ? (
+          <>
+            {/* Achievement Summary */}
+            <View style={styles.summaryCard}>
+              <View style={styles.summaryIcon}>
+                <Text style={styles.summaryEmoji}>🏆</Text>
+              </View>
+              <Text style={styles.summaryTitle}>Progress Overview</Text>
+              <Text style={styles.summaryText}>
+                {unlockedCount} of {achievements.length} achievements unlocked
+              </Text>
+              <View style={styles.overallProgress}>
+                <View style={styles.overallProgressBar}>
+                  <View 
+                    style={[
+                      styles.overallProgressFill,
+                      { width: `${(unlockedCount / achievements.length) * 100}%` }
+                    ]} 
+                  />
+                </View>
+                <Text style={styles.overallProgressText}>
+                  {Math.round((unlockedCount / achievements.length) * 100)}%
+                </Text>
+              </View>
+            </View>
+
+            {/* Achievements List */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Your Achievements</Text>
+              <FlatList
+                data={achievements}
+                keyExtractor={(item) => item.id}
+                renderItem={renderAchievement}
+                scrollEnabled={false}
+                contentContainerStyle={styles.achievementsList}
               />
-            )}
-            contentContainerStyle={styles.entriesList}
-          />
+            </View>
+          </>
+        ) : (
+          <>
+            {/* Challenges Header */}
+            <View style={styles.challengesHeader}>
+              <Text style={styles.challengesTitle}>🎯 Daily Challenges</Text>
+              <Text style={styles.challengesSubtitle}>
+                Test yourself by completing these challenges
+              </Text>
+            </View>
+
+            {/* Challenges List */}
+            <View style={styles.section}>
+              <FlatList
+                data={challenges}
+                keyExtractor={(item) => item.id}
+                renderItem={renderChallenge}
+                scrollEnabled={false}
+                contentContainerStyle={styles.challengesList}
+              />
+            </View>
+          </>
         )}
-      </View>
+      </ScrollView>
     </View>
   );
 }
@@ -210,100 +309,260 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.primary.background,
   },
-  calendarContainer: {
+  header: {
     backgroundColor: Colors.primary.card,
-    padding: 16,
+    paddingTop: 16,
+    paddingBottom: 16,
+    paddingHorizontal: 20,
     borderBottomWidth: 1,
     borderBottomColor: Colors.primary.border,
   },
-  monthSelector: {
+  tabContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-    paddingTop: Platform.OS === 'ios' ? 0 : 8,
+    backgroundColor: Colors.primary.lightBackground,
+    borderRadius: 25,
+    padding: 4,
   },
-  monthText: {
+  tab: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 20,
+    alignItems: 'center',
+  },
+  activeTab: {
+    backgroundColor: Colors.primary.accent,
+  },
+  tabText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.primary.lightText,
+  },
+  activeTabText: {
+    color: '#FFFFFF',
+  },
+  content: {
+    flex: 1,
+    padding: 20,
+  },
+  summaryCard: {
+    backgroundColor: Colors.primary.card,
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 24,
+    alignItems: 'center',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  summaryIcon: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: Colors.primary.accent + '20',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  summaryEmoji: {
+    fontSize: 30,
+  },
+  summaryTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: Colors.primary.text,
-  },
-  weekdaysContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
     marginBottom: 8,
   },
-  weekdayText: {
-    width: 40,
-    textAlign: 'center',
+  summaryText: {
     fontSize: 14,
     color: Colors.primary.lightText,
-    fontWeight: 'bold',
+    marginBottom: 16,
   },
-  daysContainer: {
+  overallProgress: {
+    width: '100%',
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-around',
+    alignItems: 'center',
+    gap: 12,
   },
-  dayItem: {
-    width: 40,
-    height: 40,
+  overallProgressBar: {
+    flex: 1,
+    height: 8,
+    backgroundColor: Colors.primary.lightBackground,
+    borderRadius: 4,
+  },
+  overallProgressFill: {
+    height: '100%',
+    backgroundColor: Colors.primary.accent,
+    borderRadius: 4,
+  },
+  overallProgressText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: Colors.primary.accent,
+  },
+  section: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: Colors.primary.text,
+    marginBottom: 16,
+  },
+  achievementsList: {
+    gap: 12,
+  },
+  achievementCard: {
+    flexDirection: 'row',
+    padding: 16,
+    borderRadius: 16,
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+  },
+  achievementIcon: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 8,
-    borderRadius: 20,
+    marginRight: 16,
+    position: 'relative',
   },
-  emptyDay: {
-    backgroundColor: 'transparent',
+  achievementEmoji: {
+    fontSize: 24,
   },
-  todayItem: {
-    backgroundColor: Colors.primary.border,
+  unlockedBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#4CAF50',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  selectedDayItem: {
-    backgroundColor: Colors.primary.accent,
-  },
-  dayText: {
-    fontSize: 16,
-    color: Colors.primary.text,
-  },
-  todayText: {
-    fontWeight: 'bold',
-  },
-  selectedDayText: {
+  checkmark: {
+    fontSize: 12,
     color: '#FFFFFF',
     fontWeight: 'bold',
   },
-  entryIndicator: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: Colors.primary.accent,
-    position: 'absolute',
-    bottom: 6,
-  },
-  selectedEntryIndicator: {
-    backgroundColor: '#FFFFFF',
-  },
-  entriesContainer: {
+  achievementContent: {
     flex: 1,
-    padding: 16,
   },
-  entriesTitle: {
+  achievementTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  achievementDescription: {
+    fontSize: 14,
+    color: Colors.primary.lightText,
+    marginBottom: 12,
+  },
+  progressContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  progressBar: {
+    flex: 1,
+    height: 6,
+    backgroundColor: Colors.primary.lightBackground,
+    borderRadius: 3,
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  progressText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: Colors.primary.lightText,
+  },
+  challengesHeader: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  challengesTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: Colors.primary.text,
+    marginBottom: 8,
+  },
+  challengesSubtitle: {
+    fontSize: 16,
+    color: Colors.primary.lightText,
+    textAlign: 'center',
+  },
+  challengesList: {
+    gap: 16,
+  },
+  challengeCard: {
+    padding: 20,
+    borderRadius: 16,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  challengeIcon: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+    alignSelf: 'center',
+  },
+  challengeEmoji: {
+    fontSize: 24,
+  },
+  challengeContent: {
+    alignItems: 'center',
+  },
+  challengeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    gap: 12,
+  },
+  challengeTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: Colors.primary.text,
+    flex: 1,
+    textAlign: 'center',
+  },
+  difficultyBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  difficultyText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  challengeDescription: {
+    fontSize: 14,
+    color: Colors.primary.lightText,
+    textAlign: 'center',
     marginBottom: 16,
   },
-  entriesList: {
-    paddingBottom: 16,
+  startButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 25,
   },
-  emptyEntriesContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  emptyEntriesText: {
+  startButtonText: {
     fontSize: 16,
-    color: Colors.primary.lightText,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
   },
 });
