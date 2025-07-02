@@ -9,7 +9,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 // import { Audio } from 'expo-av'; // Commented out to avoid dependency
 import changhua from '@/assets/public_bathroom/Changhua.json';
-
+import PoopLinePage from './poopline'; 
 import Chiayi from '@/assets/public_bathroom/Chiayi.json';
 import Chiayi2 from '@/assets/public_bathroom/Chiayi2.json';
 import Hsinchu from '@/assets/public_bathroom/Hsinchu.json';
@@ -375,8 +375,8 @@ export default function MapScreen() {
   const mapRef = useRef<any>(null);
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [allBathrooms, setAllBathrooms] = useState<Bathroom[]>([]); // 所有廁所數據
-  const [nearbyBathrooms, setNearbyBathrooms] = useState<Bathroom[]>([]); // 500公尺內廁所
+  const [allBathrooms, setAllBathrooms] = useState<Bathroom[]>([]);
+  const [nearbyBathrooms, setNearbyBathrooms] = useState<Bathroom[]>([]);
   const [activeTab, setActiveTab] = useState(Platform.OS === 'web' ? 'nearby' : 'map');
   const [selectedBathroom, setSelectedBathroom] = useState<Bathroom | null>(null);
   const [checkInRecords, setCheckInRecords] = useState<CheckInRecord[]>([]);
@@ -410,6 +410,8 @@ export default function MapScreen() {
   
   const [isLocationLoading, setIsLocationLoading] = useState(false);
   const [visitedBathroomIds, setVisitedBathroomIds] = useState<string[]>([]);
+
+  const [mapReady, setMapReady] = useState(false);
 
   // Initialize achievement system
   const initializeAchievements = (): Achievement[] => [
@@ -967,13 +969,12 @@ export default function MapScreen() {
 
   // Auto move map to user location when location is obtained
   useEffect(() => {
-    if (location && (activeTab === 'map' || activeTab === 'visited')) {
-      console.log('🎯 位置獲取完成，自動移動到用戶位置');
+    if (location && mapReady && (activeTab === 'map' || activeTab === 'visited')) {
       setTimeout(() => {
         centerMapOnUser();
-      }, 1000);
+      }, 500);
     }
-  }, [location, activeTab]);
+  }, [location, activeTab, mapReady]);
 
   // Initialize app data
   useEffect(() => {
@@ -1016,7 +1017,6 @@ export default function MapScreen() {
         console.log('📍 獲取當前位置...');
         const currentLocation = await Location.getCurrentPositionAsync({
           accuracy: Location.Accuracy.Balanced,
-          maximumAge: 30000,
         });
         
         console.log('📍 位置獲取成功：', currentLocation.coords);
@@ -1110,23 +1110,17 @@ export default function MapScreen() {
 
   // Center map on user location
   const centerMapOnUser = () => {
-    console.log('🎯 嘗試移動到用戶位置...');
-    
+    console.log('🎯 嘗試移動到用戶位置...', mapRef.current, location);
     if (location && mapRef.current) {
-      console.log('✅ 移動到用戶位置:', location.coords.latitude, location.coords.longitude);
-      try {
-        mapRef.current.animateToRegion(
-          {
-            latitude: location.coords.latitude,
-            longitude: location.coords.longitude,
-            latitudeDelta: 0.01,
-            longitudeDelta: 0.01,
-          },
-          1000
-        );
-      } catch (error) {
-        console.error('❌ 移動地圖失敗:', error);
-      }
+      mapRef.current.animateToRegion(
+        {
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+          latitudeDelta: 0.01,
+          longitudeDelta: 0.01,
+        },
+        1000
+      );
     } else {
       console.log('❌ 無法移動到用戶位置 - location 或 mapRef 不存在');
     }
@@ -1176,28 +1170,18 @@ export default function MapScreen() {
     );
   };
 
-const handleNavigate = (bathroom: Bathroom) => {
-  Alert.alert('Navigate to Bathroom', `Would you like to get directions to ${bathroom.name}?`, [
-    { text: 'Cancel', style: 'cancel' },
-    {
-      text: 'Yes',
-      onPress: () => openMaps(bathroom),
-    },
-  ]);
-};
 
 const openMaps = (bathroom: Bathroom) => {
-  // 假設 bathroom 物件有 latitude 和 longitude 屬性
   const { latitude, longitude, name } = bathroom;
   
   let url = '';
   
   if (Platform.OS === 'ios') {
-    // iOS 使用 Apple Maps
-    url = `maps:${latitude},${longitude}?q=${encodeURIComponent(name)}`;
+    // iOS 使用 Apple Maps - 修正 URL 格式
+    url = `http://maps.apple.com/?daddr=${latitude},${longitude}&dirflg=d`;
   } else {
-    // Android 使用 Google Maps
-    url = `geo:${latitude},${longitude}?q=${latitude},${longitude}(${encodeURIComponent(name)})`;
+    // Android 使用 Google Maps - 修正 URL 格式
+    url = `google.navigation:q=${latitude},${longitude}&mode=d`;
   }
   
   Linking.canOpenURL(url)
@@ -1205,15 +1189,83 @@ const openMaps = (bathroom: Bathroom) => {
       if (supported) {
         return Linking.openURL(url);
       } else {
-        // 如果內建地圖不支援，使用 Google Maps 網頁版
-        const webUrl = `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
+        // 如果內建地圖不支援，使用通用的 Google Maps 網頁版
+        const webUrl = `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}&destination_place_id=${encodeURIComponent(name)}`;
         return Linking.openURL(webUrl);
       }
     })
     .catch((err) => {
       console.error('An error occurred opening maps:', err);
-      Alert.alert('Error', 'Unable to open maps');
+      
+      // 備用方案：直接使用 Google Maps 網頁版
+      const fallbackUrl = `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
+      Linking.openURL(fallbackUrl)
+        .catch(() => {
+          Alert.alert('錯誤', '無法開啟地圖應用程式');
+        });
     });
+};
+
+// 更好的導航函數版本，提供多個選項
+const openMapsWithOptions = (bathroom: Bathroom) => {
+  const { latitude, longitude, name } = bathroom;
+  
+  const options = [
+    {
+      text: '取消',
+      style: 'cancel'
+    },
+    {
+      text: 'Google Maps',
+      onPress: () => {
+        const googleUrl = Platform.OS === 'ios' 
+          ? `comgooglemaps://?daddr=${latitude},${longitude}&directionsmode=driving`
+          : `google.navigation:q=${latitude},${longitude}&mode=d`;
+        
+        Linking.canOpenURL(googleUrl).then(supported => {
+          if (supported) {
+            Linking.openURL(googleUrl);
+          } else {
+            // 網頁版 Google Maps
+            const webUrl = `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`;
+            Linking.openURL(webUrl);
+          }
+        });
+      }
+    }
+  ];
+  
+  // 如果是 iOS，加入 Apple Maps 選項
+  if (Platform.OS === 'ios') {
+    options.splice(1, 0, {
+      text: 'Apple Maps',
+      onPress: () => {
+        const appleUrl = `http://maps.apple.com/?daddr=${latitude},${longitude}&dirflg=d`;
+        Linking.openURL(appleUrl);
+      }
+    });
+  }
+  
+  Alert.alert(
+    '選擇導航應用',
+    `要使用哪個應用導航到 ${name}？`,
+    options
+  );
+};
+
+// 修正後的 handleNavigate 函數
+const handleNavigate = (bathroom: Bathroom) => {
+  Alert.alert(
+    '導航到廁所', 
+    `要導航到 ${bathroom.name} 嗎？`, 
+    [
+      { text: '取消', style: 'cancel' },
+      {
+        text: '開始導航',
+        onPress: () => openMaps(bathroom), // 或使用 openMapsWithOptions(bathroom)
+      },
+    ]
+  );
 };
 
   // Handle check-in button
@@ -1256,7 +1308,7 @@ const handleRatingSelect = useCallback((rating: number) => {
     console.log(`🔄 切換到 ${tab} 標籤`);
     setActiveTab(tab);
     
-    if ((tab === 'map' || tab === 'visited' || tab === 'journey' || tab === 'poopline') && location) {
+    if ((tab === 'map' || tab === 'visited' || tab === 'journey' ) && location) {
       console.log('🗺️ 切換到地圖頁面，準備移動到用戶位置');
       setTimeout(() => {
         centerMapOnUser();
@@ -1395,7 +1447,10 @@ const handleRatingSelect = useCallback((rating: number) => {
         ? checkInRecords.map(r => r.bathroom)
         : activeTab === 'journey'
         ? checkInRecords.map(r => r.bathroom)
-        : nearbyBathrooms;
+        : activeTab === 'nearby'
+        ? nearbyBathrooms  // 只有 nearby 標籤才顯示 500公尺內
+        : allBathrooms;    // map 標籤顯示所有廁所
+
 
       // Create journey route coordinates for polyline
       const journeyCoordinates = activeTab === 'journey' && checkInRecords.length > 1
@@ -1416,6 +1471,7 @@ const handleRatingSelect = useCallback((rating: number) => {
             initialRegion={currentRegion}
             showsUserLocation={!!location}
             showsMyLocationButton={false}
+            onMapReady={() => setMapReady(true)}
           >
             {displayBathrooms.map((bathroom) => (
                 <Marker
@@ -1495,17 +1551,27 @@ const handleRatingSelect = useCallback((rating: number) => {
                   ? `📍 ${checkInRecords.length} Check-ins`
                   : activeTab === 'journey'
                   ? `🗺️ ${checkInRecords.length} Journey Points`
-                  : `📍 ${nearbyBathrooms.length} Nearby Bathrooms`
+                  : activeTab === 'nearby'
+                  ? `📍 ${nearbyBathrooms.length} Nearby Bathrooms`
+                  : `🗺️ ${allBathrooms.length} All Bathrooms`
                 }
               </Text>
-              {activeTab !== 'visited' && activeTab !== 'journey' && nearbyBathrooms.length > 0 && (
+              {activeTab === 'nearby' && nearbyBathrooms.length > 0 && (
                 <Text style={styles.locationStatusSubtext}>
                   🏛️ {nearbyBathrooms.filter(b => b.source === 'gov').length} Gov | 
                   🚻 {nearbyBathrooms.filter(b => b.source === 'commercial').length} Commercial |
                   🌍 {nearbyBathrooms.filter(b => b.source === 'international').length} International
                 </Text>
               )}
+              {activeTab === 'map' && allBathrooms.length > 0 && (
+                <Text style={styles.locationStatusSubtext}>
+                  🏛️ {allBathrooms.filter(b => b.source === 'gov').length} Gov | 
+                  🚻 {allBathrooms.filter(b => b.source === 'commercial').length} Commercial |
+                  🌍 {allBathrooms.filter(b => b.source === 'international').length} International
+                </Text>
+              )}
             </View>
+
         
 
           {selectedBathroom && (
@@ -1734,6 +1800,15 @@ const handleRatingSelect = useCallback((rating: number) => {
           { height: showRecords ? 300 : 500 } // 根據 showRecords 動態調整地圖高度
         ]}>
           <MapComponent />
+
+          <TouchableOpacity 
+          style={styles.poopLineButton}
+          onPress={() => setShowPoopLinePage(true)}
+        >
+          <Route size={20} color="#FFFFFF" />
+          <Text style={styles.poopLineButtonText}>Poop Line</Text>
+        </TouchableOpacity>
+
           {location && (
             <TouchableOpacity 
               style={styles.quickCheckInButton}
@@ -2010,8 +2085,6 @@ const handleRatingSelect = useCallback((rating: number) => {
       case 'visited':
         return renderVisitedContent();
       case 'journey':
-        return renderJourneyContent();
-      case 'poopline':
         return renderJourneyContent();
       default:
         return renderNearbyList();
@@ -2976,28 +3049,6 @@ const styles = StyleSheet.create({
     height: 300,
     position: 'relative',
   },
-  quickCheckInButton: {
-    position: 'absolute',
-    bottom: 16,
-    right: 16,
-    flexDirection: 'row',
-    backgroundColor: '#FF6B6B',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 25,
-    alignItems: 'center',
-    gap: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  quickCheckInText: {
-    color: '#FFFFFF',
-    fontWeight: 'bold',
-    fontSize: 14,
-  },
   recordsScrollView: {
     flex: 1,
     paddingHorizontal: 16,
@@ -3348,10 +3399,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: Colors.primary.text,
   },
-  // 添加遺漏的樣式定義
-  poopLineContainer: {
-    flex: 1,
-  },
   markerLabel: {
     backgroundColor: 'white',
     padding: 4,
@@ -3390,5 +3437,58 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'hidden',
+  },
+  poopLineButton: {
+    position: 'absolute',
+    top: 16,
+    left: 16,
+    flexDirection: 'row',
+    backgroundColor: Colors.primary.accent,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    alignItems: 'center',
+    gap: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  poopLineButtonText: {
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+    fontSize: 12,
+  },
+   // 簡化的快速打卡按鈕樣式
+  quickCheckInButton: {
+    position: 'absolute',
+    bottom: 16,
+    right: 16,
+    flexDirection: 'row',
+    backgroundColor: '#FF6B6B',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 25,
+    alignItems: 'center',
+    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+    minWidth: 120, // 確保按鈕有最小寬度
+  },
+  quickCheckInEmoji: {
+    fontSize: 20,
+  },
+  quickCheckInText: {
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
+  disabledQuickCheckIn: {
+    backgroundColor: '#999999',
+    opacity: 0.7,
   },
 });

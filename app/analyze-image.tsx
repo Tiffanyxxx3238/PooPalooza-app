@@ -32,38 +32,37 @@ const RecommendationDisplay = ({ recommendations, bristolType, isEnglish }: { re
 
   // Translation function for Bristol types
   const getTranslatedAdvice = (bristolType: number, isEnglish: boolean) => {
-    const translations = {
-      1: {
+    const translations: Record<string, { zh: string; en: string }> = {
+      '1': {
         zh: '🔴 嚴重便秘警示 | 💧 飲食建議: 增加膳食纖維攝取（全穀、蔬菜、水果、豆類），每日攝取2000ml以上水分，補充優酪乳等發酵食品促進腸道益菌 | 🏃‍♂️ 生活建議: 規律運動促進腸蠕動，可進行腹部按摩幫助腸道運動 | ⚠️ 注意事項: 像堅果般的硬塊，排便困難需特別注意',
         en: '🔴 Severe Constipation Alert | 💧 Diet Advice: Increase dietary fiber (whole grains, vegetables, fruits, legumes), drink 2000ml+ water daily, add fermented foods like yogurt to promote gut bacteria | 🏃‍♂️ Lifestyle: Regular exercise to promote bowel movement, abdominal massage can help | ⚠️ Note: Hard lumps like nuts, difficult to pass - needs attention'
       },
-      2: {
+      '2': {
         zh: '🟡 輕度便秘 | 💧 飲食建議: 同第1型強調纖維與水分攝取，減少高油脂及加工食品 | 🧘‍♀️ 生活建議: 維持規律作息減少壓力，持續運動 | 📈 改善目標: 香腸狀但表面凹凸，需要調理',
         en: '🟡 Mild Constipation | 💧 Diet Advice: Same as Type 1, emphasize fiber and water intake, reduce high-fat and processed foods | 🧘‍♀️ Lifestyle: Maintain regular schedule to reduce stress, continue exercise | 📈 Goal: Sausage-shaped but lumpy surface needs adjustment'
       },
-      3: {
+      '3': {
         zh: '🟢 偏乾但接近正常 | 💧 飲食建議: 維持現有纖維及水分攝取，適度增加蔬果 | 🚶‍♀️ 生活建議: 保持運動與規律生活 | ✅ 狀態說明: 香腸狀但表面有裂痕，持續保持即可',
         en: '🟢 Slightly Dry but Near Normal | 💧 Diet Advice: Maintain current fiber and water intake, moderately increase fruits and vegetables | 🚶‍♀️ Lifestyle: Keep exercising and regular living | ✅ Status: Sausage-shaped with surface cracks, continue maintaining'
       },
-      4: {
-        zh: '🎉 完美便便狀態 | 💧 飲食建議: 持續均衡飲食，攝取足夠纖維與水分 | 💪 生活建議: 維持規律運動與作息 | 🏆 健康指標: 香腸或蛇狀表面光滑柔軟，這是理想型態！',
+      '4': {
+        zh: '🎉 完美便便狀態 | 💧 飲食建議: 維持均衡飲食，攝取足夠纖維與水分 | 💪 生活建議: 維持規律運動與作息 | 🏆 健康指標: 香腸或蛇狀表面光滑柔軟，這是理想型態！',
         en: '🎉 Perfect Stool State | 💧 Diet Advice: Continue balanced diet, adequate fiber and water intake | 💪 Lifestyle: Maintain regular exercise and routine | 🏆 Health Indicator: Sausage or snake-like, smooth and soft surface - this is ideal!'
       },
-      5: {
+      '5': {
         zh: '🟡 略軟需注意 | 💧 飲食建議: 檢視是否過量攝取纖維或水分需適度調整，避免過多刺激性食物（辛辣、咖啡） | 🍽️ 生活建議: 維持規律飲食與運動 | 📊 狀態說明: 柔軟小塊邊緣清楚，稍微調整即可',
         en: '🟡 Slightly Soft - Attention Needed | 💧 Diet Advice: Check if excessive fiber or water intake needs adjustment, avoid too many irritating foods (spicy, coffee) | 🍽️ Lifestyle: Maintain regular diet and exercise | 📊 Status: Soft blobs with clear edges, slight adjustment needed'
       },
-      6: {
+      '6': {
         zh: '🟠 輕度腹瀉警示 | 💧 飲食建議: 減少高油脂、辛辣、刺激性及人工甜味劑食物，避免碳酸飲料和酒精，少量多餐補充益生菌 | ⏰ 生活建議: 規律三餐避免暴飲暴食 | 🔍 監測建議: 若持續出現需檢查腸道感染或食物不耐受',
         en: '🟠 Mild Diarrhea Warning | 💧 Diet Advice: Reduce high-fat, spicy, irritating foods and artificial sweeteners, avoid carbonated drinks and alcohol, eat small frequent meals with probiotics | ⏰ Lifestyle: Regular meals, avoid overeating | 🔍 Monitor: If persistent, check for bowel infection or food intolerance'
       },
-      7: {
-        zh: '🔴 嚴重腹瀉緊急 | 💧 緊急處理: 立即補充水分與電解質防止脫水，暫時避免乳製品、高脂肪、辛辣及高纖維食物，攝取易消化食物（白飯、香蕉、吐司） | 🏥 就醫建議: 若腹瀉超過48小時或有脫水、血便等症狀應儘速就醫 | ⚠️ 危險信號: 水狀無固體需立即關注',
+      '7': {
+        zh: '🔴 嚴重腹瀉緊急 | 💧 緊急處理: 立即補充水分與電解質防止脱水，暫時避免乳製品、高脂肪、辛辣及高纖維食物，攝取易消化食物（白飯、香蕉、吐司） | 🏥 就醫建議: 若腹瀉超過48小時或有脫水、血便等症狀應儘速就醫 | ⚠️ 危險信號: 水狀無固體需立即關注',
         en: '🔴 Severe Diarrhea Emergency | 💧 Emergency Care: Immediately replenish fluids and electrolytes to prevent dehydration, temporarily avoid dairy, high-fat, spicy and high-fiber foods, eat easily digestible foods (white rice, bananas, toast) | 🏥 Medical Advice: If diarrhea persists over 48 hours or symptoms of dehydration/bloody stool appear, seek medical attention immediately | ⚠️ Danger Sign: Watery with no solid pieces requires immediate attention'
       }
     };
-
-    return translations[bristolType] ? (isEnglish ? translations[bristolType].en : translations[bristolType].zh) : recommendations;
+    return translations[String(bristolType)] ? (isEnglish ? translations[String(bristolType)].en : translations[String(bristolType)].zh) : recommendations;
   };
 
   // Use translated advice if available, otherwise use original
@@ -116,6 +115,54 @@ const RecommendationDisplay = ({ recommendations, bristolType, isEnglish }: { re
   );
 };
 
+// 新增：食物影響顯示組件
+const FoodInfluenceDisplay = ({ foodInfluence }: { foodInfluence: any }) => {
+  if (!foodInfluence || !foodInfluence.likely_influenced) {
+    return null;
+  }
+  
+  return (
+    <View style={styles.foodInfluenceContainer}>
+      <Text style={styles.foodInfluenceTitle}>🍎 可能的食物影響</Text>
+      <Text style={styles.foodInfluenceText}>
+        影響可能性: {foodInfluence.likelihood}
+      </Text>
+      <Text style={styles.foodInfluenceText}>
+        可能食物: {foodInfluence.possible_foods?.slice(0, 3).join('、')}等
+      </Text>
+      <Text style={styles.foodInfluenceText}>
+        持續時間: {foodInfluence.duration}
+      </Text>
+      <Text style={styles.foodInfluenceAdvice}>
+        {foodInfluence.recommendation}
+      </Text>
+    </View>
+  );
+};
+
+// 新增：顏色健康警告組件
+const ColorHealthAlerts = ({ healthAlerts }: { healthAlerts: any[] }) => {
+  if (!healthAlerts || healthAlerts.length === 0) {
+    return null;
+  }
+  
+  return (
+    <View style={styles.healthAlertsContainer}>
+      <Text style={styles.healthAlertsTitle}>⚠️ 顏色健康提醒</Text>
+      {healthAlerts.map((alert, index) => (
+        <View key={index} style={styles.healthAlertItem}>
+          <Text style={styles.healthAlertText}>
+            • {alert.color_name}: {alert.status}
+          </Text>
+          <Text style={styles.healthAlertAdvice}>
+            {alert.advice}
+          </Text>
+        </View>
+      ))}
+    </View>
+  );
+};
+
 export default function AnalyzeImageScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ imageUri: string }>();
@@ -125,9 +172,9 @@ export default function AnalyzeImageScreen() {
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [analysisProgress, setAnalysisProgress] = useState('正在準備分析...');
   
-  const [predictedType, setPredictedType] = useState<number>(4); // Default to type 4
-  const [predictedVolume, setPredictedVolume] = useState<number>(2); // Default to medium
-  const [predictedColor, setPredictedColor] = useState<number>(1); // Default to brown
+  const [predictedType, setPredictedType] = useState<number>(4);
+  const [predictedVolume, setPredictedVolume] = useState<number>(2);
+  const [predictedColor, setPredictedColor] = useState<number>(1);
   
   const [selectedType, setSelectedType] = useState<number>(4);
   const [selectedVolume, setSelectedVolume] = useState<number>(2);
@@ -136,6 +183,12 @@ export default function AnalyzeImageScreen() {
   const [analysisDetails, setAnalysisDetails] = useState<string>('');
   const [recommendations, setRecommendations] = useState<string>('');
   const [isEnglish, setIsEnglish] = useState<boolean>(false);
+  
+  // 新增狀態：增強分析數據
+  const [colorAnalysis, setColorAnalysis] = useState<any>(null);
+  const [volumeAnalysis, setVolumeAnalysis] = useState<any>(null);
+  const [healthAlerts, setHealthAlerts] = useState<any[]>([]);
+  const [foodInfluenceData, setFoodInfluenceData] = useState<any>(null);
 
   useEffect(() => {
     if (params.imageUri) {
@@ -151,12 +204,10 @@ export default function AnalyzeImageScreen() {
     
     try {
       if (Platform.OS === 'web') {
-        // For web, we'll use a mock analysis since we can't easily get base64
         mockAnalysis();
         return;
       }
       
-      // Try to call your poop API directly with the image URI
       await analyzeWithPoopAPI(uri);
       
     } catch (error) {
@@ -168,16 +219,13 @@ export default function AnalyzeImageScreen() {
 
   const analyzeWithPoopAPI = async (imageUri: string) => {
     try {
-      console.log('Calling poop-api for analysis...');
+      console.log('Calling enhanced poop-api for analysis...');
       console.log('API URL: https://poop-api.onrender.com/analyze');
       console.log('Image URI:', imageUri);
       
       setAnalysisProgress('正在喚醒AI服務器（首次可能需要1-2分鐘）...');
       
-      // Create FormData for React Native file upload
       const formData = new FormData();
-      
-      // React Native way to append file from URI
       formData.append('image', {
         uri: imageUri,
         type: 'image/jpeg',
@@ -186,14 +234,12 @@ export default function AnalyzeImageScreen() {
       
       console.log('Uploading image as file...');
       
-      // Longer timeout for Render cold start
       const controller = new AbortController();
       const timeoutId = setTimeout(() => {
         controller.abort();
         setAnalysisProgress('服務器響應超時，正在使用備用AI...');
-      }, 90000); // 90 seconds timeout for cold start
+      }, 90000);
       
-      // Progress updates
       let progressStep = 0;
       const progressSteps = [
         '正在喚醒AI服務器...',
@@ -201,6 +247,7 @@ export default function AnalyzeImageScreen() {
         '正在上傳圖片...',
         'AI模型載入中...',
         '正在分析圖片特徵...',
+        '正在分析顏色和食物影響...',
         '正在生成健康建議...'
       ];
       
@@ -209,7 +256,7 @@ export default function AnalyzeImageScreen() {
           progressStep++;
           setAnalysisProgress(progressSteps[progressStep]);
         }
-      }, 12000); // Update every 12 seconds
+      }, 12000);
       
       try {
         const response = await fetch('https://poop-api.onrender.com/analyze', {
@@ -230,7 +277,6 @@ export default function AnalyzeImageScreen() {
           const errorText = await response.text();
           console.error('API Error Response:', errorText);
           
-          // If it's a 500 error, might be a cold start, try once more
           if (response.status === 500 || response.status === 503) {
             console.log('🔄 Server might be cold starting, trying fallback immediately...');
             throw new Error('Server cold start detected');
@@ -240,180 +286,245 @@ export default function AnalyzeImageScreen() {
         }
         
         const result = await response.json();
-        console.log('✅ SUCCESS! Poop API response:', result);
+        console.log('✅ SUCCESS! Enhanced Poop API response:', result);
         
         setAnalysisProgress('分析完成！正在處理結果...');
+        processEnhancedPoopAPIResponse(result);
         
-        // Process your API's specific response format
-        processPoopAPIResponse(result);
-        
-      } catch (fetchError) {
+      } catch (fetchError: unknown) {
         clearTimeout(timeoutId);
         clearInterval(progressTimer);
-        
-        if (fetchError.name === 'AbortError') {
+        if (fetchError instanceof Error && fetchError.name === 'AbortError') {
           console.error('API request timed out after 2 minutes');
-          // Don't throw error, just fallback
         }
         throw fetchError;
       }
       
-    } catch (error) {
-      console.error('❌ Poop API analysis error:', error);
-      
-      // Provide user feedback about what happened
-      if (error.name === 'AbortError') {
+    } catch (error: unknown) {
+      console.error('❌ Enhanced Poop API analysis error:', error);
+      if (error instanceof Error && error.name === 'AbortError') {
         setAnalysisProgress('您的專用AI服務器需要更多時間啟動，正在使用通用AI...');
       } else {
         setAnalysisProgress('正在使用備用AI進行分析...');
       }
-      
-      // Fallback: Use a mock analysis instead of LLM API for now
       await mockAnalysisWithRealData();
     }
   };
 
-  const processPoopAPIResponse = (result: any) => {
+  // 🔥 修復版：正確處理API回應並映射到選擇器
+  function processEnhancedPoopAPIResponse(result: any) {
     try {
-      console.log('Processing poop API response:', result);
+      console.log('Processing enhanced poop API response:', result);
       
-      // Your API returns: main_type, main_advice, other_types, raw_stats
-      const mainType = result.main_type || '';
+      // 🎯 正確解構 API 回應
+      const mainType = result.main_type || 'Normal';
       const mainAdvice = result.main_advice || '';
       const otherTypes = result.other_types || {};
       const rawStats = result.raw_stats || {};
+      const volumeAnalysis = result.volume_analysis || {};
+      const colorAnalysis = result.color_analysis || {};
       
-      // Map your model's class names to Bristol types (you may need to adjust this)
+      console.log('Main type from API:', mainType);
+      console.log('Volume analysis:', volumeAnalysis);
+      console.log('Color analysis:', colorAnalysis);
+
+      // 🎯 Bristol type 映射 - 根據 API 的分類映射到選擇器的 1-7
       const bristolTypeMap: { [key: string]: number } = {
-        'type1': 1, 'type_1': 1, 'bristol_1': 1,
-        'type2': 2, 'type_2': 2, 'bristol_2': 2,
-        'type3': 3, 'type_3': 3, 'bristol_3': 3,
-        'type4': 4, 'type_4': 4, 'bristol_4': 4,
-        'type5': 5, 'type_5': 5, 'bristol_5': 5,
-        'type6': 6, 'type_6': 6, 'bristol_6': 6,
-        'type7': 7, 'type_7': 7, 'bristol_7': 7,
-        // Add more mappings based on your model's class names
+        'Constipated': 2,  // API 便秘類型 -> 選擇器 Type 2
+        'Normal': 4,       // API 正常類型 -> 選擇器 Type 4 (理想)
+        'Loose': 6,        // API 腹瀉類型 -> 選擇器 Type 6
+        // 備用映射
+        'type1': 1, 'type2': 2, 'type3': 3, 'type4': 4,
+        'type5': 5, 'type6': 6, 'type7': 7,
         'hard': 1, 'lumpy': 2, 'cracked': 3, 'smooth': 4, 
         'soft': 5, 'mushy': 6, 'liquid': 7
       };
-      
-      // Try to determine Bristol type from main_type
-      const bristolType = bristolTypeMap[mainType.toLowerCase()] || 4;
-      
-      // Estimate volume based on total detected area (if available)
-      let volume = 2; // default medium
-      if (rawStats && Object.keys(rawStats).length > 0) {
-        const totalArea = Object.values(rawStats).reduce((sum: number, area: any) => sum + (Number(area) || 0), 0);
-        if (totalArea > 10000) {
-          volume = 3; // large
-        } else if (totalArea < 3000) {
-          volume = 1; // small
+
+      // 🎯 體積映射 - API 的體積等級映射到選擇器的 1-3
+      const volumeMap: { [key: string]: number } = {
+        'Small': 1,    // API Small -> 選擇器第1個選項
+        'Medium': 2,   // API Medium -> 選擇器第2個選項
+        'Large': 3     // API Large -> 選擇器第3個選項
+      };
+
+      // 🎯 顏色映射 - API 的顏色類型映射到選擇器的 1-7
+      const colorMap: { [key: string]: number } = {
+        'Normal_Brown': 1,  // 正常棕色 -> 選擇器第1個 (Brown)
+        'Dark_Tone': 2,     // 深色調 -> 選擇器第2個 (Dark Brown)
+        'Light_Tone': 3,    // 淺色調 -> 選擇器第3個 (Light Brown)
+        'Yellowish': 4,     // 偏黃 -> 選擇器第4個 (Yellow)
+        'Greenish': 5,      // 偏綠 -> 選擇器第5個 (Green)
+        'Reddish': 6,       // 偏紅 -> 選擇器第6個 (Red)
+        'Very_Dark': 7,     // 非常深色 -> 選擇器第7個 (Black)
+        'Unclear': 1        // 不明確 -> 預設為第1個 (Brown)
+      };
+
+      // 計算 Bristol 類型
+      const bristolType = bristolTypeMap[mainType] || 4;
+      console.log('Mapped Bristol type:', bristolType, 'from:', mainType);
+
+      // 計算體積等級
+      let volume = 2; // 預設 Medium
+      if (volumeAnalysis.overall_volume_class) {
+        volume = volumeMap[volumeAnalysis.overall_volume_class] || 2;
+        console.log('Mapped volume:', volume, 'from:', volumeAnalysis.overall_volume_class);
+      }
+
+      // 計算顏色等級
+      let color = 1; // 預設 Brown
+      let colorAdvice = '';
+      let foodInfluenceInfo = null;
+
+      if (colorAnalysis.summary && Object.keys(colorAnalysis.summary).length > 0) {
+        // 嘗試從主要類型獲取顏色資訊
+        const mainTypeColorInfo = colorAnalysis.summary[mainType];
+        if (mainTypeColorInfo && mainTypeColorInfo.color) {
+          color = colorMap[mainTypeColorInfo.color] || 1;
+          console.log('Mapped color:', color, 'from main type color:', mainTypeColorInfo.color);
+        } else {
+          // 如果主要類型沒有顏色資訊，取第一個可用的
+          const firstColorInfo = Object.values(colorAnalysis.summary)[0] as any;
+          if (firstColorInfo && firstColorInfo.color) {
+            color = colorMap[firstColorInfo.color] || 1;
+            console.log('Mapped color:', color, 'from first available color:', firstColorInfo.color);
+          }
+        }
+
+        // 獲取顏色建議
+        if (colorAnalysis.color_advice_by_type && colorAnalysis.color_advice_by_type[mainType]) {
+          colorAdvice = colorAnalysis.color_advice_by_type[mainType];
+        }
+
+        // 獲取食物影響資訊
+        if (colorAnalysis.food_influence_summary && colorAnalysis.food_influence_summary[mainType]) {
+          foodInfluenceInfo = colorAnalysis.food_influence_summary[mainType];
         }
       }
-      
-      // Default color (you might want to enhance this based on your model)
-      const color = 1; // brown by default
-      
-      // Generate personalized advice based on detected types
-      const personalizedAdvice = generatePersonalizedAdvice(mainType, otherTypes, rawStats, volume);
-      
-      // Combine analysis details with statistics
+
+      console.log('🎯 Final selector mappings:');
+      console.log('- Bristol Type:', bristolType, '(will select Type', bristolType, 'in selector)');
+      console.log('- Volume:', volume, '(will select position', volume, 'in volume selector)');
+      console.log('- Color:', color, '(will select position', color, 'in color selector)');
+
+      // 設置增強分析數據
+      setColorAnalysis(colorAnalysis);
+      setVolumeAnalysis(volumeAnalysis);
+      setHealthAlerts(colorAnalysis.health_alerts || []);
+      setFoodInfluenceData(foodInfluenceInfo);
+
+      // 生成分析詳情
       let analysisText = `🎯 主要檢測類型: ${mainType}\n`;
-      
-      // Show detection confidence and areas
-      if (Object.keys(rawStats).length > 0) {
-        analysisText += `📊 詳細檢測結果:\n`;
-        const sortedStats = Object.entries(rawStats)
-          .sort(([,a], [,b]) => (Number(b) || 0) - (Number(a) || 0));
-        
-        const totalPixels = Object.values(rawStats).reduce((sum: number, area: any) => sum + (Number(area) || 0), 0);
-        
-        sortedStats.forEach(([type, count]) => {
-          const percentage = totalPixels > 0 ? ((Number(count) || 0) / totalPixels * 100).toFixed(1) : '0';
-          analysisText += `  • ${type}: ${percentage}% (${count} 像素)\n`;
+
+      // 顏色分析結果
+      if (colorAnalysis.summary && Object.keys(colorAnalysis.summary).length > 0) {
+        analysisText += `\n🎨 顏色分析結果:\n`;
+        Object.entries(colorAnalysis.summary).forEach(([type, info]: [string, any]) => {
+          analysisText += `  • ${type}: ${info.color_name} (${info.health_status})\n`;
         });
       }
-      
-      // Add multi-type analysis
-      if (Object.keys(otherTypes).length > 0) {
-        analysisText += `\n🔍 混合類型檢測:\n`;
-        Object.entries(otherTypes).forEach(([type, advice]) => {
-          analysisText += `  • ${type}: 檢測到次要特徵\n`;
-        });
-        analysisText += `\n💡 個人化分析: 您的便便顯示混合特徵，建議將重點放在主要類型的改善上`;
+
+      // 體積分析結果
+      if (volumeAnalysis.overall_volume_class) {
+        analysisText += `\n📏 體積分析: ${volumeAnalysis.overall_volume_class}\n`;
       }
+
+      // 食物影響提示
+      if (foodInfluenceInfo && foodInfluenceInfo.likely_influenced) {
+        analysisText += `\n🍎 檢測到可能的食物影響:\n`;
+        analysisText += `  • 影響可能性: ${foodInfluenceInfo.likelihood}\n`;
+        analysisText += `  • 可能食物: ${foodInfluenceInfo.possible_foods?.slice(0, 3).join('、')}等\n`;
+      }
+
+      // 🔥 關鍵：設置選擇器的值，讓UI自動選中對應選項
+      console.log('🎯 Setting selector values...');
       
-      // Set the analysis results
       setPredictedType(bristolType);
-      setSelectedType(bristolType);
-      
       setPredictedVolume(volume);
-      setSelectedVolume(volume);
-      
       setPredictedColor(color);
-      setSelectedColor(color);
       
+      // ⭐ 重要：這些設置會讓下方的選擇器自動選中對應的選項
+      setSelectedType(bristolType);      // 自動選中對應的 Bristol Type
+      setSelectedVolume(volume);         // 自動選中對應的 Volume
+      setSelectedColor(color);           // 自動選中對應的 Color
+
       setAnalysisDetails(analysisText);
-      setRecommendations(personalizedAdvice);
-      
+
+      // 生成建議
+      const enhancedPersonalizedAdvice = generateEnhancedPersonalizedAdvice(
+        mainType, otherTypes, rawStats, volume, colorAnalysis, volumeAnalysis
+      );
+
+      let fullRecommendations = enhancedPersonalizedAdvice;
+      if (colorAdvice) {
+        fullRecommendations += `\n\n🎨 顏色專項建議:\n${colorAdvice}`;
+      }
+      if (foodInfluenceInfo && foodInfluenceInfo.recommendation) {
+        fullRecommendations += `\n\n🍎 食物影響建議:\n${foodInfluenceInfo.recommendation}`;
+      }
+
+      setRecommendations(fullRecommendations);
       setIsAnalyzing(false);
-      
-      console.log('✅ Successfully processed API response with personalized advice');
-      
-    } catch (error) {
-      console.error('Error processing poop API response:', error);
+
+      console.log('✅ Successfully processed API response and updated selectors');
+
+    } catch (error: unknown) {
+      console.error('Error processing enhanced poop API response:', error);
       setAnalysisError('Could not process the analysis results');
       setIsAnalyzing(false);
     }
-  };
+  }
 
-  // Generate personalized advice based on multiple detected types
-  const generatePersonalizedAdvice = (mainType: string, otherTypes: any, rawStats: any, volume: number): string => {
-    // Base advice for main type
+  // 增強版個人化建議生成
+  const generateEnhancedPersonalizedAdvice = (
+    mainType: string, 
+    otherTypes: any, 
+    rawStats: any, 
+    volume: number,
+    colorAnalysis: any,
+    volumeAnalysis: any
+  ): string => {
+    // 基礎建議
     const mainTypeAdvice = getAdviceForType(mainType);
     
-    // Get other significant types (more than 10% of total area)
-    const totalArea = Object.values(rawStats).reduce((sum: number, area: any) => sum + (Number(area) || 0), 0);
-    const significantTypes = Object.entries(rawStats)
-      .filter(([type, area]) => {
-        const percentage = totalArea > 0 ? (Number(area) || 0) / totalArea : 0;
-        return percentage > 0.1 && type !== mainType; // More than 10% and not main type
-      })
-      .map(([type, area]) => ({
-        type,
-        percentage: totalArea > 0 ? (Number(area) || 0) / totalArea : 0
-      }));
-
     let personalizedAdvice = mainTypeAdvice;
-
-    // Add combination advice if multiple types detected
-    if (significantTypes.length > 0) {
-      personalizedAdvice += `\n\n🔄 混合類型個人化建議:\n`;
-      
-      significantTypes.forEach((item, index) => {
-        const comboAdvice = getCombinationAdvice(mainType, item.type, item.percentage);
-        personalizedAdvice += `${index + 1}. ${comboAdvice}\n`;
-      });
-      
-      // Add overall strategy for mixed types
-      personalizedAdvice += `\n💡 整體策略: 您的便便顯示${significantTypes.length + 1}種特徵混合，建議優先改善主要類型(${mainType})的問題，同時關注次要特徵的變化。`;
+    
+    // 體積特定建議
+    if (volumeAnalysis.overall_volume_class) {
+      const volumeAdviceText = getEnhancedVolumeAdvice(volumeAnalysis.overall_volume_class, volumeAnalysis);
+      if (volumeAdviceText) {
+        personalizedAdvice += `\n\n${volumeAdviceText}`;
+      }
     }
-
-    // Add volume-specific advice
-    const volumeAdvice = getVolumeAdvice(volume);
-    if (volumeAdvice) {
-      personalizedAdvice += `\n\n${volumeAdvice}`;
+    
+    // 顏色特定建議
+    if (colorAnalysis.summary && Object.keys(colorAnalysis.summary).length > 0) {
+      const hasAbnormalColors = Object.values(colorAnalysis.summary).some((info: any) => 
+        info.health_status !== '正常' && info.health_status !== 'Normal'
+      );
+      
+      if (hasAbnormalColors) {
+        personalizedAdvice += `\n\n🎨 顏色健康評估:`;
+        
+        Object.entries(colorAnalysis.summary).forEach(([type, info]: [string, any]) => {
+          if (info.health_status !== '正常' && info.health_status !== 'Normal') {
+            personalizedAdvice += `\n• ${type}: ${info.color_name} - ${info.health_status}`;
+          }
+        });
+      }
     }
-
-    // Add tracking suggestions
-    personalizedAdvice += `\n\n📊 追蹤建議: 建議記錄未來3-7天的便便變化，觀察改善效果並調整飲食策略`;
-
+    
+    // 追蹤建議
+    personalizedAdvice += `\n\n📊 追蹤建議: 建議記錄未來3-7天的便便變化，特別關注顏色和形狀的改善`;
+    
     return personalizedAdvice;
   };
 
   // Get advice for specific type
   const getAdviceForType = (type: string): string => {
     const adviceMap: { [key: string]: string } = {
+      'Constipated': '🔴 便秘狀態 | 💧 飲食建議: 增加膳食纖維攝取（全穀、蔬菜、水果、豆類），每日攝取2000ml以上水分 | 🏃‍♂️ 生活建議: 規律運動促進腸蠕動，腹部按摩',
+      'Normal': '🎉 正常狀態 | 💧 飲食建議: 持續均衡飲食，攝取足夠纖維與水分 | 💪 生活建議: 維持規律運動與作息',
+      'Loose': '🟠 腹瀉狀態 | 💧 飲食建議: 減少高油脂、辛辣食物，少量多餐補充益生菌 | ⏰ 生活建議: 規律三餐避免暴飲暴食',
       'type1': '🔴 嚴重便秘警示 | 💧 飲食建議: 增加膳食纖維攝取（全穀、蔬菜、水果、豆類），每日攝取2000ml以上水分 | 🏃‍♂️ 生活建議: 規律運動促進腸蠕動，腹部按摩',
       'type2': '🟡 輕度便秘 | 💧 飲食建議: 強調纖維與水分攝取，減少高油脂及加工食品 | 🧘‍♀️ 生活建議: 維持規律作息減少壓力',
       'type3': '🟢 偏乾但接近正常 | 💧 飲食建議: 維持現有纖維及水分攝取，適度增加蔬果 | 🚶‍♀️ 生活建議: 保持運動與規律生活',
@@ -430,15 +541,13 @@ export default function AnalyzeImageScreen() {
   const getCombinationAdvice = (mainType: string, secondaryType: string, percentage: number): string => {
     const percentageText = `(${(percentage * 100).toFixed(1)}%)`;
     
-    // Define combination strategies
     const combinations: { [key: string]: string } = {
-      'type1_type2': `硬便與塊狀便混合 ${percentageText}: 重點增加水分攝取，溫和增加纖維`,
-      'type1_type3': `硬便與正常便混合 ${percentageText}: 好轉跡象，繼續當前改善策略`,
-      'type2_type3': `塊狀與正常便混合 ${percentageText}: 改善進行中，維持纖維平衡`,
-      'type3_type4': `正常偏乾與理想便混合 ${percentageText}: 接近完美，微調水分攝取`,
-      'type4_type5': `理想與偏軟便混合 ${percentageText}: 優秀狀態，保持現有習慣`,
-      'type5_type6': `偏軟與腹瀉便混合 ${percentageText}: 注意避免刺激性食物，觀察變化`,
-      'type6_type7': `腹瀉惡化趨勢 ${percentageText}: 需要及時調整飲食，考慮就醫`
+      'Constipated_Normal': `便秘與正常便混合 ${percentageText}: 改善進行中，繼續增加纖維和水分`,
+      'Constipated_Loose': `便秘與腹瀉混合 ${percentageText}: 腸道功能不穩定，建議就醫評估`,
+      'Normal_Loose': `正常與腹瀉便混合 ${percentageText}: 注意飲食調整，避免刺激性食物`,
+      'Normal_Constipated': `正常與便秘便混合 ${percentageText}: 好轉跡象，維持當前改善策略`,
+      'Loose_Normal': `腹瀉與正常便混合 ${percentageText}: 腸道恢復中，繼續溫和飲食`,
+      'Loose_Constipated': `腹瀉與便秘混合 ${percentageText}: 腸道功能紊亂，建議專業評估`
     };
 
     const comboKey = `${mainType}_${secondaryType}`;
@@ -447,116 +556,75 @@ export default function AnalyzeImageScreen() {
     return combinations[comboKey] || combinations[reverseKey] || `${secondaryType}特徵 ${percentageText}: 混合型態，建議平衡改善策略`;
   };
 
-  // Get volume-specific advice
-  const getVolumeAdvice = (volume: number): string => {
-    switch(volume) {
-      case 1: return '📏 體積偏小建議: 可能攝取不足，增加健康脂肪如堅果、酪梨，確保足夠營養';
-      case 3: return '📏 體積較大建議: 可能攝取過量，考慮分餐進食，增加消化時間';
-      default: return '';
+  // 增強版體積建議
+  const getEnhancedVolumeAdvice = (volumeClass: string, volumeAnalysis: any): string => {
+    const baseAdvice: { [key: string]: string } = {
+      'Small': '📏 體積偏小建議: 可能攝取不足或消化吸收問題',
+      'Medium': '📏 體積正常: 維持當前飲食習慣',
+      'Large': '📏 體積較大建議: 可能攝取過量或消化時間過長'
+    };
+    
+    let advice = baseAdvice[volumeClass] || '';
+    
+    if (volumeAnalysis.detailed_data) {
+      advice += '\n• 詳細建議: ';
+      if (volumeClass === 'Small') {
+        advice += '增加健康脂肪如堅果、酪梨，確保足夠營養攝取';
+      } else if (volumeClass === 'Large') {
+        advice += '考慮分餐進食，增加消化時間，避免一次性大量進食';
+      } else {
+        advice += '繼續保持均衡飲食';
+      }
     }
+    
+    return advice;
   };
 
-  // Helper function to format advice text with better structure
-  const formatAdviceText = (adviceText: string): string => {
-    if (!adviceText) return '';
-    
-    // If the advice already contains pipes (|), it's probably in the new format
-    if (adviceText.includes('|')) {
-      return adviceText.split('|').map(section => section.trim()).join('\n\n');
-    }
-    
-    // Otherwise, return as is but add some basic formatting
-    return adviceText;
-  };
-
-  const analyzeWithLLMAPI = async (base64Image: string) => {
+  // 食物影響查詢功能
+  const checkFoodInfluence = async (colorType: string) => {
     try {
-      setAnalysisProgress('正在使用備用AI分析...');
-      
-      // Fallback to the original LLM API
-      const messages = [
-        {
-          role: 'system',
-          content: 'You are an expert medical AI specialized in analyzing stool samples based on the Bristol Stool Scale. Analyze the provided image and determine: 1) Stool type (1-7 on Bristol Scale), 2) Volume (small/medium/large), and 3) Color (brown, dark brown, light brown, yellow, green, red, or black). Provide a brief explanation for your assessment and health recommendations. Format your response as JSON: {"type": number, "volume": number, "color": number, "explanation": "text", "recommendations": "text"}. For volume, use 1 for small, 2 for medium, 3 for large. For color, use 1 for brown, 2 for dark brown, 3 for light brown, 4 for yellow, 5 for green, 6 for red, 7 for black.'
-        },
-        {
-          role: 'user',
-          content: [
-            { type: 'text', text: 'Analyze this stool sample image:' },
-            { type: 'image', image: `data:image/jpeg;base64,${base64Image}` }
-          ]
-        }
-      ];
-      
-      const response = await fetch('https://toolkit.rork.com/text/llm/', {
+      const response = await fetch('https://poop-api.onrender.com/check_food_history', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ messages }),
+        body: JSON.stringify({ color_type: colorType }),
       });
       
-      if (!response.ok) {
-        throw new Error(`LLM API error: ${response.status}`);
+      if (response.ok) {
+        const data = await response.json();
+        return data;
       }
-      
-      const data = await response.json();
-      console.log('LLM API raw response:', data);
-      
-      // Try to parse the LLM response more carefully
-      let result;
-      try {
-        // Sometimes the response might have extra text before/after JSON
-        const completion = data.completion || '';
-        const jsonMatch = completion.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          result = JSON.parse(jsonMatch[0]);
-        } else {
-          // If no JSON found, create a basic result
-          throw new Error('No JSON found in response');
-        }
-      } catch (parseError) {
-        console.error('Failed to parse LLM response:', parseError);
-        console.log('Raw completion:', data.completion);
-        
-        // Fallback to mock analysis if JSON parsing fails
-        await mockAnalysisWithRealData();
-        return;
-      }
-      
-      setPredictedType(result.type || 4);
-      setSelectedType(result.type || 4);
-      
-      setPredictedVolume(result.volume || 2);
-      setSelectedVolume(result.volume || 2);
-      
-      setPredictedColor(result.color || 1);
-      setSelectedColor(result.color || 1);
-      
-      setAnalysisDetails(result.explanation || '通用AI分析完成');
-      setRecommendations(result.recommendations || '🎯 基本建議 | 💧 飲食: 保持均衡飲食 | 🏃‍♂️ 運動: 規律運動');
-      
-      setIsAnalyzing(false);
-      
     } catch (error) {
-      console.error('LLM API analysis error:', error);
-      
-      // Final fallback to mock analysis
-      console.log('🔄 Using mock analysis as final fallback...');
-      await mockAnalysisWithRealData();
+      console.error('Error checking food influence:', error);
     }
+    return null;
   };
-  
+
+  // 獲取食物影響資料庫
+  const getFoodInfluenceInfo = async () => {
+    try {
+      const response = await fetch('https://poop-api.onrender.com/food_influence');
+      
+      if (response.ok) {
+        const data = await response.json();
+        return data.food_color_effects;
+      }
+    } catch (error) {
+      console.error('Error getting food influence info:', error);
+    }
+    return null;
+  };
+
   // Enhanced mock analysis with realistic data
   const mockAnalysisWithRealData = async () => {
     setAnalysisProgress('正在使用通用AI進行分析...');
     
-    await new Promise(resolve => setTimeout(resolve, 3000)); // Simulate analysis time
+    await new Promise(resolve => setTimeout(resolve, 3000));
     
-    // Provide realistic analysis based on common patterns
-    const mockType = 4; // Default to normal
-    const mockVolume = 2; // Medium
-    const mockColor = 1; // Brown
+    const mockType = 4;
+    const mockVolume = 2;
+    const mockColor = 1;
     
     const mockAdvice = `🟢 接近正常狀態 | 💧 飲食建議: 維持現有纖維及水分攝取，適度增加蔬果 | 🚶‍♀️ 生活建議: 保持運動與規律生活 | ✅ 狀態說明: 建議繼續保持良好的生活習慣`;
     
@@ -572,10 +640,19 @@ export default function AnalyzeImageScreen() {
     setAnalysisDetails('🎯 基於圖片特徵的AI分析\n📊 使用通用健康模型進行評估\n💡 建議結合個人健康狀況進行參考');
     setRecommendations(mockAdvice);
     
+    // 設置模擬的增強數據
+    setColorAnalysis({
+      summary: { Normal: { color: 'Normal_Brown', color_name: '正常棕色', health_status: '正常' } },
+      health_alerts: [],
+      food_influence_summary: {}
+    });
+    setVolumeAnalysis({ overall_volume_class: 'Medium' });
+    setHealthAlerts([]);
+    setFoodInfluenceData(null);
+    
     setIsAnalyzing(false);
   };
   
-  // Mock analysis for web or testing
   const mockAnalysis = () => {
     const steps = [
       '正在準備分析...',
@@ -593,7 +670,6 @@ export default function AnalyzeImageScreen() {
       } else {
         clearInterval(stepInterval);
         
-        // Random values for demonstration
         const mockType = Math.floor(Math.random() * 7) + 1;
         const mockVolume = Math.floor(Math.random() * 3) + 1;
         const mockColor = Math.floor(Math.random() * 7) + 1;
@@ -612,11 +688,10 @@ export default function AnalyzeImageScreen() {
         
         setIsAnalyzing(false);
       }
-    }, 1500); // Change step every 1.5 seconds
+    }, 1500);
   };
   
   const handleContinue = () => {
-    // Navigate to add-entry with the analysis results
     router.push({
       pathname: '/add-entry',
       params: {
@@ -685,19 +760,25 @@ export default function AnalyzeImageScreen() {
             <View style={styles.resultContainer}>
               <View style={styles.resultHeader}>
                 <FileText size={24} color={Colors.primary.accent} />
-                <Text style={styles.resultTitle}>AI Analysis Results</Text>
+                <Text style={styles.resultTitle}>Enhanced AI Analysis Results</Text>
               </View>
               
               <Text style={styles.resultDescription}>
-                我們的專業AI模型已完成分析。您可以調整結果如有需要。
+                我們的專業AI模型已完成增強分析，包含顏色、體積和食物影響評估。您可以調整結果如有需要。
               </Text>
               
               {analysisDetails && (
                 <View style={styles.analysisDetails}>
-                  <Text style={styles.analysisTitle}>分析結果:</Text>
+                  <Text style={styles.analysisTitle}>詳細分析結果:</Text>
                   <Text style={styles.analysisText}>{analysisDetails}</Text>
                 </View>
               )}
+
+              {/* 顏色健康警告 */}
+              <ColorHealthAlerts healthAlerts={healthAlerts} />
+
+              {/* 食物影響顯示 */}
+              <FoodInfluenceDisplay foodInfluence={foodInfluenceData} />
 
               {recommendations && (
                 <View style={styles.recommendationsContainer}>
@@ -879,6 +960,61 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.primary.lightText,
     lineHeight: 20,
+  },
+  // 新增：食物影響樣式
+  foodInfluenceContainer: {
+    backgroundColor: '#FEF3C7',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#FCD34D',
+  },
+  foodInfluenceTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#92400E',
+    marginBottom: 8,
+  },
+  foodInfluenceText: {
+    fontSize: 14,
+    color: '#78350F',
+    marginBottom: 4,
+  },
+  foodInfluenceAdvice: {
+    fontSize: 14,
+    color: '#78350F',
+    marginTop: 8,
+    fontStyle: 'italic',
+  },
+  // 新增：健康警告樣式
+  healthAlertsContainer: {
+    backgroundColor: '#FEE2E2',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+  },
+  healthAlertsTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#991B1B',
+    marginBottom: 8,
+  },
+  healthAlertItem: {
+    marginBottom: 8,
+  },
+  healthAlertText: {
+    fontSize: 14,
+    color: '#7F1D1D',
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  healthAlertAdvice: {
+    fontSize: 13,
+    color: '#7F1D1D',
+    lineHeight: 18,
   },
   recommendationsContainer: {
     backgroundColor: Colors.primary.card,
