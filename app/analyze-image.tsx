@@ -6,7 +6,6 @@ import Colors from '@/constants/colors';
 import Button from '@/components/Button';
 import PoopTypeSelector from '@/components/PoopTypeSelector';
 import PoopVolumeSelector from '@/components/PoopVolumeSelector';
-import PoopColorSelector from '@/components/PoopColorSelector';
 import { poopTypes, poopVolumes, poopColors } from '@/constants/poopTypes';
 import { FileText, Check, AlertCircle, Globe } from 'lucide-react-native';
 import * as FileSystem from 'expo-file-system';
@@ -111,6 +110,200 @@ const RecommendationDisplay = ({ recommendations, bristolType, isEnglish }: { re
           </View>
         </View>
       ))}
+    </View>
+  );
+};
+
+// 🎨 增強版顏色分析顯示組件
+const EnhancedColorAnalysisDisplay = ({ colorAnalysis }: { colorAnalysis: any }) => {
+  if (!colorAnalysis || !colorAnalysis.summary) {
+    return null;
+  }
+
+  // 顏色對應的視覺顏色
+  const getVisualColor = (colorType: string) => {
+    const colorMapping: { [key: string]: string } = {
+      'Normal_Brown': '#8B4513',    // 棕色
+      'Dark_Tone': '#654321',       // 深棕色
+      'Light_Tone': '#D2B48C',      // 淺棕色
+      'Yellowish': '#DAA520',       // 金黃色
+      'Greenish': '#8FBC8F',        // 淡綠色
+      'Reddish': '#CD5C5C',         // 紅色
+      'Very_Dark': '#2F2F2F',       // 深色
+      'Black': '#000000',           // 黑色
+    };
+    return colorMapping[colorType] || '#8B4513';
+  };
+
+  // 健康狀態對應的顏色
+  const getHealthStatusColor = (status: string) => {
+    if (status.includes('正常') || status.includes('Normal')) {
+      return { bg: '#DCFCE7', border: '#4ADE80', text: '#14532D' }; // 綠色
+    } else if (status.includes('注意') || status.includes('Warning')) {
+      return { bg: '#FEF3C7', border: '#FCD34D', text: '#92400E' }; // 黃色
+    } else if (status.includes('異常') || status.includes('Alert')) {
+      return { bg: '#FEE2E2', border: '#FCA5A5', text: '#991B1B' }; // 紅色
+    }
+    return { bg: '#F3F4F6', border: '#D1D5DB', text: '#374151' }; // 灰色
+  };
+
+  return (
+    <View style={styles.enhancedColorContainer}>
+      <Text style={styles.enhancedColorTitle}>🎨 詳細顏色分析</Text>
+      
+      {Object.entries(colorAnalysis.summary).map(([type, info]: [string, any], index) => {
+        const healthColors = getHealthStatusColor(info.health_status);
+        const visualColor = getVisualColor(info.color);
+        
+        return (
+          <View 
+            key={index} 
+            style={[
+              styles.colorAnalysisItem,
+              { 
+                backgroundColor: healthColors.bg,
+                borderColor: healthColors.border 
+              }
+            ]}
+          >
+            <View style={styles.colorAnalysisHeader}>
+              {/* 顏色圓點 */}
+              <View 
+                style={[
+                  styles.colorDot,
+                  { backgroundColor: visualColor }
+                ]} 
+              />
+              <View style={styles.colorAnalysisTextContainer}>
+                <Text style={[styles.colorAnalysisName, { color: healthColors.text }]}>
+                  {info.color_name || info.color}
+                </Text>
+                <Text style={[styles.colorAnalysisType, { color: healthColors.text }]}>
+                  類型: {type}
+                </Text>
+              </View>
+              <View style={styles.healthStatusBadge}>
+                <Text style={[styles.healthStatusText, { color: healthColors.text }]}>
+                  {info.health_status}
+                </Text>
+              </View>
+            </View>
+            
+            {/* 如果有額外的顏色描述 */}
+            {info.description && (
+              <Text style={styles.colorDescription}>
+                📋 {info.description}
+              </Text>
+            )}
+            
+            {/* 如果有信心度 */}
+            {info.confidence && (
+              <Text style={styles.colorConfidence}>
+                🎯 檢測信心度: {(info.confidence * 100).toFixed(1)}%
+              </Text>
+            )}
+          </View>
+        );
+      })}
+      
+      {/* 顏色健康總結 */}
+      {colorAnalysis.overall_color_health && (
+        <View style={styles.overallColorHealth}>
+          <Text style={styles.overallColorTitle}>🏥 顏色健康總評</Text>
+          <Text style={styles.overallColorText}>
+            {colorAnalysis.overall_color_health}
+          </Text>
+        </View>
+      )}
+    </View>
+  );
+};
+
+// 🎨 增強版顏色選擇器
+const EnhancedPoopColorSelector = ({ 
+  selectedColor, 
+  onSelectColor, 
+  detectedColor,
+  colorAnalysis 
+}: { 
+  selectedColor: number, 
+  onSelectColor: (color: number) => void,
+  detectedColor?: number,
+  colorAnalysis?: any
+}) => {
+  const colors = [
+    { id: 1, name: '棕色', color: '#8B4513', description: '正常健康' },
+    { id: 2, name: '深棕', color: '#654321', description: '可能脫水' },
+    { id: 3, name: '淺棕', color: '#D2B48C', description: '消化快速' },
+    { id: 4, name: '黃色', color: '#DAA520', description: '脂肪含量高' },
+    { id: 5, name: '綠色', color: '#8FBC8F', description: '膽汁或蔬菜' },
+    { id: 6, name: '紅色', color: '#CD5C5C', description: '需要注意' },
+    { id: 7, name: '黑色', color: '#2F2F2F', description: '需要檢查' },
+  ];
+
+  return (
+    <View style={styles.enhancedColorSelector}>
+      <View style={styles.selectorHeader}>
+        <Text style={styles.selectorTitle}>💩 便便顏色</Text>
+        {detectedColor && (
+          <Text style={styles.aiDetectedLabel}>
+            🤖 AI檢測: {colors[detectedColor - 1]?.name}
+          </Text>
+        )}
+      </View>
+      
+      <View style={styles.colorGrid}>
+        {colors.map((colorItem) => {
+          const isSelected = selectedColor === colorItem.id;
+          const isAIDetected = detectedColor === colorItem.id;
+          
+          return (
+            <TouchableOpacity
+              key={colorItem.id}
+              style={[
+                styles.colorOption,
+                isSelected && styles.selectedColorOption,
+                isAIDetected && styles.aiDetectedColorOption,
+              ]}
+              onPress={() => onSelectColor(colorItem.id)}
+            >
+              <View 
+                style={[
+                  styles.colorCircle,
+                  { backgroundColor: colorItem.color },
+                  isSelected && styles.selectedColorCircle,
+                ]} 
+              />
+              <Text style={[
+                styles.colorName,
+                isSelected && styles.selectedColorName
+              ]}>
+                {colorItem.name}
+              </Text>
+              <Text style={styles.colorDescription}>
+                {colorItem.description}
+              </Text>
+              
+              {/* AI檢測標記 */}
+              {isAIDetected && (
+                <View style={styles.aiDetectedMark}>
+                  <Text style={styles.aiDetectedMarkText}>🤖</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+      
+      {/* 顏色建議 */}
+      {colorAnalysis?.color_advice_summary && (
+        <View style={styles.colorAdviceContainer}>
+          <Text style={styles.colorAdviceTitle}>💡 顏色建議</Text>
+          <Text style={styles.colorAdviceText}>
+            {colorAnalysis.color_advice_summary}
+          </Text>
+        </View>
+      )}
     </View>
   );
 };
@@ -694,25 +887,6 @@ export default function AnalyzeImageScreen() {
     return adviceMap[type] || '🎯 基本建議 | 💧 飲食: 保持均衡飲食 | 🏃‍♂️ 運動: 規律運動';
   };
 
-  // Get combination advice for mixed types
-  const getCombinationAdvice = (mainType: string, secondaryType: string, percentage: number): string => {
-    const percentageText = `(${(percentage * 100).toFixed(1)}%)`;
-    
-    const combinations: { [key: string]: string } = {
-      'Constipated_Normal': `便秘與正常便混合 ${percentageText}: 改善進行中，繼續增加纖維和水分`,
-      'Constipated_Loose': `便秘與腹瀉混合 ${percentageText}: 腸道功能不穩定，建議就醫評估`,
-      'Normal_Loose': `正常與腹瀉便混合 ${percentageText}: 注意飲食調整，避免刺激性食物`,
-      'Normal_Constipated': `正常與便秘便混合 ${percentageText}: 好轉跡象，維持當前改善策略`,
-      'Loose_Normal': `腹瀉與正常便混合 ${percentageText}: 腸道恢復中，繼續溫和飲食`,
-      'Loose_Constipated': `腹瀉與便秘混合 ${percentageText}: 腸道功能紊亂，建議專業評估`
-    };
-
-    const comboKey = `${mainType}_${secondaryType}`;
-    const reverseKey = `${secondaryType}_${mainType}`;
-    
-    return combinations[comboKey] || combinations[reverseKey] || `${secondaryType}特徵 ${percentageText}: 混合型態，建議平衡改善策略`;
-  };
-
   // 增強版體積建議
   const getEnhancedVolumeAdvice = (volumeClass: string, volumeAnalysis: any): string => {
     const baseAdvice: { [key: string]: string } = {
@@ -735,42 +909,6 @@ export default function AnalyzeImageScreen() {
     }
     
     return advice;
-  };
-
-  // 食物影響查詢功能
-  const checkFoodInfluence = async (colorType: string) => {
-    try {
-      const response = await fetch('https://poop-api.onrender.com/check_food_history', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ color_type: colorType }),
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        return data;
-      }
-    } catch (error) {
-      console.error('Error checking food influence:', error);
-    }
-    return null;
-  };
-
-  // 獲取食物影響資料庫
-  const getFoodInfluenceInfo = async () => {
-    try {
-      const response = await fetch('https://poop-api.onrender.com/food_influence');
-      
-      if (response.ok) {
-        const data = await response.json();
-        return data.food_color_effects;
-      }
-    } catch (error) {
-      console.error('Error getting food influence info:', error);
-    }
-    return null;
   };
 
   // Enhanced mock analysis with realistic data
@@ -978,7 +1116,7 @@ export default function AnalyzeImageScreen() {
             />
           </View>
         ) : (
-          // 🔥 正常的分析成功界面（保持原有的）
+          // 🔥 正常的分析成功界面
           <>
             <View style={styles.resultContainer}>
               <View style={styles.resultHeader}>
@@ -996,6 +1134,9 @@ export default function AnalyzeImageScreen() {
                   <Text style={styles.analysisText}>{analysisDetails}</Text>
                 </View>
               )}
+
+              {/* 🎨 增強版顏色分析顯示 */}
+              <EnhancedColorAnalysisDisplay colorAnalysis={colorAnalysis} />
 
               {/* 顏色健康警告 */}
               <ColorHealthAlerts healthAlerts={healthAlerts} />
@@ -1039,9 +1180,12 @@ export default function AnalyzeImageScreen() {
                 onSelectVolume={setSelectedVolume}
               />
               
-              <PoopColorSelector
+              {/* 🎨 使用增強版顏色選擇器 */}
+              <EnhancedPoopColorSelector
                 selectedColor={selectedColor}
                 onSelectColor={setSelectedColor}
+                detectedColor={predictedColor}
+                colorAnalysis={colorAnalysis}
               />
             </View>
             
@@ -1184,7 +1328,208 @@ const styles = StyleSheet.create({
     color: Colors.primary.lightText,
     lineHeight: 20,
   },
-  // 新增：食物影響樣式
+
+  // 🎨 增強顏色分析樣式
+  enhancedColorContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  enhancedColorTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1F2937',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  colorAnalysisItem: {
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+  },
+  colorAnalysisHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  colorDot: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    marginRight: 12,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  colorAnalysisTextContainer: {
+    flex: 1,
+  },
+  colorAnalysisName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 2,
+  },
+  colorAnalysisType: {
+    fontSize: 12,
+    opacity: 0.8,
+  },
+  healthStatusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.8)',
+  },
+  healthStatusText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  colorDescription: {
+    fontSize: 13,
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
+  colorConfidence: {
+    fontSize: 12,
+    marginTop: 4,
+    opacity: 0.8,
+  },
+  overallColorHealth: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 8,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+  },
+  overallColorTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    marginBottom: 8,
+    color: '#374151',
+  },
+  overallColorText: {
+    fontSize: 13,
+    color: '#6B7280',
+    lineHeight: 18,
+  },
+
+  // 🎨 增強顏色選擇器樣式
+  enhancedColorSelector: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+  },
+  selectorHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  selectorTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#1F2937',
+  },
+  aiDetectedLabel: {
+    fontSize: 12,
+    color: '#059669',
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    fontWeight: 'bold',
+  },
+  colorGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  colorOption: {
+    width: '31%',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: 'transparent',
+    marginBottom: 12,
+    position: 'relative',
+  },
+  selectedColorOption: {
+    borderColor: '#3B82F6',
+    backgroundColor: '#EFF6FF',
+  },
+  aiDetectedColorOption: {
+    borderColor: '#059669',
+    backgroundColor: '#ECFDF5',
+  },
+  colorCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    marginBottom: 8,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  selectedColorCircle: {
+    borderColor: '#3B82F6',
+  },
+  colorName: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#374151',
+    marginBottom: 4,
+  },
+  selectedColorName: {
+    color: '#3B82F6',
+  },
+  aiDetectedMark: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#059669',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  aiDetectedMarkText: {
+    fontSize: 10,
+  },
+  colorAdviceContainer: {
+    backgroundColor: '#FFFBEB',
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: '#FCD34D',
+  },
+  colorAdviceTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#92400E',
+    marginBottom: 8,
+  },
+  colorAdviceText: {
+    fontSize: 13,
+    color: '#78350F',
+    lineHeight: 18,
+  },
+
+  // 原有樣式
   foodInfluenceContainer: {
     backgroundColor: '#FEF3C7',
     borderRadius: 8,
@@ -1210,7 +1555,6 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontStyle: 'italic',
   },
-  // 新增：健康警告樣式
   healthAlertsContainer: {
     backgroundColor: '#FEE2E2',
     borderRadius: 8,
@@ -1303,11 +1647,6 @@ const styles = StyleSheet.create({
     color: Colors.primary.text,
     lineHeight: 18,
   },
-  recommendationsText: {
-    fontSize: 14,
-    color: Colors.primary.lightText,
-    lineHeight: 20,
-  },
   selectorsContainer: {
     backgroundColor: Colors.primary.card,
     borderRadius: 12,
@@ -1322,8 +1661,7 @@ const styles = StyleSheet.create({
   },
   cancelButton: {},
 
-  // 🔥 新增：錯誤處理相關樣式
-  // 非大便檢測結果樣式
+  // 🔥 錯誤處理相關樣式
   nonPoopContainer: {
     backgroundColor: Colors.primary.card,
     borderRadius: 12,
@@ -1331,12 +1669,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
     borderWidth: 2,
-    borderColor: '#F59E0B', // warning color fallback
+    borderColor: '#F59E0B',
   },
   nonPoopTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#F59E0B', // warning color fallback
+    color: '#F59E0B',
     marginTop: 16,
     marginBottom: 8,
   },
@@ -1364,8 +1702,6 @@ const styles = StyleSheet.create({
     color: Colors.primary.lightText,
     marginBottom: 4,
   },
-  
-  // 低信心度結果樣式
   lowConfidenceContainer: {
     backgroundColor: Colors.primary.card,
     borderRadius: 12,
@@ -1423,8 +1759,6 @@ const styles = StyleSheet.create({
     color: Colors.primary.lightText,
     marginBottom: 4,
   },
-  
-  // 部分分析結果樣式
   partialAnalysisContainer: {
     backgroundColor: Colors.primary.card,
     borderRadius: 12,
@@ -1432,12 +1766,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
     borderWidth: 2,
-    borderColor: '#10B981', // success color fallback
+    borderColor: '#10B981',
   },
   partialAnalysisTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#10B981', // success color fallback
+    color: '#10B981',
     marginTop: 16,
     marginBottom: 8,
   },
@@ -1447,8 +1781,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 16,
   },
-  
-  // 通用樣式
   suggestionText: {
     fontSize: 13,
     color: Colors.primary.lightText,
@@ -1465,5 +1797,8 @@ const styles = StyleSheet.create({
   },
   continueAnywayButton: {
     borderColor: Colors.primary.lightText,
+  },
+  continueBasicButton: {
+    backgroundColor: '#10B981',
   },
 });
