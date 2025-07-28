@@ -17,4 +17,31 @@ export default {
       dot: "#a67c52",
     }
   }
+  
+};
+
+// constants/colors.ts
+
+const LightColors = {
+  background: '#FFFFFF',
+  card: '#F4F4F4',
+  text: '#111',
+  lightText: '#888',
+  accent: '#3e64ff',
+  border: '#DDD',
+  error: '#FF4D4F',
+};
+
+const DarkColors = {
+  background: '#000000',
+  card: '#1a1a1a',
+  text: '#EEE',
+  lightText: '#AAA',
+  accent: '#3e64ff',
+  border: '#333',
+  error: '#FF6B6B',
+};
+
+export const getThemeColors = (theme: 'light' | 'dark') => {
+  return theme === 'dark' ? DarkColors : LightColors;
 };

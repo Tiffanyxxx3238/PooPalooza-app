@@ -6,6 +6,8 @@ import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import { useUserStore } from '@/store/userStore';
 import ChatScreen from '@/components/ChatScreen';
+import { useThemeStore } from '@/store/themeStore';
+import { Appearance } from 'react-native';
 
 import {
   Dimensions,
@@ -66,6 +68,13 @@ function RootLayoutNav() {
     const validY = Math.min(Math.max(0, y), screenHeight - FAB_SIZE);
     return { x: validX, y: validY };
   };
+
+  const { theme } = useThemeStore();
+  const colorScheme = Appearance.getColorScheme();
+
+  const resolvedTheme = theme === 'system' ? colorScheme : theme;
+  const backgroundColor = resolvedTheme === 'dark' ? '#1e1e1e' : '#F5E6C4';
+  const textColor = resolvedTheme === 'dark' ? '#ffffff' : '#333333';
 
   // 持續的動畫效果
   useEffect(() => {
@@ -233,14 +242,14 @@ function RootLayoutNav() {
 
   return (
     <View style={{ flex: 1 }}>
-      <Stack
-        screenOptions={{
-          headerStyle: { backgroundColor: '#F5E6C4' },
-          headerTintColor: '#8B4513',
-          headerTitleStyle: { fontWeight: 'bold' },
-          contentStyle: { backgroundColor: '#F5E6C4' },
-        }}
-      >
+        <Stack
+          screenOptions={{
+            headerStyle: { backgroundColor },
+            headerTintColor: textColor,
+            headerTitleStyle: { fontWeight: 'bold' },
+            contentStyle: { backgroundColor },
+          }}
+        >
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="login" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
