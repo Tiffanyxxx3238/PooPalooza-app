@@ -39,13 +39,13 @@ export default function ProfileScreen() {
           <Text style={styles.email}>{email || 'guest@example.com'}</Text>
         </View>
 
-        <View style={styles.statsContainer}>
+        {/* <View style={styles.statsContainer}>
           <Stat label="Total Poops" value={entries.length} />
           <Divider />
           <Stat label="Longest Streak" value={longestStreak} />
           <Divider />
           <Stat label="Avg Minutes" value={avgMinutes} />
-        </View>
+        </View> */}
 
         <Section title="Notifications">
           <Row label="Poop Reminders" icon={<Bell size={18} color={Colors.primary.text} />} onPress={() => router.push('/reminder-settings')} />
