@@ -163,6 +163,120 @@ const ColorHealthAlerts = ({ healthAlerts }: { healthAlerts: any[] }) => {
   );
 };
 
+// 🔥 新增：非大便檢測結果顯示組件
+const NonPoopDetectionDisplay = ({ result, onRetake, onSelectOther }: { result: any, onRetake: () => void, onSelectOther: () => void }) => (
+  <View style={styles.nonPoopContainer}>
+    <AlertCircle size={48} color={Colors.primary.warning || '#F59E0B'} />
+    <Text style={styles.nonPoopTitle}>未檢測到大便</Text>
+    <Text style={styles.nonPoopMessage}>{result.message}</Text>
+    
+    {result.detected_objects && result.detected_objects.length > 0 && (
+      <View style={styles.detectedObjectsContainer}>
+        <Text style={styles.detectedObjectsTitle}>實際檢測到的物件：</Text>
+        {result.detected_objects.slice(0, 3).map((obj: any, index: number) => (
+          <Text key={index} style={styles.detectedObjectItem}>
+            • {obj.class} (信心度: {(obj.confidence * 100).toFixed(1)}%)
+          </Text>
+        ))}
+      </View>
+    )}
+    
+    <Text style={styles.suggestionText}>{result.suggestion}</Text>
+    
+    <View style={styles.actionButtonsContainer}>
+      <Button
+        title="重新拍照"
+        onPress={onRetake}
+        style={styles.retakeButton}
+      />
+      <Button
+        title="選擇其他照片"
+        onPress={onSelectOther}
+        variant="outline"
+        style={styles.selectOtherButton}
+      />
+    </View>
+  </View>
+);
+
+// 🔥 新增：低信心度結果顯示組件
+const LowConfidenceDisplay = ({ result, onRetry, onContinueAnyway }: { result: any, onRetry: () => void, onContinueAnyway: () => void }) => (
+  <View style={styles.lowConfidenceContainer}>
+    <AlertCircle size={48} color={Colors.primary.accent} />
+    <Text style={styles.lowConfidenceTitle}>檢測信心度不足</Text>
+    <Text style={styles.lowConfidenceMessage}>{result.message}</Text>
+    
+    {result.detected_results && result.detected_results.length > 0 && (
+      <View style={styles.detectedResultsContainer}>
+        <Text style={styles.detectedResultsTitle}>檢測結果：</Text>
+        <Text style={styles.detectedResultItem}>
+          {result.detected_results[0].class} (信心度: {(result.detected_results[0].confidence * 100).toFixed(1)}%)
+        </Text>
+      </View>
+    )}
+    
+    <Text style={styles.suggestionText}>{result.suggestion}</Text>
+    
+    <View style={styles.improvementTips}>
+      <Text style={styles.improvementTitle}>改善建議：</Text>
+      <Text style={styles.improvementTip}>• 確保照片清晰對焦</Text>
+      <Text style={styles.improvementTip}>• 提供充足的光線</Text>
+      <Text style={styles.improvementTip}>• 避免陰影遮擋</Text>
+      <Text style={styles.improvementTip}>• 保持適當的拍攝距離</Text>
+    </View>
+    
+    <View style={styles.actionButtonsContainer}>
+      <Button
+        title="重新分析"
+        onPress={onRetry}
+        style={styles.retryButton}
+      />
+      <Button
+        title="繼續使用結果"
+        onPress={onContinueAnyway}
+        variant="outline"
+        style={styles.continueAnywayButton}
+      />
+    </View>
+  </View>
+);
+
+// 🔥 新增：部分分析結果顯示組件
+const PartialAnalysisDisplay = ({ result, onContinueWithPartial, onRetake }: { result: any, onContinueWithPartial: () => void, onRetake: () => void }) => (
+  <View style={styles.partialAnalysisContainer}>
+    <Check size={48} color={Colors.primary.success || '#10B981'} />
+    <Text style={styles.partialAnalysisTitle}>檢測成功，但分析不完整</Text>
+    <Text style={styles.partialAnalysisMessage}>{result.message}</Text>
+    
+    {result.detected_objects && result.detected_objects.length > 0 && (
+      <View style={styles.detectedObjectsContainer}>
+        <Text style={styles.detectedObjectsTitle}>檢測結果：</Text>
+        {result.detected_objects.map((obj: any, index: number) => (
+          <Text key={index} style={styles.detectedObjectItem}>
+            • {obj.class} (信心度: {(obj.confidence * 100).toFixed(1)}%)
+          </Text>
+        ))}
+      </View>
+    )}
+    
+    <Text style={styles.suggestionText}>{result.suggestion}</Text>
+    
+    <View style={styles.actionButtonsContainer}>
+      <Button
+        title="使用基本結果繼續"
+        onPress={onContinueWithPartial}
+        style={styles.continueBasicButton}
+      />
+      <Button
+        title="重新拍照"
+        onPress={onRetake}
+        variant="outline"
+        style={styles.retakeButton}
+      />
+    </View>
+  </View>
+);
+
 export default function AnalyzeImageScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ imageUri: string }>();
@@ -190,6 +304,11 @@ export default function AnalyzeImageScreen() {
   const [healthAlerts, setHealthAlerts] = useState<any[]>([]);
   const [foodInfluenceData, setFoodInfluenceData] = useState<any>(null);
 
+  // 🔥 新增：錯誤處理相關狀態
+  const [nonPoopDetectionResult, setNonPoopDetectionResult] = useState<any>(null);
+  const [lowConfidenceResult, setLowConfidenceResult] = useState<any>(null);
+  const [partialAnalysisResult, setPartialAnalysisResult] = useState<any>(null);
+
   useEffect(() => {
     if (params.imageUri) {
       setImageUri(params.imageUri);
@@ -200,6 +319,10 @@ export default function AnalyzeImageScreen() {
   const analyzeImage = async (uri: string) => {
     setIsAnalyzing(true);
     setAnalysisError(null);
+    // 🔥 清除錯誤狀態
+    setNonPoopDetectionResult(null);
+    setLowConfidenceResult(null);
+    setPartialAnalysisResult(null);
     setAnalysisProgress('正在準備分析...');
     
     try {
@@ -214,6 +337,32 @@ export default function AnalyzeImageScreen() {
       console.error('Analysis error:', error);
       setAnalysisError('Failed to analyze the image');
       setIsAnalyzing(false);
+    }
+  };
+
+  // 🔥 新增：處理結構化錯誤的函數
+  const handleStructuredError = (errorResponse: any) => {
+    console.log('📋 Handling structured error:', errorResponse);
+    
+    // 設置分析完成狀態（錯誤也算是一種"完成"）
+    setIsAnalyzing(false);
+    
+    // 根據錯誤類型顯示不同的UI
+    if (errorResponse.error === "未檢測到大便") {
+      // 顯示檢測到的其他物件
+      setAnalysisError(null); // 清除通用錯誤
+      setNonPoopDetectionResult(errorResponse); // 新的狀態
+    } else if (errorResponse.error === "檢測信心度不足") {
+      // 顯示信心度問題
+      setAnalysisError(null);
+      setLowConfidenceResult(errorResponse);
+    } else if (errorResponse.error === "無法進行詳細分析") {
+      // 顯示部分分析結果
+      setAnalysisError(null);
+      setPartialAnalysisResult(errorResponse);
+    } else {
+      // 其他錯誤使用通用處理
+      setAnalysisError(errorResponse.message || errorResponse.error);
     }
   };
 
@@ -277,12 +426,20 @@ export default function AnalyzeImageScreen() {
           const errorText = await response.text();
           console.error('API Error Response:', errorText);
           
-          if (response.status === 500 || response.status === 503) {
-            console.log('🔄 Server might be cold starting, trying fallback immediately...');
-            throw new Error('Server cold start detected');
+          // 🔥 新增：處理後端的結構化錯誤回應
+          try {
+            const errorJson = JSON.parse(errorText);
+            handleStructuredError(errorJson);
+            return; // 不要繼續執行
+          } catch (parseError) {
+            // 如果不是 JSON，使用原來的錯誤處理
+            if (response.status === 500 || response.status === 503) {
+              console.log('🔄 Server might be cold starting, trying fallback immediately...');
+              throw new Error('Server cold start detected');
+            }
+            
+            throw new Error(`Poop API error: ${response.status} - ${response.statusText}\nDetails: ${errorText}`);
           }
-          
-          throw new Error(`Poop API error: ${response.status} - ${response.statusText}\nDetails: ${errorText}`);
         }
         
         const result = await response.json();
@@ -715,6 +872,49 @@ export default function AnalyzeImageScreen() {
     router.back();
   };
 
+  // 🔥 新增：錯誤處理相關函數
+  const handleRetake = () => {
+    router.push('/camera');
+  };
+
+  const handleSelectOther = () => {
+    router.push('/gallery');
+  };
+
+  const handleContinueWithLowConfidence = (result: any) => {
+    // 使用低信心度結果繼續
+    if (result.detected_results && result.detected_results.length > 0) {
+      const detection = result.detected_results[0];
+      // 設置基本的選擇器值
+      setSelectedType(4); // 預設正常
+      setSelectedVolume(2); // 預設中等
+      setSelectedColor(1); // 預設棕色
+      
+      setAnalysisDetails(`⚠️ 低信心度分析結果\n檢測到: ${detection.class}\n信心度: ${(detection.confidence * 100).toFixed(1)}%\n注意: 建議改善拍攝條件以獲得更準確的分析`);
+      setRecommendations('🎯 基本建議 | 💧 飲食: 保持均衡飲食 | 🏃‍♂️ 運動: 規律運動 | 📸 建議: 下次請在更好的光線條件下拍攝');
+      
+      // 清除低信心度結果，顯示正常的選擇器界面
+      setLowConfidenceResult(null);
+    }
+  };
+
+  const handleContinueWithPartial = () => {
+    // 使用部分結果繼續
+    if (partialAnalysisResult?.detected_objects && partialAnalysisResult.detected_objects.length > 0) {
+      const bestDetection = partialAnalysisResult.detected_objects[0];
+      // 設置基本的選擇器值
+      setSelectedType(4); // 預設正常
+      setSelectedVolume(2); // 預設中等
+      setSelectedColor(1); // 預設棕色
+      
+      setAnalysisDetails(`🎯 部分分析結果\n檢測到: ${bestDetection.class}\n信心度: ${(bestDetection.confidence * 100).toFixed(1)}%\n注意: 由於圖片品質限制，無法進行完整分析`);
+      setRecommendations('🎯 基本建議 | 💧 飲食: 保持均衡飲食 | 🏃‍♂️ 運動: 規律運動 | 📸 建議: 下次拍攝更清晰的照片以獲得完整分析');
+      
+      // 清除部分分析結果，顯示正常的選擇器界面
+      setPartialAnalysisResult(null);
+    }
+  };
+
   return (
     <>
       <Stack.Screen 
@@ -744,7 +944,29 @@ export default function AnalyzeImageScreen() {
             </View>
             <Text style={styles.estimateText}>預計剩餘時間: 30-60秒</Text>
           </View>
+        ) : nonPoopDetectionResult ? (
+          // 🔥 顯示非大便檢測結果
+          <NonPoopDetectionDisplay 
+            result={nonPoopDetectionResult} 
+            onRetake={handleRetake}
+            onSelectOther={handleSelectOther}
+          />
+        ) : lowConfidenceResult ? (
+          // 🔥 顯示低信心度結果
+          <LowConfidenceDisplay 
+            result={lowConfidenceResult} 
+            onRetry={handleRetry}
+            onContinueAnyway={() => handleContinueWithLowConfidence(lowConfidenceResult)}
+          />
+        ) : partialAnalysisResult ? (
+          // 🔥 顯示部分分析結果
+          <PartialAnalysisDisplay 
+            result={partialAnalysisResult} 
+            onContinueWithPartial={handleContinueWithPartial}
+            onRetake={handleRetake}
+          />
         ) : analysisError ? (
+          // 🔥 通用錯誤處理（保持原有的）
           <View style={styles.errorContainer}>
             <AlertCircle size={48} color={Colors.primary.error} />
             <Text style={styles.errorTitle}>Analysis Failed</Text>
@@ -756,6 +978,7 @@ export default function AnalyzeImageScreen() {
             />
           </View>
         ) : (
+          // 🔥 正常的分析成功界面（保持原有的）
           <>
             <View style={styles.resultContainer}>
               <View style={styles.resultHeader}>
@@ -1098,4 +1321,149 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   cancelButton: {},
+
+  // 🔥 新增：錯誤處理相關樣式
+  // 非大便檢測結果樣式
+  nonPoopContainer: {
+    backgroundColor: Colors.primary.card,
+    borderRadius: 12,
+    padding: 24,
+    alignItems: 'center',
+    marginBottom: 16,
+    borderWidth: 2,
+    borderColor: '#F59E0B', // warning color fallback
+  },
+  nonPoopTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#F59E0B', // warning color fallback
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  nonPoopMessage: {
+    fontSize: 14,
+    color: Colors.primary.text,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  detectedObjectsContainer: {
+    backgroundColor: '#F3F4F6',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    width: '100%',
+  },
+  detectedObjectsTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: Colors.primary.text,
+    marginBottom: 8,
+  },
+  detectedObjectItem: {
+    fontSize: 13,
+    color: Colors.primary.lightText,
+    marginBottom: 4,
+  },
+  
+  // 低信心度結果樣式
+  lowConfidenceContainer: {
+    backgroundColor: Colors.primary.card,
+    borderRadius: 12,
+    padding: 24,
+    alignItems: 'center',
+    marginBottom: 16,
+    borderWidth: 2,
+    borderColor: Colors.primary.accent,
+  },
+  lowConfidenceTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: Colors.primary.accent,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  lowConfidenceMessage: {
+    fontSize: 14,
+    color: Colors.primary.text,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  detectedResultsContainer: {
+    backgroundColor: '#F0F9FF',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    width: '100%',
+  },
+  detectedResultsTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: Colors.primary.text,
+    marginBottom: 8,
+  },
+  detectedResultItem: {
+    fontSize: 13,
+    color: Colors.primary.lightText,
+  },
+  improvementTips: {
+    backgroundColor: '#FFFBEB',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    width: '100%',
+  },
+  improvementTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: Colors.primary.text,
+    marginBottom: 8,
+  },
+  improvementTip: {
+    fontSize: 13,
+    color: Colors.primary.lightText,
+    marginBottom: 4,
+  },
+  
+  // 部分分析結果樣式
+  partialAnalysisContainer: {
+    backgroundColor: Colors.primary.card,
+    borderRadius: 12,
+    padding: 24,
+    alignItems: 'center',
+    marginBottom: 16,
+    borderWidth: 2,
+    borderColor: '#10B981', // success color fallback
+  },
+  partialAnalysisTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#10B981', // success color fallback
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  partialAnalysisMessage: {
+    fontSize: 14,
+    color: Colors.primary.text,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  
+  // 通用樣式
+  suggestionText: {
+    fontSize: 13,
+    color: Colors.primary.lightText,
+    textAlign: 'center',
+    marginBottom: 20,
+    fontStyle: 'italic',
+  },
+  actionButtonsContainer: {
+    width: '100%',
+    gap: 12,
+  },
+  selectOtherButton: {
+    borderColor: Colors.primary.accent,
+  },
+  continueAnywayButton: {
+    borderColor: Colors.primary.lightText,
+  },
 });
