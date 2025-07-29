@@ -541,15 +541,15 @@ export default function AnalyzeImageScreen() {
     setIsAnalyzing(false);
     
     // 根據錯誤類型顯示不同的UI
-    if (errorResponse.error === "未檢測到大便") {
+    if (errorResponse.error === "No poop detected") {
       // 顯示檢測到的其他物件
       setAnalysisError(null); // 清除通用錯誤
       setNonPoopDetectionResult(errorResponse); // 新的狀態
-    } else if (errorResponse.error === "檢測信心度不足") {
+    } else if (errorResponse.error === "Low confidence detection") {
       // 顯示信心度問題
       setAnalysisError(null);
       setLowConfidenceResult(errorResponse);
-    } else if (errorResponse.error === "無法進行詳細分析") {
+    } else if (errorResponse.error === "Cannot perform detailed analysis") {
       // 顯示部分分析結果
       setAnalysisError(null);
       setPartialAnalysisResult(errorResponse);
