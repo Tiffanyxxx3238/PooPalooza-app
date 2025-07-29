@@ -628,7 +628,7 @@ export default function AnalyzeImageScreen() {
             if (errorJson.error === "No objects detected" || errorJson.error === "No poop detected") {
               // 顯示非大便檢測結果
               setIsAnalyzing(false);
-              setAnalysisError(`${errorJson.message}. 檢測到的物件: ${errorJson.detected_objects ? errorJson.detected_objects.map(obj => obj.class).join('、') : '無'}`);
+              setAnalysisError(`${errorJson.message}.  ${errorJson.detected_objects ? errorJson.detected_objects.map(obj => obj.class).join('、') : '無'}`);
               return;
             } else if (errorJson.error === "Low confidence detection") {
               // 顯示低信心度結果
