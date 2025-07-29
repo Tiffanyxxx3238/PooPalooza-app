@@ -614,25 +614,50 @@ export default function AnalyzeImageScreen() {
         clearInterval(progressTimer);
         
         console.log('Response status:', response.status);
-        
+
         if (!response.ok) {
           const errorText = await response.text();
           console.error('API Error Response:', errorText);
           
-          // 🔥 新增：處理後端的結構化錯誤回應
+          // 🔥 新增：嘗試解析結構化錯誤
           try {
             const errorJson = JSON.parse(errorText);
-            handleStructuredError(errorJson);
-            return; // 不要繼續執行
-          } catch (parseError) {
-            // 如果不是 JSON，使用原來的錯誤處理
-            if (response.status === 500 || response.status === 503) {
-              console.log('🔄 Server might be cold starting, trying fallback immediately...');
-              throw new Error('Server cold start detected');
-            }
+            console.log('✅ 解析到結構化錯誤:', errorJson);
             
-            throw new Error(`Poop API error: ${response.status} - ${response.statusText}\nDetails: ${errorText}`);
+            // 🔥 根據錯誤類型處理
+            if (errorJson.error === "No objects detected" || errorJson.error === "No poop detected") {
+              // 顯示非大便檢測結果
+              setIsAnalyzing(false);
+              setAnalysisError(`${errorJson.message}. 檢測到的物件: ${errorJson.detected_objects ? errorJson.detected_objects.map(obj => obj.class).join('、') : '無'}`);
+              return;
+            } else if (errorJson.error === "Low confidence detection") {
+              // 顯示低信心度結果
+              setIsAnalyzing(false);
+              setAnalysisError(`${errorJson.message}. ${errorJson.suggestion}`);
+              return;
+            } else if (errorJson.error === "Cannot perform detailed analysis") {
+              // 顯示部分分析結果
+              setIsAnalyzing(false);
+              setAnalysisError(`${errorJson.message}. ${errorJson.suggestion}`);
+              return;
+            } else {
+              // 其他錯誤
+              setIsAnalyzing(false);
+              setAnalysisError(errorJson.message || errorJson.error);
+              return;
+            }
+          } catch (parseError) {
+            console.error('❌ 無法解析錯誤JSON:', parseError);
+            // 如果無法解析，使用原有邏輯
           }
+          
+          // 原有的錯誤處理邏輯
+          if (response.status === 500 || response.status === 503) {
+            console.log('🔄 Server might be cold starting, trying fallback immediately...');
+            throw new Error('Server cold start detected');
+          }
+          
+          throw new Error(`Poop API error: ${response.status} - ${response.statusText}\nDetails: ${errorText}`);
         }
         
         const result = await response.json();
