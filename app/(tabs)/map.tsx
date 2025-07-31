@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef,useCallback } from 'react';
+import React, { useState, useEffect, useRef,useCallback,useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform, Dimensions, Alert, Modal, TextInput, ScrollView, Image, Share, KeyboardAvoidingView, Linking} from 'react-native';
 import Colors from '@/constants/colors';
 import { MapPin, Navigation, Compass, List, Heart, Camera, Calendar, Trophy, Route, MessageCircle, Star, Upload, Mic, MicOff, Share2, Eye, EyeOff, Filter, ChevronDown, ChevronUp } from 'lucide-react-native';
@@ -47,6 +47,16 @@ interface Bathroom {
   hidden?: boolean;
   reviews?: Review[];
   funnyQuote?: string;
+  //cgu
+  university?: string;
+  building?: string;
+  campusArea?: string;
+  needCard?: boolean;
+  floors?: string;
+  locationDetail?: string;
+  side?: string;
+  price?: number;
+  originalDescription?: string;
 }
 
 // Review interface
@@ -342,17 +352,13 @@ const internationalBathrooms: Bathroom[] = [
   },
 ];
 
-// Simple local storage implementation to avoid AsyncStorage dependency
 const localStorageUtil = {
   async getItem(key: string): Promise<string | null> {
     try {
-      // For React Native, we'll use a simple in-memory storage for demo
-      // In production, you should use AsyncStorage
       if (Platform.OS === 'web') {
         return localStorage.getItem(key);
       }
-      // For mobile, return null for now (you can implement AsyncStorage later)
-      return null;
+      return await AsyncStorage.getItem(key);
     } catch {
       return null;
     }
@@ -361,8 +367,9 @@ const localStorageUtil = {
     try {
       if (Platform.OS === 'web') {
         localStorage.setItem(key, value);
+      } else {
+        await AsyncStorage.setItem(key, value);
       }
-      // For mobile, do nothing for now
     } catch {
       // Handle error
     }
@@ -412,7 +419,7 @@ export default function MapScreen() {
   const [visitedBathroomIds, setVisitedBathroomIds] = useState<string[]>([]);
 
   const [mapReady, setMapReady] = useState(false);
-
+   const [showPoopLinePage, setShowPoopLinePage] = useState(false);
   // Initialize achievement system
   const initializeAchievements = (): Achievement[] => [
     {
@@ -603,12 +610,11 @@ export default function MapScreen() {
     }
   };
 
-  // Update achievement progress
-  const updateAchievements = async (newRecord: CheckInRecord) => {
-    const updatedAchievements = [...achievements];
+const updateAchievements = async (newRecord: CheckInRecord, updatedRecords: CheckInRecord[]) => {
+  const updatedAchievements = [...achievements];
     
     // City Explorer: different location count
-    const uniqueLocations = new Set([...checkInRecords, newRecord].map(r => r.bathroom.id));
+    const uniqueLocations = new Set(updatedRecords.map(r => r.bathroom.id)); 
     const explorerAchievement = updatedAchievements.find(a => a.id === 'explorer');
     if (explorerAchievement) {
       explorerAchievement.progress = uniqueLocations.size;
@@ -619,7 +625,7 @@ export default function MapScreen() {
     }
     
     // Loyal Toileteer: same location count
-    const locationCounts = [...checkInRecords, newRecord].reduce((acc, record) => {
+    const locationCounts = updatedRecords.reduce((acc, record) => { // ← 改用 updatedRecords
       acc[record.bathroom.id] = (acc[record.bathroom.id] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);
@@ -635,7 +641,7 @@ export default function MapScreen() {
     }
 
     // Photographer achievement
-    const photoRecords = [...checkInRecords, newRecord].filter(r => r.image);
+    const photoRecords = updatedRecords.filter(r => r.image); // ← 改用 updatedRecords
     const photographerAchievement = updatedAchievements.find(a => a.id === 'photographer');
     if (photographerAchievement) {
       photographerAchievement.progress = photoRecords.length;
@@ -688,42 +694,6 @@ export default function MapScreen() {
     }
   };
 
-  // Audio recording - commented out to avoid expo-av dependency
-  const startRecording = async () => {
-    Alert.alert('Audio Recording', 'Audio recording feature requires expo-av package installation');
-    // try {
-    //   const { status } = await Audio.requestPermissionsAsync();
-    //   if (status !== 'granted') {
-    //     Alert.alert('Permission needed', 'Sorry, we need microphone permissions to record audio!');
-    //     return;
-    //   }
-
-    //   await Audio.setAudioModeAsync({
-    //     allowsRecordingIOS: true,
-    //     playsInSilentModeIOS: true,
-    //   });
-
-    //   const { recording } = await Audio.Recording.createAsync(
-    //     Audio.RecordingOptionsPresets.HIGH_QUALITY
-    //   );
-    //   setRecording(recording);
-    //   setIsRecording(true);
-    // } catch (err) {
-    //   console.error('Failed to start recording', err);
-    // }
-  };
-
-  const stopRecording = async () => {
-    Alert.alert('Audio Recording', 'Audio recording feature requires expo-av package installation');
-    // if (!recording) return;
-
-    // setIsRecording(false);
-    // await recording.stopAndUnloadAsync();
-    // const uri = recording.getURI();
-    // setCheckInAudio(uri);
-    // setRecording(null);
-  };
-
   // Validate check-in form
   const validateCheckInForm = (): boolean => {
     if (!checkInMood) {
@@ -766,15 +736,14 @@ export default function MapScreen() {
       customMessage: customMessage,
     };
     
-    const updatedRecords = [...checkInRecords, newRecord];
-    setCheckInRecords(updatedRecords);
-    setVisitedBathroomIds([...visitedBathroomIds, selectedBathroom.id]);
-    
-    // Save to local storage
-    await localStorageUtil.setItem('checkInRecords', JSON.stringify(updatedRecords));
+const updatedRecords = [...checkInRecords, newRecord];
+  setCheckInRecords(updatedRecords);
+  setVisitedBathroomIds([...visitedBathroomIds, selectedBathroom.id]);
+  
+  await localStorageUtil.setItem('checkInRecords', JSON.stringify(updatedRecords));
     
     // Update achievements
-    await updateAchievements(newRecord);
+    await updateAchievements(newRecord, updatedRecords);
     
     // Reset form
     resetCheckInForm();
@@ -920,8 +889,8 @@ export default function MapScreen() {
       })
       .filter(bathroom => bathroom.distance <= 0.5) // 500公尺內
       .sort((a, b) => a.distance - b.distance); // 按距離排序
-  };
-  const convertChangGungData = (jsonData) => {
+  };  
+  const convertChangGungData = (jsonData: any[]) : Bathroom[] => {
   return jsonData.map((toilet) => ({
     id: toilet.id,
     name: toilet.name,
@@ -947,206 +916,252 @@ export default function MapScreen() {
     originalDescription: toilet.description,
   }));
 };
+// 在所有 useState 之後，useEffect 之前添加這些 useMemo
+const bathroomStats = useMemo(() => {
+  const govCount = nearbyBathrooms.filter(b => b.source === 'gov').length;
+  const commercialCount = nearbyBathrooms.filter(b => b.source === 'commercial').length;
+  const internationalCount = nearbyBathrooms.filter(b => b.source === 'international').length;
+  return { govCount, commercialCount, internationalCount };
+}, [nearbyBathrooms]);
 
+const sortedRecords = useMemo(() => 
+  [...checkInRecords].sort((a, b) => a.timestamp - b.timestamp),
+  [checkInRecords]
+);
+
+const displayBathrooms = useMemo(() => {
+  switch (activeTab) {
+    case 'visited':
+    case 'journey':
+    case 'poopline': 
+      return checkInRecords.map(r => r.bathroom);
+    case 'nearby':
+      return nearbyBathrooms;
+    default:
+      return allBathrooms;
+  }
+}, [activeTab, checkInRecords, nearbyBathrooms, allBathrooms]);
+
+const journeyStats = useMemo(() => {
+  const locationCounts = checkInRecords.reduce((acc, record) => {
+    acc[record.bathroom.id] = (acc[record.bathroom.id] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
+
+
+  const favoriteLocationEntry = Object.entries(locationCounts)
+    .sort(([,a], [,b]) => b - a)[0];
+
+  return {
+    totalCheckIns: checkInRecords.length,
+    uniqueLocations: new Set(checkInRecords.map(r => r.bathroom.id)).size,
+    totalDistance: 0,
+    favoriteLocation: favoriteLocationEntry ? 
+      checkInRecords.find(r => r.bathroom.id === favoriteLocationEntry[0])?.bathroom.name || '' 
+      : '',
+  };
+}, [checkInRecords]);
   // Filter nearby bathrooms when location is obtained
   useEffect(() => {
     if (location && allBathrooms.length > 0) {
       console.log('🎯 開始篩選500公尺內廁所...');
       const nearby = filterNearbyBathrooms(location, allBathrooms);
       console.log(`📍 找到 ${nearby.length} 個500公尺內的廁所`);
-      
-      // 分類統計
-      const govCount = nearby.filter(b => b.source === 'gov').length;
-      const commercialCount = nearby.filter(b => b.source === 'commercial').length;
-      const internationalCount = nearby.filter(b => b.source === 'international').length;
-      console.log(`🏛️ 政府廁所: ${govCount} 個`);
-      console.log(`🚻 商業廁所: ${commercialCount} 個`);
-      console.log(`🌍 國際廁所: ${internationalCount} 個`);
-      
       setNearbyBathrooms(nearby);
     }
   }, [location, allBathrooms]);
 
-  // Auto move map to user location when location is obtained
-  useEffect(() => {
-    if (location && mapReady && (activeTab === 'map' || activeTab === 'visited')) {
-      setTimeout(() => {
-        centerMapOnUser();
-      }, 500);
-    }
-  }, [location, activeTab, mapReady]);
+// Auto move map to user location when location is obtained
+useEffect(() => {
+  if (location && mapReady && (activeTab === 'map' || activeTab === 'visited')) {
+    const timer = setTimeout(() => {
+      centerMapOnUser();
+    }, 500);
+    
+    return () => clearTimeout(timer); 
+  }
+}, [location, activeTab, mapReady]);
 
-  // Initialize app data
-  useEffect(() => {
+useEffect(() => {
+  const initializeApp = async () => {
     console.log('🚀 初始化應用資料');
-    loadCheckInRecords();
-    loadAchievements();
-      // 轉換長庚大學廁所資料
+    
+    // 只載入本地資料，不設置 allBathrooms
+    await Promise.all([
+      loadCheckInRecords(),
+      loadAchievements()
+    ]);
+    
+    console.log('📊 本地資料初始化完成');
+  };
+  
+  initializeApp();
+}, []);
+const initializeBasicData = () => {
   const changGungBathrooms = convertChangGungData(changGungData);
-  console.log(`🏫 載入長庚大學廁所：${changGungBathrooms.length} 個`);
-    // 載入所有廁所資料（包含長庚大學）
-  const allBathroomsData = [
+  return [
     ...mockBathrooms,
-    ...changGungBathrooms,        // 👈 新增這一行
+    ...changGungBathrooms,
     ...internationalBathrooms
   ];
-  
-  setAllBathrooms(allBathroomsData);
-  console.log(`📊 總計載入：${allBathroomsData.length} 個廁所`);
-  }, []);
-
+};
   // Get location and government data - run in background, non-blocking
   useEffect(() => {
-    const getLocationAndData = async () => {
-      if (Platform.OS === 'web') {
-        console.log('🌐 Web 平台，跳過位置獲取');
-        return;
-      }
+ const getLocationAndData = async () => {
+  if (Platform.OS === 'web') {
+    console.log('🌐 Web 平台，跳過位置獲取');
+    const basicBathroomsData = initializeBasicData();
+    setAllBathrooms(basicBathroomsData);
+    console.log(`📊 Web 平台載入：${basicBathroomsData.length} 個廁所`);
+    return;
+  }
 
-      try {
-        console.log('📍 開始請求位置權限...');
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        console.log('📍 權限狀態:', status);
+  const changGungBathrooms = convertChangGungData(changGungData);
+
+  try {
+    console.log('📍 開始請求位置權限...');
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    console.log('📍 權限狀態:', status);
+    
+    if (status !== 'granted') {
+      console.log('❌ 位置權限被拒絕');
+      setErrorMsg('Permission to access location was denied');
+      const allBathroomsData = [
+        ...mockBathrooms,
+        ...changGungBathrooms,
+        ...internationalBathrooms
+      ];
+      setAllBathrooms(allBathroomsData);
+      console.log(`📊 無位置權限，載入基本資料：${allBathroomsData.length} 個廁所`);
+      return;
+    }
+
+    console.log('📍 獲取當前位置...');
+    const currentLocation = await Location.getCurrentPositionAsync({
+      accuracy: Location.Accuracy.Balanced,
+    });
+    
+    console.log('📍 位置獲取成功：', currentLocation.coords);
+    setLocation(currentLocation);
+
+    // 處理政府資料
+    console.log('🏛️ 開始處理政府廁所資料...');
+    const govDataRaw = [
+      ...changhua,
+      ...Chiayi,
+      ...Chiayi2,
+      ...Hsinchu,
+      ...Hsinchu2,
+      ...Hualien,
+      ...Kaohsiung,
+      ...Keelung,
+      ...Kinmen,
+      ...Lienchiang,
+      ...Miaoli,
+      ...Nantou,
+      ...new_taipei,
+      ...Penghu,
+      ...Pingtung,
+      ...Taichung,
+      ...Tainan,
+      ...Taipei,
+      ...Taitung,
+      ...Taoyuan,
+      ...Yilan,
+      ...Yunlin,
+    ];
+
+    const govBathrooms: Bathroom[] = govDataRaw
+      .filter((item) => item.latitude && item.longitude)
+      .map((item, index) => {
+        const lat = parseFloat(item.latitude);
+        const lng = parseFloat(item.longitude);
         
-        if (status !== 'granted') {
-          console.log('❌ 位置權限被拒絕');
-          setErrorMsg('Permission to access location was denied');
-          return;
+        let source: 'gov' | 'commercial' | 'international' = 'international';
+        if (isInTaiwan(lat, lng)) {
+          const isGov = isGovernmentFacility(
+            item.name || '', 
+            item.address || '', 
+            item.type || '', 
+            item.type2 || ''
+          );
+          source = isGov ? 'gov' : 'commercial';
         }
 
-        console.log('📍 獲取當前位置...');
-        const currentLocation = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
-        });
-        
-        console.log('📍 位置獲取成功：', currentLocation.coords);
-        setLocation(currentLocation);
+        return {
+          id: `data-${index}`,
+          name: item.name || item.type || item.type2 || 'Public Toilet',
+          address: item.address || 'Unknown Address',
+          latitude: lat,
+          longitude: lng,
+          rating: 4.0,
+          distance: 0.5,
+          type: item.type || item.type2 || 'Public',
+          source: source,
+          reviews: [],
+          funnyQuote: FUNNY_QUOTES[Math.floor(Math.random() * FUNNY_QUOTES.length)],
+        };
+      });
 
-        // 處理政府資料
-        console.log('🏛️ 開始處理政府廁所資料...');
-        const govDataRaw = [
-          ...changhua,
-          ...Chiayi,
-          ...Chiayi2,
-          ...Hsinchu,
-          ...Hsinchu2,
-          ...Hualien,
-          ...Kaohsiung,
-          ...Keelung,
-          ...Kinmen,
-          ...Lienchiang,
-          ...Miaoli,
-          ...Nantou,
-          ...new_taipei,
-          ...Penghu,
-          ...Pingtung,
-          ...Taichung,
-          ...Tainan,
-          ...Taipei,
-          ...Taitung,
-          ...Taoyuan,
-          ...Yilan,
-          ...Yunlin,
-        ];
-        
-
-        const govBathrooms: Bathroom[] = govDataRaw
-          .filter((item) => item.latitude && item.longitude)
-          .map((item, index) => {
-            const lat = parseFloat(item.latitude);
-            const lng = parseFloat(item.longitude);
-            
-            // 判斷是否為台灣境內，並檢查是否為政府機關
-            let source: 'gov' | 'commercial' | 'international' = 'international';
-            if (isInTaiwan(lat, lng)) {
-              // 使用更精確的政府機關判斷
-              const isGov = isGovernmentFacility(
-                item.name || '', 
-                item.address || '', 
-                item.type || '', 
-                item.type2 || ''
-              );
-              source = isGov ? 'gov' : 'commercial';
-            }
-
-            return {
-              id: `data-${index}`,
-              name: item.name || item.type || item.type2 || 'Public Toilet',
-              address: item.address || 'Unknown Address',
-              latitude: lat,
-              longitude: lng,
-              rating: 4.0,
-              distance: 0.5,
-              type: item.type || item.type2 || 'Public',
-              source: source,
-              reviews: [],
-              funnyQuote: FUNNY_QUOTES[Math.floor(Math.random() * FUNNY_QUOTES.length)],
-            };
-          });
-
-        console.log(`🏛️ 處理完成：${govBathrooms.filter(b => b.source === 'gov').length} 個政府廁所，${govBathrooms.filter(b => b.source === 'commercial').length} 個商業廁所，${govBathrooms.filter(b => b.source === 'international').length} 個國際廁所`);
-        const allBathroomsData = [...mockBathrooms, ...internationalBathrooms, ...govBathrooms];
-        setAllBathrooms(allBathroomsData);
-        console.log(`📊 總計載入：${allBathroomsData.length} 個廁所`);
-        
-      } catch (error) {
-        console.error('❌ 位置獲取失敗：', error);
-        if (error && typeof error === 'object' && 'code' in error) {
-          if (error.code === 'LOCATION_REQUEST_TIMEOUT') {
-            setErrorMsg('Location request timed out. Please try again.');
-          } else if (error.code === 'LOCATION_UNAVAILABLE') {
-            setErrorMsg('Location services are not available.');
-          } else {
-            setErrorMsg('Could not get your location. Please check your GPS settings.');
-          }
-        } else {
-          setErrorMsg('Could not get your location. Please check your GPS settings.');
-        }
-      }
-    };
+    console.log(`🏛️ 處理完成：${govBathrooms.filter(b => b.source === 'gov').length} 個政府廁所，${govBathrooms.filter(b => b.source === 'commercial').length} 個商業廁所，${govBathrooms.filter(b => b.source === 'international').length} 個國際廁所`);
+    
+    const allBathroomsData = [
+      ...mockBathrooms, 
+      ...internationalBathrooms, 
+      ...changGungBathrooms,
+      ...govBathrooms
+    ];
+    setAllBathrooms(allBathroomsData);
+    console.log(`📊 總計載入：${allBathroomsData.length} 個廁所`);
+    
+  } catch (error) {
+    console.error('❌ 位置獲取失敗：', error);
+    const allBathroomsData = [
+      ...mockBathrooms,
+      ...changGungBathrooms,
+      ...internationalBathrooms
+    ];
+    setAllBathrooms(allBathroomsData);
+    console.log(`📊 發生錯誤，載入基本資料：${allBathroomsData.length} 個廁所`);
+  }
+};
 
     getLocationAndData();
   }, []);
 
   // Center map on user location
-  const centerMapOnUser = () => {
-    console.log('🎯 嘗試移動到用戶位置...', mapRef.current, location);
-    if (location && mapRef.current) {
-      mapRef.current.animateToRegion(
-        {
-          latitude: location.coords.latitude,
-          longitude: location.coords.longitude,
-          latitudeDelta: 0.01,
-          longitudeDelta: 0.01,
-        },
-        1000
-      );
-    } else {
-      console.log('❌ 無法移動到用戶位置 - location 或 mapRef 不存在');
-    }
-  };
+const centerMapOnUser = useCallback(() => {
+  if (location && mapRef.current) {
+    mapRef.current.animateToRegion({
+      latitude: location.coords.latitude,
+      longitude: location.coords.longitude,
+      latitudeDelta: 0.01,
+      longitudeDelta: 0.01,
+    }, 1000);
+  }
+}, [location]);
 
-  // Retry location request
-  const retryLocationRequest = async () => {
-    console.log('🔄 手動重試位置獲取...');
-    setIsLocationLoading(true);
-    setErrorMsg(null);
+
+const retryLocationRequest = async () => {
+  console.log('🔄 手動重試位置獲取...');
+  setIsLocationLoading(true);
+  setErrorMsg(null);
+  
+  try {
+    const currentLocation = await Location.getCurrentPositionAsync({
+      accuracy: Location.Accuracy.Balanced, // 或 High、Low
+    });
     
-    try {
-      const currentLocation = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
-        maximumAge: 5000,
-      });
-      
-      console.log('✅ 重試成功，位置:', currentLocation.coords);
-      setLocation(currentLocation);
-    } catch (error) {
-      console.error('❌ 重試失敗:', error);
-      setErrorMsg('Still unable to get location. Please check GPS settings.');
-    } finally {
-      setIsLocationLoading(false);
-    }
-  };
+    console.log('✅ 重試成功，位置:', currentLocation.coords);
+    setLocation(currentLocation);
+  } catch (error) {
+    console.error('❌ 重試失敗:', error);
+    setErrorMsg('Still unable to get location. Please check GPS settings.');
+  } finally {
+    setIsLocationLoading(false);
+  }
+};
 
   const renderStars = (rating: number) => {
     const fullStars = Math.floor(rating);
@@ -1171,89 +1186,128 @@ export default function MapScreen() {
   };
 
 
+
+// 輔助函數：嘗試備用 URL
+const tryFallbackUrl = (fallbackUrl: string, webFallback: string, placeName: string) => {
+  if (fallbackUrl) {
+    Linking.canOpenURL(fallbackUrl)
+      .then((supported) => {
+        if (supported) {
+          return Linking.openURL(fallbackUrl);
+        } else {
+          // 備用 URL 也不支援，使用網頁版
+          console.log('備用地圖 URL 不支援，使用網頁版');
+          return Linking.openURL(webFallback);
+        }
+      })
+      .catch((err) => {
+        console.error('開啟備用地圖 URL 失敗:', err);
+        // 最後使用網頁版
+        Linking.openURL(webFallback)
+          .catch(() => {
+            Alert.alert(
+              '無法開啟地圖', 
+              `請手動搜尋：${placeName}\n座標：${webFallback.split('query=')[1]}`
+            );
+          });
+      });
+  } else {
+    // 沒有備用 URL，直接使用網頁版
+    Linking.openURL(webFallback)
+      .catch(() => {
+        Alert.alert(
+          '無法開啟地圖', 
+          `請手動搜尋：${placeName}\n座標：${webFallback.split('query=')[1]}`
+        );
+      });
+  }
+};  
 const openMaps = (bathroom: Bathroom) => {
   const { latitude, longitude, name } = bathroom;
   
-  let url = '';
+  let primaryUrl = '';
+  let fallbackUrl = '';
   
   if (Platform.OS === 'ios') {
-    // iOS 使用 Apple Maps - 修正 URL 格式
-    url = `http://maps.apple.com/?daddr=${latitude},${longitude}&dirflg=d`;
+    // iOS 優先使用 Apple Maps
+    primaryUrl = `https://maps.apple.com/?daddr=${latitude},${longitude}&dirflg=d&t=m`;
+    // iOS 備用方案：Google Maps app
+    fallbackUrl = `comgooglemaps://?daddr=${latitude},${longitude}&directionsmode=driving`;
+  } else if (Platform.OS === 'android') {
+    // Android 優先使用 Google Maps app
+    primaryUrl = `google.navigation:q=${latitude},${longitude}&mode=d`;
+    // Android 備用方案：Google Maps intent
+    fallbackUrl = `geo:${latitude},${longitude}?q=${latitude},${longitude}(${encodeURIComponent(name)})`;
   } else {
-    // Android 使用 Google Maps - 修正 URL 格式
-    url = `google.navigation:q=${latitude},${longitude}&mode=d`;
+    // Web 或其他平台直接使用網頁版
+    primaryUrl = `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}&destination_place_id=${encodeURIComponent(name)}`;
   }
   
-  Linking.canOpenURL(url)
+  // 最終備用方案：Google Maps 網頁版（所有平台都支援）
+  const webFallback = `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
+  
+  // 嘗試開啟主要 URL
+  Linking.canOpenURL(primaryUrl)
     .then((supported) => {
       if (supported) {
-        return Linking.openURL(url);
+        return Linking.openURL(primaryUrl);
       } else {
-        // 如果內建地圖不支援，使用通用的 Google Maps 網頁版
-        const webUrl = `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}&destination_place_id=${encodeURIComponent(name)}`;
-        return Linking.openURL(webUrl);
+        // 如果主要 URL 不支援，嘗試備用 URL
+        console.log('主要地圖 URL 不支援，嘗試備用方案');
+        return tryFallbackUrl(fallbackUrl, webFallback, name);
       }
     })
     .catch((err) => {
-      console.error('An error occurred opening maps:', err);
-      
-      // 備用方案：直接使用 Google Maps 網頁版
-      const fallbackUrl = `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
-      Linking.openURL(fallbackUrl)
-        .catch(() => {
-          Alert.alert('錯誤', '無法開啟地圖應用程式');
-        });
+      console.error('開啟主要地圖 URL 失敗:', err);
+      // 主要 URL 失敗，嘗試備用方案
+      tryFallbackUrl(fallbackUrl, webFallback, name);
     });
 };
 
-// 更好的導航函數版本，提供多個選項
-const openMapsWithOptions = (bathroom: Bathroom) => {
+const openMapsWithChoice = (bathroom: Bathroom) => {
   const { latitude, longitude, name } = bathroom;
   
-  const options = [
+  const mapOptions = [
     {
-      text: '取消',
-      style: 'cancel'
+      text: '使用預設地圖',
+      onPress: () => openMaps(bathroom)
     },
     {
       text: 'Google Maps',
       onPress: () => {
-        const googleUrl = Platform.OS === 'ios' 
-          ? `comgooglemaps://?daddr=${latitude},${longitude}&directionsmode=driving`
-          : `google.navigation:q=${latitude},${longitude}&mode=d`;
-        
-        Linking.canOpenURL(googleUrl).then(supported => {
-          if (supported) {
-            Linking.openURL(googleUrl);
-          } else {
-            // 網頁版 Google Maps
-            const webUrl = `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`;
-            Linking.openURL(webUrl);
-          }
+        const googleUrl = `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`;
+        Linking.openURL(googleUrl).catch(() => {
+          Alert.alert('錯誤', '無法開啟 Google Maps');
         });
       }
     }
   ];
   
-  // 如果是 iOS，加入 Apple Maps 選項
+  // 如果是 iOS，添加 Apple Maps 選項
   if (Platform.OS === 'ios') {
-    options.splice(1, 0, {
+    mapOptions.push({
       text: 'Apple Maps',
       onPress: () => {
-        const appleUrl = `http://maps.apple.com/?daddr=${latitude},${longitude}&dirflg=d`;
-        Linking.openURL(appleUrl);
+        const appleUrl = `https://maps.apple.com/?daddr=${latitude},${longitude}&dirflg=d`;
+        Linking.openURL(appleUrl).catch(() => {
+          Alert.alert('錯誤', '無法開啟 Apple Maps');
+        });
       }
     });
   }
   
+  mapOptions.push({
+    text: '取消',           
+    onPress: () => {},      
+  });
+  
   Alert.alert(
-    '選擇導航應用',
-    `要使用哪個應用導航到 ${name}？`,
-    options
+    '選擇地圖應用',
+    `導航至：${name}`,
+    mapOptions
   );
 };
 
-// 修正後的 handleNavigate 函數
 const handleNavigate = (bathroom: Bathroom) => {
   Alert.alert(
     '導航到廁所', 
@@ -1280,41 +1334,38 @@ const handleNavigate = (bathroom: Bathroom) => {
     setSelectedBathroom(bathroom);
     setShowCheckInModal(true);
   };
-  // 選擇心情 emoji
-const handleMoodSelect = useCallback((emoji: string) => {
+const handleMoodSelect = (emoji: string) => {
   setCheckInMood(emoji);
-}, []);
+};
 
-const handleTagSelect = useCallback((tag: string) => {
+const handleTagSelect = (tag: string) => {
   setCheckInQuickTag(tag);
-}, []);
+};
 
-const handleBristolSelect = useCallback((type: number) => {
+const handleBristolSelect = (type: number) => {
   setCheckInBristolType(type);
-}, []);
+};
 
-const handleRatingSelect = useCallback((rating: number) => {
+const handleRatingSelect = (rating: number) => {
   setCheckInRating(rating);
-}, []);
+};
 
   // Handle review button
-  const handleReview = (bathroom: Bathroom) => {
+const handleReview = (bathroom: Bathroom) => {
     setSelectedBathroom(bathroom);
     setShowReviewModal(true);
-  };
+};
 
   // Handle tab press
-  const handleTabPress = (tab: string) => {
-    console.log(`🔄 切換到 ${tab} 標籤`);
-    setActiveTab(tab);
-    
-    if ((tab === 'map' || tab === 'visited' || tab === 'journey' ) && location) {
-      console.log('🗺️ 切換到地圖頁面，準備移動到用戶位置');
-      setTimeout(() => {
-        centerMapOnUser();
-      }, 500);
-    }
-  };
+const handleTabPress = (tab: string) => {
+  console.log(`🔄 切換到 ${tab} 標籤`);
+  setActiveTab(tab);
+  
+  if ((tab === 'map' || tab === 'visited' || tab === 'journey' ) && location) {
+    console.log('🗺️ 切換到地圖頁面，準備移動到用戶位置');
+    // 使用已有的 useEffect 來處理地圖移動，不需要額外的 setTimeout
+  }
+};
 
   // Review modal component
   const ReviewModal = () => (
@@ -1442,25 +1493,15 @@ const handleRatingSelect = useCallback((rating: number) => {
         }
       };
 
-      // Determine displayed data based on activeTab
-      const displayBathrooms = activeTab === 'visited' 
-        ? checkInRecords.map(r => r.bathroom)
-        : activeTab === 'journey'
-        ? checkInRecords.map(r => r.bathroom)
-        : activeTab === 'nearby'
-        ? nearbyBathrooms  // 只有 nearby 標籤才顯示 500公尺內
-        : allBathrooms;    // map 標籤顯示所有廁所
 
 
-      // Create journey route coordinates for polyline
-      const journeyCoordinates = activeTab === 'journey' && checkInRecords.length > 1
-        ? checkInRecords
-            .sort((a, b) => a.timestamp - b.timestamp)
-            .map(record => ({
-              latitude: record.location.lat,
-              longitude: record.location.lng,
-            }))
-        : [];
+const journeyCoordinates = activeTab === 'journey' && checkInRecords.length > 1
+  ? sortedRecords  
+      .map(record => ({
+        latitude: record.location.lat,
+        longitude: record.location.lng,
+      }))
+  : [];
 
       return (
         <View style={styles.mapContainer}>
@@ -1535,32 +1576,32 @@ const handleRatingSelect = useCallback((rating: number) => {
             ))}
           </MapView>
 
-          <View style={styles.mapControls}>
-            <TouchableOpacity 
-              style={[styles.mapControlButton, !location && styles.disabledButton]} 
-              onPress={centerMapOnUser}
-              disabled={!location}
-            >
-              <Compass size={24} color={location ? Colors.primary.accent : Colors.primary.lightText} />
-            </TouchableOpacity>
-              </View>
+        <View style={styles.mapControls}>
+          <TouchableOpacity 
+            style={[styles.mapControlButton, !location && styles.disabledButton]} 
+            onPress={centerMapOnUser}
+            disabled={!location}
+          >
+            <Compass size={24} color={location ? Colors.primary.accent : Colors.primary.lightText} />
+          </TouchableOpacity>
+        </View>
             {/* Show bathroom statistics */}
-            <View style={styles.locationStatus}>
-              <Text style={styles.locationStatusText}>
-                {activeTab === 'visited' 
-                  ? `📍 ${checkInRecords.length} Check-ins`
-                  : activeTab === 'journey'
-                  ? `🗺️ ${checkInRecords.length} Journey Points`
-                  : activeTab === 'nearby'
-                  ? `📍 ${nearbyBathrooms.length} Nearby Bathrooms`
-                  : `🗺️ ${allBathrooms.length} All Bathrooms`
-                }
-              </Text>
+        <View style={styles.locationStatus}>
+          <Text style={styles.locationStatusText}>
+            {activeTab === 'visited' 
+              ? `📍 ${checkInRecords.length} Check-ins`
+              : activeTab === 'journey'
+              ? `🗺️ ${checkInRecords.length} Journey Points`
+              : activeTab === 'nearby'
+              ? `📍 ${nearbyBathrooms.length} Nearby Bathrooms`
+              : `🗺️ ${allBathrooms.length} All Bathrooms`
+            }
+          </Text>
               {activeTab === 'nearby' && nearbyBathrooms.length > 0 && (
                 <Text style={styles.locationStatusSubtext}>
-                  🏛️ {nearbyBathrooms.filter(b => b.source === 'gov').length} Gov | 
-                  🚻 {nearbyBathrooms.filter(b => b.source === 'commercial').length} Commercial |
-                  🌍 {nearbyBathrooms.filter(b => b.source === 'international').length} International
+                  🏛️ {bathroomStats.govCount} Gov | 
+                  🚻 {bathroomStats.commercialCount} Commercial |
+                  🌍 {bathroomStats.internationalCount} International
                 </Text>
               )}
               {activeTab === 'map' && allBathrooms.length > 0 && (
@@ -1570,9 +1611,14 @@ const handleRatingSelect = useCallback((rating: number) => {
                   🌍 {allBathrooms.filter(b => b.source === 'international').length} International
                 </Text>
               )}
-            </View>
-
-        
+              
+              {(activeTab === 'visited' || activeTab === 'journey') && checkInRecords.length > 0 && (
+                <Text style={styles.locationStatusSubtext}>
+                  🎯 {journeyStats.uniqueLocations} Unique Locations | 
+                  ⭐ Favorite: {journeyStats.favoriteLocation || 'None yet'}
+                </Text>
+              )}              
+            </View> 
 
           {selectedBathroom && (
             <View style={styles.bathroomDetailCard}>
@@ -1668,9 +1714,9 @@ const handleRatingSelect = useCallback((rating: number) => {
           <View style={styles.statsContainer}>
             <Text style={styles.statsText}>
               Total {nearbyBathrooms.length} | 
-              🏛️ {nearbyBathrooms.filter(b => b.source === 'gov').length} Gov | 
-              🚻 {nearbyBathrooms.filter(b => b.source === 'commercial').length} Commercial |
-              🌍 {nearbyBathrooms.filter(b => b.source === 'international').length} International
+              🏛️ {bathroomStats.govCount} Gov | 
+              🚻 {bathroomStats.commercialCount} Commercial |
+              🌍 {bathroomStats.internationalCount} International
             </Text>
           </View>
         )}
@@ -1974,13 +2020,6 @@ const handleRatingSelect = useCallback((rating: number) => {
       );
     }
 
-    const journeyStats = {
-      totalCheckIns: checkInRecords.length,
-      uniqueLocations: new Set(checkInRecords.map(r => r.bathroom.id)).size,
-      totalDistance: 0, // Calculate based on route
-      favoriteLocation: '', // Most visited location
-    };
-
     return (
       <View style={styles.journeyContainer}>
         {/* Journey map */}
@@ -2012,9 +2051,7 @@ const handleRatingSelect = useCallback((rating: number) => {
           <View style={styles.timelineSection}>
             <Text style={styles.sectionTitle}>⏱️ Adventure Timeline</Text>
             <View style={styles.timeline}>
-              {checkInRecords
-                .sort((a, b) => a.timestamp - b.timestamp)
-                .map((record, index) => (
+              {sortedRecords.map((record, index) => (
                   <View key={record.id} style={styles.timelineItem}>
                     <View style={styles.timelineMarker}>
                       <Text style={styles.timelineEmoji}>{record.mood}</Text>
@@ -2086,26 +2123,26 @@ const handleRatingSelect = useCallback((rating: number) => {
         return renderVisitedContent();
       case 'journey':
         return renderJourneyContent();
+      case 'poopline':                    
+        return renderJourneyContent();
       default:
         return renderNearbyList();
     }
   };
 
 const CheckInModal = () => {
-  // 添加一個本地狀態來穩定 Modal
-  const [isModalStable, setIsModalStable] = useState(false);
+  const isFirstRender = useRef(true);
   
   useEffect(() => {
-    if (showCheckInModal && selectedBathroom) {
-      // 延遲一點點讓 Modal 穩定
-      const timer = setTimeout(() => setIsModalStable(true), 50);
-      return () => clearTimeout(timer);
-    } else {
-      setIsModalStable(false);
+    if (showCheckInModal && selectedBathroom && isFirstRender.current) {
+      isFirstRender.current = false;
     }
   }, [showCheckInModal, selectedBathroom]);
 
-  if (!showCheckInModal) return null;
+  if (!showCheckInModal) {
+    isFirstRender.current = true; 
+    return null;
+  }
 
   return (
     <Modal
@@ -2113,9 +2150,8 @@ const CheckInModal = () => {
       animationType="slide"
       presentationStyle="pageSheet"
       onRequestClose={() => setShowCheckInModal(false)}
-      statusBarTranslucent={false} // 防止狀態欄影響
     >
-      <View style={styles.modalOverlay} onStartShouldSetResponder={() => true}>
+      <View style={styles.modalOverlay} >
         <View style={styles.modalContainer}>
           {!selectedBathroom ? (
             <View style={{ padding: 32, alignItems: 'center', justifyContent: 'center' }}>
@@ -2129,7 +2165,7 @@ const CheckInModal = () => {
                 <Text style={styles.cancelButtonText}>關閉</Text>
               </TouchableOpacity>
             </View>
-          ) : isModalStable ? (
+          ) :(
             <KeyboardAvoidingView 
               style={{ flex: 1 }}
               behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -2137,18 +2173,10 @@ const CheckInModal = () => {
             >
               <ScrollView 
                   style={styles.modalContent} 
-                  contentContainerStyle={{ paddingBottom: 50 }} // 新增這個
+                  contentContainerStyle={{ paddingBottom: 50 }} 
                   showsVerticalScrollIndicator={false}
                   keyboardShouldPersistTaps="handled"
-                  nestedScrollEnabled={false}
-                  bounces={false} // 這個很重要！
-                  overScrollMode="never"
-                  scrollEventThrottle={16}
-                  keyboardDismissMode="none" // 改成 none
-                  maintainVisibleContentPosition={{ // 新增這個
-                    minIndexForVisible: 0,
-                  }}
-                  removeClippedSubviews={false} // 新增這個
+                   nestedScrollEnabled={false}
               >
                 <Text style={styles.modalTitle}>
                   Check in at {selectedBathroom.name} 🚽
@@ -2165,14 +2193,14 @@ const CheckInModal = () => {
                         checkInMood === emoji && styles.selectedEmoji
                       ]}
                       onPress={() => handleMoodSelect(emoji)}
-                      activeOpacity={0.7} // 添加這個防止快速點擊
+                      activeOpacity={0.7} 
                     >
                       <Text style={styles.emojiText}>{emoji}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
 
-                {/* Quick tags - 使用優化後的處理函數 */}
+                    {/* Quick tags */}
                 <Text style={styles.sectionTitle}>Scene Tag *</Text>
                 <View style={styles.tagsContainer}>
                   {QUICK_TAGS.map((tag) => (
@@ -2193,7 +2221,7 @@ const CheckInModal = () => {
                   ))}
                 </View>
 
-                {/* 其他表單內容保持不變... */}
+                {/* One-line Description */}
                 <Text style={styles.sectionTitle}>One-line Description</Text>
                 <TextInput
                   style={styles.messageInput}
@@ -2220,63 +2248,24 @@ const CheckInModal = () => {
                     </TouchableOpacity>
                   ))}
                 </View>
+
+                {/* 繼續你原本的其他內容... */}
                 
-                {/* Rating */}
-                <Text style={styles.sectionTitle}>Comfort Rating</Text>
-                <View style={styles.ratingContainer}>
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <TouchableOpacity
-                      key={star}
-                      onPress={() => handleRatingSelect(star)}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={[
-                        styles.ratingStarLarge,
-                        star <= checkInRating ? styles.activeStar : styles.inactiveStar
-                      ]}>
-                        ★
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-                
-                {/* 其他內容保持原樣... */}
-                
-                <View style={styles.modalButtons}>
-                  <TouchableOpacity
-                    style={styles.cancelButton}
-                    onPress={() => setShowCheckInModal(false)}
-                  >
-                    <Text style={styles.cancelButtonText}>Cancel</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.checkInButton}
-                    onPress={performCheckIn}
-                  >
-                    <Text style={styles.checkInButtonText}>Check In 🎯</Text>
-                  </TouchableOpacity>
-                </View>
               </ScrollView>
             </KeyboardAvoidingView>
-          ) : (
-            // 載入中狀態
-            <View style={{ padding: 32, alignItems: 'center', justifyContent: 'center' }}>
-              <Text style={{ fontSize: 16, color: Colors.primary.text }}>載入中...</Text>
-            </View>
           )}
         </View>
       </View>
     </Modal>
   );
 };
+
   return (
     <View style={styles.container}>
-      {/* 主内容 (头部 + 地图/列表/记录) */}
       <View
         style={{ flex: 1 }}
-        pointerEvents={showCheckInModal ? 'none' : 'auto'}
+        pointerEvents={showCheckInModal ? 'box-none' : 'auto'} 
       >
-        {/* 头部 */}
         <View style={styles.header}>
           <Text style={styles.title}>PooPalooza 💩</Text>
           <View style={styles.tabContainer}>
@@ -2313,13 +2302,12 @@ const CheckInModal = () => {
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.tab, activeTab === 'poopline' && styles.activeTab]}
-              onPress={() => handleTabPress('poopline')}
-              activeOpacity={0.7}
+              style={[styles.tab, activeTab === 'journey' && styles.activeTab]}
+              onPress={() => handleTabPress('journey')}
             >
-              <Route size={16} color={activeTab === 'poopline' ? '#fff' : Colors.primary.lightText} />
-              <Text style={[styles.tabText, activeTab === 'poopline' && styles.activeTabText]}>
-                Poop Line
+              <Route size={16} color={activeTab === 'journey' ? '#fff' : Colors.primary.lightText} />
+              <Text style={[styles.tabText, activeTab === 'journey' && styles.activeTabText]}>
+                Journey
               </Text>
             </TouchableOpacity>
           </View>
@@ -2465,6 +2453,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 16,
     right: 20,
+    zIndex: 10,
   },
   mapControlButton: {
     width: 40,
@@ -2483,19 +2472,19 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   locationStatus: {
-    position: 'absolute', // 加上這個
-    top: 60,           // 定位在底部
-    //left: 20,            // 左邊距
-    right: 20,           // 右邊距
+    position: 'absolute', 
+    top: 70,
+    left:20,           
+    right: 20,           
     backgroundColor: '#FFFFFF',
     padding: 8,
     borderRadius: 16,
-    marginTop: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 2,
     elevation: 2,
+    zIndex:5,
   },
   locationStatusText: {
     fontSize: 12,
@@ -2613,7 +2602,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#4d3900',
+    color: Colors.primary.text,
     marginBottom: 8,
   },
   statsContainer: {
@@ -2641,6 +2630,11 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 12,
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
   visitedCard: {
     borderWidth: 2,
@@ -2728,6 +2722,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#FF6B6B',
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#FF6B6B',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 3,
   },
   reviewButton: {
     width: 40,
@@ -2736,6 +2735,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFC107',
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#FFC107',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 3,
   },
   navigateButton: {
     width: 40,
@@ -2744,6 +2748,11 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary.accent,
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: Colors.primary.accent,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 3,
   },
   emptyContainer: {
     flex: 1,
@@ -2752,22 +2761,25 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     textAlign: 'center',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
     color: Colors.primary.text,
     marginTop: 16,
+    marginBottom: 8,
   },
   emptyText: {
     fontSize: 16,
     color: Colors.primary.lightText,
     textAlign: 'center',
     marginBottom: 8,
+    lineHeight: 22,
   },
   emptySubtext: {
     fontSize: 14,
     color: Colors.primary.lightText,
     textAlign: 'center',
     fontStyle: 'italic',
+    lineHeight: 20,
   },
   startButton: {
     backgroundColor: Colors.primary.accent,
@@ -2775,6 +2787,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     borderRadius: 25,
     marginTop: 16,
+    shadowColor: Colors.primary.accent,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 3,
   },
   startButtonText: {
     color: '#FFFFFF',
@@ -2792,8 +2809,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary.background,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: '80%',
-    minHeight: 300,
+    maxHeight: '85%',
+    minHeight: Platform.OS === 'ios' ? 200 : 250,
   },
   modalContent: {
     padding: 20,
@@ -2820,9 +2837,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     margin: 4,
+    borderWidth: 2,
+    borderColor: 'transparent',
   },
   selectedEmoji: {
     backgroundColor: Colors.primary.accent,
+    borderColor: Colors.primary.accent,
+    shadowColor: Colors.primary.accent,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 3,
   },
   emojiText: {
     fontSize: 24,
@@ -2831,6 +2856,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     marginBottom: 20,
+    justifyContent: 'flex-start',
   },
   tagButton: {
     backgroundColor: Colors.primary.card,
@@ -2844,6 +2870,11 @@ const styles = StyleSheet.create({
   selectedTag: {
     backgroundColor: Colors.primary.accent,
     borderColor: Colors.primary.accent,
+    shadowColor: Colors.primary.accent,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
   },
   tagText: {
     fontSize: 14,
@@ -2859,7 +2890,9 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 20,
     fontSize: 16,
-    color: '#4d3900',
+    color: Colors.primary.text,
+    borderWidth: 1,
+    borderColor: Colors.primary.border,
   },
   bristolContainer: {
     flexDirection: 'row',
@@ -2875,9 +2908,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     margin: 4,
+    borderWidth: 2,
+    borderColor: 'transparent',
   },
   selectedBristol: {
     backgroundColor: Colors.primary.accent,
+    borderColor: Colors.primary.accent,
+    shadowColor: Colors.primary.accent,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 3,
   },
   bristolEmoji: {
     fontSize: 20,
@@ -2886,6 +2927,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: Colors.primary.text,
     textAlign: 'center',
+    marginTop: 2, 
   },
   ratingStarLarge: {
     fontSize: 32,
@@ -2906,6 +2948,8 @@ const styles = StyleSheet.create({
     color: Colors.primary.text,
     textAlignVertical: 'top',
     minHeight: 80,
+    borderWidth: 1,
+    borderColor: Colors.primary.border,
   },
   mediaContainer: {
     flexDirection: 'row',
@@ -2915,15 +2959,21 @@ const styles = StyleSheet.create({
   mediaButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.primary.card,
+    backgroundColor: Colors.primary.accent,
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 8,
     gap: 8,
+    shadowColor: Colors.primary.accent,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
   },
   mediaButtonText: {
     fontSize: 14,
-    color: Colors.primary.text,
+    color: '#FFFFFF', 
+    fontWeight: '600',
   },
   imagePreview: {
     position: 'relative',
@@ -2962,9 +3012,15 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 25,
     gap: 8,
+    shadowColor: '#FF6B6B',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 3,
   },
   recordingActive: {
     backgroundColor: '#FF3333',
+    shadowColor: '#FF3333',
   },
   recordButtonText: {
     color: '#FFFFFF',
@@ -2994,17 +3050,23 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 12,
   },
+  privacySection: {
+    marginBottom: 20,
+  },
   privacyContainer: {
     marginBottom: 20,
   },
   privacyOption: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
-    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: Colors.primary.card,
+    borderRadius: 8,
+    marginBottom: 8,    
   },
   privacyText: {
-    fontSize: 14,
+    fontSize: 16,
     color: Colors.primary.text,
   },
   activePrivacyText: {
@@ -3013,37 +3075,44 @@ const styles = StyleSheet.create({
   },
   modalButtons: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 20,
     gap: 12,
   },
   cancelButton: {
     flex: 1,
-    backgroundColor: Colors.primary.border,
-    paddingVertical: 12,
+    backgroundColor: Colors.primary.card,
+    paddingVertical: 14,
     borderRadius: 25,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.primary.border,
   },
   cancelButtonText: {
     color: Colors.primary.text,
-    fontWeight: 'bold',
+    fontWeight: '600',
     fontSize: 16,
   },
   checkInButton: {
     flex: 1,
     backgroundColor: Colors.primary.accent,
-    paddingVertical: 12,
+    paddingVertical: 14,
     borderRadius: 25,
     alignItems: 'center',
+    shadowColor: Colors.primary.accent,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 3,
   },
   checkInButtonText: {
     color: '#FFFFFF',
     fontWeight: 'bold',
     fontSize: 16,
   },
-  
-  // Visited content styles
   visitedContainer: {
-    flex: 1, // 確保有這行
-    backgroundColor: Colors.primary.background, // 修正：使用正確的顏色
+    flex: 1, 
+    backgroundColor: Colors.primary.background, 
   },
   visitedMapContainer: {
     height: 300,
@@ -3065,11 +3134,23 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: Colors.primary.border,
   },
   unlockedAchievement: {
     borderWidth: 2,
     borderColor: '#FFD700',
-    backgroundColor: '#FFF9E6',
+    backgroundColor: Colors.primary.background, 
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 3,
   },
   achievementEmoji: {
     fontSize: 32,
@@ -3136,7 +3217,14 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary.card,
     borderRadius: 12,
     padding: 16,
-    marginBottom: 12, // 新增這一行
+    marginBottom: 12, 
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: Colors.primary.border,
   },
   recordHeader: {
     flexDirection: 'row',
@@ -3225,13 +3313,18 @@ const styles = StyleSheet.create({
   shareButton: {
     flexDirection: 'row',
     backgroundColor: Colors.primary.accent,
-    paddingVertical: 12,
+    paddingVertical: 14,
     paddingHorizontal: 24,
     borderRadius: 25,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
     marginTop: 16,
+    shadowColor: Colors.primary.accent,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 3,
   },
   shareButtonText: {
     color: '#FFFFFF',
@@ -3264,6 +3357,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flex: 1,
     marginHorizontal: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: Colors.primary.border,
+
   },
   statNumber: {
     fontSize: 24,
@@ -3307,6 +3408,13 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 12,
     marginLeft: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 1,
+    borderWidth: 1,
+    borderColor: Colors.primary.border,
   },
   timelineTitle: {
     fontSize: 16,
@@ -3343,12 +3451,17 @@ const styles = StyleSheet.create({
   shareJourneyButton: {
     flexDirection: 'row',
     backgroundColor: Colors.primary.accent,
-    paddingVertical: 12,
+    paddingVertical: 14,
     paddingHorizontal: 24,
     borderRadius: 25,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
+    shadowColor: Colors.primary.accent,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 3,
   },
   shareJourneyText: {
     color: '#FFFFFF',
@@ -3390,14 +3503,22 @@ const styles = StyleSheet.create({
   toggleListButton: {
     paddingVertical: 10,
     paddingHorizontal: 20,
-    backgroundColor: '#eee',
+    backgroundColor: Colors.primary.card,
     alignSelf: 'center',
     borderRadius: 10,
     marginTop: 10,
+    borderWidth: 1,
+    borderColor: Colors.primary.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
   toggleListText: {
     fontSize: 16,
     color: Colors.primary.text,
+    fontWeight: '600',
   },
   markerLabel: {
     backgroundColor: 'white',
@@ -3422,15 +3543,17 @@ const styles = StyleSheet.create({
   },
   minimizedText: {
     fontSize: 12,
-    color: '#888',
+    color: Colors.primary.lightText,
   },
   recordsWrapper: {
     flex: 1,
-    backgroundColor: '#F8E9D2',
+    backgroundColor: Colors.primary.background,
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     marginTop: 8,
     minHeight: 32,
+    borderWidth: 1,
+    borderColor: Colors.primary.border,
   },
   recordsWrapperMinimized: {
     height: 32,
@@ -3454,13 +3577,13 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 5,
+    zIndex: 10,
   },
   poopLineButtonText: {
     color: '#FFFFFF',
     fontWeight: 'bold',
     fontSize: 12,
   },
-   // 簡化的快速打卡按鈕樣式
   quickCheckInButton: {
     position: 'absolute',
     bottom: 16,
@@ -3477,7 +3600,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 5,
-    minWidth: 120, // 確保按鈕有最小寬度
+    minWidth: 200, 
   },
   quickCheckInEmoji: {
     fontSize: 20,
@@ -3486,9 +3609,10 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: 'bold',
     fontSize: 14,
+    flexShrink: 1,
   },
   disabledQuickCheckIn: {
-    backgroundColor: '#999999',
+    backgroundColor: Colors.primary.border,
     opacity: 0.7,
   },
 });
