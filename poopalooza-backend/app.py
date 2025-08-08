@@ -1,421 +1,749 @@
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
+from dotenv import load_dotenv
+import os
+from datetime import datetime
+
+load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
 
-# ======= 這裡填入你的 PostgreSQL 連線字串 =======
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://u4j1jv2dr1fh01:p07678848e289580d311d742952d9d8ed82b674311c5428fb7bb240e1d759c755@c34u0gd6rbe7bo.cluster-czrs8kj4isg7.us-east-1.rds.amazonaws.com:5432/d220cs38ofjr2n'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
-db = SQLAlchemy(app)
-# ======= 廁所資料表模型 =======
-class PublicToilet(db.Model):
-    __tablename__ = 'public_toilets'
-    
-    id = db.Column(db.Integer, primary_key=True)
-    toilet_id = db.Column(db.String(100), unique=True, nullable=False)
-    name = db.Column(db.String(200))
-    address = db.Column(db.String(500))
-    latitude = db.Column(db.Numeric(10, 7))
-    longitude = db.Column(db.Numeric(10, 7))
-    country = db.Column(db.String(100))
-    city = db.Column(db.String(100))
-    village = db.Column(db.String(100))
-    administration = db.Column(db.String(200))
-    grade = db.Column(db.String(50))
-    type2 = db.Column(db.String(100))
-    toilet_type = db.Column(db.String(100))
-    exec = db.Column(db.String(100))
-    diaper = db.Column(db.Boolean)
-
-# ======= 範例資料表（Checkin）=======
-class Checkin(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user = db.Column(db.String(50))
-    location = db.Column(db.String(100))
-    emoji = db.Column(db.String(10))
-    note = db.Column(db.String(200))
-from flask import Flask, request, jsonify
-from flask_sqlalchemy import SQLAlchemy
-from flask_cors import CORS
-import math
-
-app = Flask(__name__)
-CORS(app)
-
-# ======= 資料庫設定 =======
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://u4j1jv2dr1fh01:p07678848e289580d311d742952d9d8ed82b674311c5428fb7bb240e1d759c755@c34u0gd6rbe7bo.cluster-czrs8kj4isg7.us-east-1.rds.amazonaws.com:5432/d220cs38ofjr2n'
+# 修正 URI 前綴
+uri = os.getenv("DATABASE_URL")
+if uri.startswith("postgres://"):
+   uri = uri.replace("postgres://", "postgresql://", 1)
+app.config['SQLALCHEMY_DATABASE_URI'] = uri
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 
-# ======= 廁所資料表模型 =======
-class PublicToilet(db.Model):
-    __tablename__ = 'public_toilets'
-    
-    id = db.Column(db.Integer, primary_key=True)
-    toilet_id = db.Column(db.String(100), unique=True, nullable=False)
-    name = db.Column(db.String(200))
-    address = db.Column(db.String(500))
-    latitude = db.Column(db.Numeric(10, 7))
-    longitude = db.Column(db.Numeric(10, 7))
-    country = db.Column(db.String(100))
-    city = db.Column(db.String(100))
-    village = db.Column(db.String(100))
-    administration = db.Column(db.String(200))
-    grade = db.Column(db.String(50))
-    type2 = db.Column(db.String(100))
-    toilet_type = db.Column(db.String(100))
-    exec = db.Column(db.String(100))
-    diaper = db.Column(db.Boolean)
+# ---------------- Models ----------------
 
-# ======= 打卡資料表模型（保留原有的）=======
+class User(db.Model):
+   __tablename__ = 'users'
+   user_id = db.Column(db.Integer, primary_key=True)
+   username = db.Column(db.String(50))
+   email = db.Column(db.String(120))
+   password_hash = db.Column(db.String(200))
+   created_at = db.Column(db.DateTime)
+   last_login = db.Column(db.DateTime)
+   consecutive_login_days = db.Column(db.Integer)
+   last_login_date = db.Column(db.Date)
+
+class Achievement(db.Model):
+   __tablename__ = 'achievements'
+   achievement_id = db.Column(db.Integer, primary_key=True)
+   user_id = db.Column(db.Integer, db.ForeignKey('users.user_id'))
+   achievement_name = db.Column(db.String(100))
+   achievement_description = db.Column(db.Text)
+   achieved_at = db.Column(db.DateTime)
+
 class Checkin(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user = db.Column(db.String(50))
-    location = db.Column(db.String(100))
-    emoji = db.Column(db.String(10))
-    note = db.Column(db.String(200))
+   __tablename__ = 'checkin'
+   id = db.Column(db.Integer, primary_key=True)
+   user = db.Column(db.String(50))  # 這邊不是 ForeignKey（以你的資料來看是文字）
+   location = db.Column(db.String(120))
+   emoji = db.Column(db.String(10))
+   note = db.Column(db.Text)
 
-# ======= 工具函數：計算兩點間距離 =======
-def calculate_distance(lat1, lon1, lat2, lon2):
-    """
-    計算兩個經緯度座標之間的距離（公里）
-    使用 Haversine 公式
-    """
-    R = 6371  # 地球半徑（公里）
-    
-    lat1_rad = math.radians(float(lat1))
-    lon1_rad = math.radians(float(lon1))
-    lat2_rad = math.radians(float(lat2))
-    lon2_rad = math.radians(float(lon2))
-    
-    dlat = lat2_rad - lat1_rad
-    dlon = lon2_rad - lon1_rad
-    
-    a = math.sin(dlat/2)**2 + math.cos(lat1_rad) * math.cos(lat2_rad) * math.sin(dlon/2)**2
-    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
-    
-    return R * c
+class AnalysisResult(db.Model):
+   __tablename__ = 'analysis_results'
+   analysis_id = db.Column(db.Integer, primary_key=True)
+   record_id = db.Column(db.Integer, nullable=True)
+   user_id = db.Column(db.Integer, db.ForeignKey('users.user_id'))
+   analysis_time = db.Column(db.DateTime)
+   ai_diagnosis = db.Column(db.Text)
+   health_score = db.Column(db.Integer)
+   recommendations = db.Column(db.Text)
 
-# ======= 工具函數：判斷政府機關 =======
-def is_government_facility(name, address, toilet_type, type2):
-    """判斷是否為政府機關"""
-    gov_keywords = [
-        '公所', '市政府', '縣政府', '區公所', '鄉公所', '鎮公所', '里民活動中心',
-        '公園', '學校', '圖書館', '醫院', '衛生所', '國小', '國中', '高中', '大學',
-        '火車站', '捷運站', '政府', '市府', '縣府', '戶政', '地政', '警察局', '消防局'
-    ]
-    
-    all_text = f"{name or ''} {address or ''} {toilet_type or ''} {type2 or ''}"
-    return any(keyword in all_text for keyword in gov_keywords)
+class PoopLocation(db.Model):
+   __tablename__ = 'poop_locations'
+   location_id = db.Column(db.Integer, primary_key=True)
+   user_id = db.Column(db.Integer, db.ForeignKey('users.user_id'))
+   record_id = db.Column(db.Integer, nullable=True)
+   record_time = db.Column(db.DateTime)
+   latitude = db.Column(db.Float)
+   longitude = db.Column(db.Float)
+   location_name = db.Column(db.String(100))
+   notes = db.Column(db.Text)
+   expression_text = db.Column(db.Text)
 
-# ======= 第一次啟動自動建立資料表 =======
-with app.app_context():
-    db.create_all()
+class PoopRecord(db.Model):
+   __tablename__ = 'poop_records'
+   record_id = db.Column(db.Integer, primary_key=True)
+   user_id = db.Column(db.Integer)
+   record_time = db.Column(db.DateTime)
+   bristol_scale = db.Column(db.String(10))
+   color = db.Column(db.String(20))
+   consistency = db.Column(db.String(20))
+   volume = db.Column(db.String(20))
+   odor = db.Column(db.String(20))
+   has_blood = db.Column(db.Boolean)
+   has_mucus = db.Column(db.Boolean)
+   image_url = db.Column(db.String(255))
+   ai_poop_type = db.Column(db.String(20))
+   ai_poop_color = db.Column(db.String(20))
+   ai_poop_volume = db.Column(db.String(20))
+   ai_diagnosis_summary = db.Column(db.Text)
+   health_recommendations = db.Column(db.Text)
+   health_indicators = db.Column(db.Text)
 
-# ======= 基本路由 =======
+class PublicToilet(db.Model):
+   __tablename__ = 'public_toilets'
+
+   toilet_id = db.Column(db.String, primary_key=True)
+   name = db.Column(db.String)
+   address = db.Column(db.String)
+   latitude = db.Column(db.Float)
+   longitude = db.Column(db.Float)
+   country = db.Column(db.String)
+   city = db.Column(db.String)
+   village = db.Column(db.String)
+   administration = db.Column(db.String)
+   grade = db.Column(db.String)
+   type2 = db.Column(db.String)
+   toilet_type = db.Column(db.String)
+   exec = db.Column(db.String)
+   diaper = db.Column(db.String)
+
+class ToiletCheckin(db.Model):
+   __tablename__ = 'toilet_checkins'
+   toilet_checkin_id = db.Column(db.Integer, primary_key=True)
+   user_id = db.Column(db.Integer, nullable=False)
+   checkin_time = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+   latitude = db.Column(db.Float)
+   longitude = db.Column(db.Float)
+   toilet_name = db.Column(db.String)
+   toilet_rating_cleanliness = db.Column(db.Integer)
+   toilet_rating_privacy = db.Column(db.Integer)
+   toilet_rating_amenities = db.Column(db.Integer)
+   toilet_review_text = db.Column(db.Text)
+   public_toilet_id = db.Column(db.String)
+
+# ---------------- Routes ----------------
+
 @app.route('/')
-def hello():
-    return "Hello, PooPalooza!"
+def home():
+   return "👋 Welcome to PooPalooza API!"
 
-# ======= 打卡 POST API =======
-@app.route('/checkin', methods=['POST'])
-def add_checkin():
-    data = request.json
-    checkin = Checkin(
-        user=data.get('user'),
-        location=data.get('location'),
-        emoji=data.get('emoji'),
-        note=data.get('note')
-    )
-    db.session.add(checkin)
-    db.session.commit()
-    return jsonify({"success": True, "msg": "打卡成功"})
+# ========== USERS ==========
 
-# ======= 查詢所有打卡 GET API =======
+@app.route('/users', methods=['GET'])
+def get_users():
+   users = User.query.all()
+   result = []
+   for u in users:
+       result.append({
+           "user_id": u.user_id,
+           "username": u.username,
+           "email": u.email,
+           "password_hash": u.password_hash,
+           "created_at": u.created_at,
+           "last_login": u.last_login,
+           "consecutive_login_days": u.consecutive_login_days,
+           "last_login_date": u.last_login_date
+       })
+   return jsonify(result)
+
+@app.route('/users', methods=['POST'])
+def create_user():
+   data = request.json
+   user = User(
+       username=data.get('username'),
+       email=data.get('email'),
+       password_hash=data.get('password_hash'),
+       created_at=datetime.utcnow(),
+       last_login=datetime.utcnow(),
+       consecutive_login_days=data.get('consecutive_login_days', 0),
+       last_login_date=datetime.utcnow().date()
+   )
+   db.session.add(user)
+   db.session.commit()
+   return jsonify({"success": True, "msg": "使用者建立成功"})
+
+@app.route('/users/<int:id>', methods=['PUT'])
+def update_user(id):
+   user = User.query.get(id)
+   if not user:
+       return jsonify({"error": "使用者不存在"}), 404
+
+   data = request.json
+   user.username = data.get('username', user.username)
+   user.email = data.get('email', user.email)
+   user.password_hash = data.get('password_hash', user.password_hash)
+   user.last_login = datetime.utcnow()
+   user.consecutive_login_days = data.get('consecutive_login_days', user.consecutive_login_days)
+   user.last_login_date = datetime.utcnow().date()
+
+   db.session.commit()
+   return jsonify({"success": True, "msg": "使用者更新成功"})
+
+@app.route('/users/<int:id>', methods=['DELETE'])
+def delete_user(id):
+   user = User.query.get(id)
+   if not user:
+       return jsonify({"error": "使用者不存在"}), 404
+
+   db.session.delete(user)
+   db.session.commit()
+   return jsonify({"success": True, "msg": "使用者已刪除"})
+
+# ========== ACHIEVEMENTS ==========
+
+@app.route('/achievements', methods=['GET'])
+def get_achievements():
+   achievements = Achievement.query.all()
+   result = []
+   for a in achievements:
+       result.append({
+           "achievement_id": a.achievement_id,
+           "user_id": a.user_id,
+           "achievement_name": a.achievement_name,
+           "achievement_description": a.achievement_description,
+           "achieved_at": a.achieved_at
+       })
+   return jsonify(result)
+
+@app.route('/achievements/<int:user_id>', methods=['GET'])
+def get_achievements_by_user(user_id):
+   achievements = Achievement.query.filter_by(user_id=user_id).all()
+   result = []
+   for a in achievements:
+       result.append({
+           "achievement_id": a.achievement_id,
+           "user_id": a.user_id,
+           "achievement_name": a.achievement_name,
+           "achievement_description": a.achievement_description,
+           "achieved_at": a.achieved_at
+       })
+   return jsonify(result)
+
+@app.route('/achievements', methods=['POST'])
+def create_achievement():
+   data = request.json
+   achievement = Achievement(
+       user_id=data.get('user_id'),
+       achievement_name=data.get('achievement_name'),
+       achievement_description=data.get('achievement_description'),
+       achieved_at=datetime.utcnow()
+   )
+   db.session.add(achievement)
+   db.session.commit()
+   return jsonify({"success": True, "msg": "成就建立成功"})
+
+@app.route('/achievements/<int:id>', methods=['PUT'])
+def update_achievement(id):
+   achievement = Achievement.query.get(id)
+   if not achievement:
+       return jsonify({"error": "成就不存在"}), 404
+
+   data = request.json
+   achievement.achievement_name = data.get('achievement_name', achievement.achievement_name)
+   achievement.achievement_description = data.get('achievement_description', achievement.achievement_description)
+   achievement.achieved_at = datetime.utcnow()
+
+   db.session.commit()
+   return jsonify({"success": True, "msg": "成就更新成功"})
+
+@app.route('/achievements/<int:id>', methods=['DELETE'])
+def delete_achievement(id):
+   achievement = Achievement.query.get(id)
+   if not achievement:
+       return jsonify({"error": "成就不存在"}), 404
+
+   db.session.delete(achievement)
+   db.session.commit()
+   return jsonify({"success": True, "msg": "成就已刪除"})
+
+# ========== CHECKIN ==========
+
+# ✅ GET /checkin
 @app.route('/checkin', methods=['GET'])
-def list_checkins():
-    checkins = Checkin.query.all()
-    result = [
-        {
-            "id": c.id,
-            "user": c.user,
-            "location": c.location,
-            "emoji": c.emoji,
-            "note": c.note
-        }
-        for c in checkins
-    ]
-    return jsonify(result)
+def get_checkin():
+   checkin = Checkin.query.all()
+   result = []
+   for c in checkin:
+       result.append({
+           "id": c.id,
+           "user": c.user,
+           "location": c.location,
+           "emoji": c.emoji,
+           "note": c.note
+       })
+   return jsonify(result)
 
-# ======= 🚻 廁所相關 API =======
+# ✅ PUT /checkin/<id>
+@app.route('/checkin/<int:id>', methods=['PUT'])
+def update_checkin(id):
+   checkin = Checkin.query.get(id)
+   if not checkin:
+       return jsonify({"error": "找不到此打卡"}), 404
 
-@app.route('/api/bathrooms/nearby', methods=['POST'])
-def get_nearby_bathrooms():
-    """獲取附近的廁所"""
-    try:
-        data = request.json
-        user_lat = float(data.get('latitude'))
-        user_lng = float(data.get('longitude'))
-        radius = float(data.get('radius', 1000))  # 預設 1000 公尺
-        limit = int(data.get('limit', 50))  # 預設最多 50 個
-        
-        print(f"🔍 查詢附近廁所: 緯度 {user_lat}, 經度 {user_lng}, 半徑 {radius}m")
-        
-        # 先粗略篩選在方形範圍內的廁所（提高查詢效率）
-        lat_range = radius / 111000  # 1 度緯度約 111km
-        lng_range = radius / (111000 * math.cos(math.radians(user_lat)))
-        
-        toilets = PublicToilet.query.filter(
-            PublicToilet.latitude.between(user_lat - lat_range, user_lat + lat_range),
-            PublicToilet.longitude.between(user_lng - lng_range, user_lng + lng_range),
-            PublicToilet.latitude.isnot(None),
-            PublicToilet.longitude.isnot(None)
-        ).all()
-        
-        print(f"📊 粗略篩選後找到 {len(toilets)} 個廁所")
-        
-        # 計算精確距離並篩選
-        nearby_toilets = []
-        for toilet in toilets:
-            distance_km = calculate_distance(user_lat, user_lng, toilet.latitude, toilet.longitude)
-            distance_m = distance_km * 1000
-            
-            if distance_m <= radius:
-                # 判斷來源類型
-                if is_government_facility(toilet.name, toilet.address, toilet.toilet_type, toilet.type2):
-                    source = 'gov'
-                else:
-                    source = 'commercial'
-                
-                nearby_toilets.append({
-                    'toilet_id': toilet.toilet_id,
-                    'name': toilet.name or '公共廁所',
-                    'address': toilet.address or '',
-                    'latitude': float(toilet.latitude),
-                    'longitude': float(toilet.longitude),
-                    'distance': round(distance_m, 1),
-                    'toilet_type': toilet.toilet_type,
-                    'type2': toilet.type2,
-                    'city': toilet.city,
-                    'administration': toilet.administration,
-                    'source': source
-                })
-        
-        # 按距離排序
-        nearby_toilets.sort(key=lambda x: x['distance'])
-        
-        # 限制數量
-        result = nearby_toilets[:limit]
-        
-        print(f"✅ 最終返回 {len(result)} 個附近廁所")
-        
-        return jsonify(result)
-        
-    except Exception as e:
-        print(f"❌ 查詢附近廁所錯誤: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+   data = request.json
+   checkin.user = data.get('user', checkin.user)
+   checkin.location = data.get('location', checkin.location)
+   checkin.emoji = data.get('emoji', checkin.emoji)
+   checkin.note = data.get('note', checkin.note)
 
-@app.route('/api/bathrooms/region', methods=['POST'])
-def get_bathrooms_by_region():
-    """獲取地圖區域內的廁所"""
-    try:
-        data = request.json
-        north_east = data.get('northEast')
-        south_west = data.get('southWest')
-        page = int(data.get('page', 1))
-        limit = int(data.get('limit', 100))
-        
-        offset = (page - 1) * limit
-        
-        print(f"🗺️ 查詢地圖區域廁所: NE({north_east['lat']}, {north_east['lng']}) SW({south_west['lat']}, {south_west['lng']})")
-        
-        # 查詢範圍內的廁所
-        toilets_query = PublicToilet.query.filter(
-            PublicToilet.latitude.between(south_west['lat'], north_east['lat']),
-            PublicToilet.longitude.between(south_west['lng'], north_east['lng']),
-            PublicToilet.latitude.isnot(None),
-            PublicToilet.longitude.isnot(None)
-        )
-        
-        # 計算總數
-        total_count = toilets_query.count()
-        
-        # 分頁查詢
-        toilets = toilets_query.offset(offset).limit(limit).all()
-        
-        result_bathrooms = []
-        for toilet in toilets:
-            # 判斷來源類型
-            if is_government_facility(toilet.name, toilet.address, toilet.toilet_type, toilet.type2):
-                source = 'gov'
-            else:
-                source = 'commercial'
-            
-            result_bathrooms.append({
-                'toilet_id': toilet.toilet_id,
-                'name': toilet.name or '公共廁所',
-                'address': toilet.address or '',
-                'latitude': float(toilet.latitude),
-                'longitude': float(toilet.longitude),
-                'toilet_type': toilet.toilet_type,
-                'type2': toilet.type2,
-                'city': toilet.city,
-                'administration': toilet.administration,
-                'source': source
-            })
-        
-        result = {
-            'bathrooms': result_bathrooms,
-            'totalCount': total_count,
-            'hasMore': total_count > offset + limit,
-            'currentPage': page
-        }
-        
-        print(f"✅ 返回 {len(result_bathrooms)} 個地圖廁所，總計 {total_count} 個")
-        
-        return jsonify(result)
-        
-    except Exception as e:
-        print(f"❌ 查詢地圖區域廁所錯誤: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+   db.session.commit()
+   return jsonify({"success": True, "msg": "打卡已更新"})
 
-@app.route('/api/bathrooms/search', methods=['POST'])
-def search_bathrooms():
-    """搜尋廁所"""
-    try:
-        data = request.json
-        query = data.get('query', '').strip()
-        location = data.get('location')  # 可選的使用者位置
-        limit = int(data.get('limit', 20))
-        
-        print(f"🔍 搜尋廁所關鍵字: '{query}'")
-        
-        if not query:
-            return jsonify([])
-        
-        # 模糊搜尋名稱和地址
-        search_term = f"%{query}%"
-        toilets = PublicToilet.query.filter(
+# ✅ POST /checkin
+@app.route('/checkin', methods=['POST'])
+def create_checkin():
+   data = request.json
+   checkin = Checkin(
+       user=data.get('user'),
+       location=data.get('location'),
+       emoji=data.get('emoji'),
+       note=data.get('note')
+   )
+   db.session.add(checkin)
+   db.session.commit()
+   return jsonify({"success": True, "msg": "打卡成功"})
+
+# ✅ DELETE /checkin/<id>
+@app.route('/checkin/<int:id>', methods=['DELETE'])
+def delete_checkin(id):
+   checkin = Checkin.query.get(id)
+   if not checkin:
+       return jsonify({"error": "找不到此打卡"}), 404
+
+   db.session.delete(checkin)
+   db.session.commit()
+   return jsonify({"success": True, "msg": "打卡已刪除"})
+
+# ========== ANALYSIS RESULTS ==========
+
+@app.route('/analysis_results', methods=['GET'])
+def get_all_analysis_results():
+   results = AnalysisResult.query.all()
+   return jsonify([
+       {
+           "analysis_id": r.analysis_id,
+           "record_id": r.record_id,
+           "user_id": r.user_id,
+           "analysis_time": r.analysis_time,
+           "ai_diagnosis": r.ai_diagnosis,
+           "health_score": r.health_score,
+           "recommendations": r.recommendations
+       } for r in results
+   ])
+
+@app.route('/analysis_results/<int:id>', methods=['GET'])
+def get_analysis_result(id):
+   r = AnalysisResult.query.get(id)
+   if not r:
+       return jsonify({"error": "分析結果不存在"}), 404
+   return jsonify({
+       "analysis_id": r.analysis_id,
+       "record_id": r.record_id,
+       "user_id": r.user_id,
+       "analysis_time": r.analysis_time,
+       "ai_diagnosis": r.ai_diagnosis,
+       "health_score": r.health_score,
+       "recommendations": r.recommendations
+   })
+
+@app.route('/analysis_results', methods=['POST'])
+def create_analysis_result():
+   data = request.json
+   new_result = AnalysisResult(
+       record_id=data.get('record_id'),
+       user_id=data.get('user_id'),
+       analysis_time=datetime.utcnow(),
+       ai_diagnosis=data.get('ai_diagnosis'),
+       health_score=data.get('health_score'),
+       recommendations=data.get('recommendations')
+   )
+   db.session.add(new_result)
+   db.session.commit()
+   return jsonify({"success": True, "msg": "分析結果建立成功"})
+
+@app.route('/analysis_results/<int:id>', methods=['PUT'])
+def update_analysis_result(id):
+   r = AnalysisResult.query.get(id)
+   if not r:
+       return jsonify({"error": "分析結果不存在"}), 404
+
+   data = request.json
+   r.record_id = data.get('record_id', r.record_id)
+   r.user_id = data.get('user_id', r.user_id)
+   r.analysis_time = datetime.utcnow()
+   r.ai_diagnosis = data.get('ai_diagnosis', r.ai_diagnosis)
+   r.health_score = data.get('health_score', r.health_score)
+   r.recommendations = data.get('recommendations', r.recommendations)
+
+   db.session.commit()
+   return jsonify({"success": True, "msg": "分析結果更新成功"})
+
+@app.route('/analysis_results/<int:id>', methods=['DELETE'])
+def delete_analysis_result(id):
+   r = AnalysisResult.query.get(id)
+   if not r:
+       return jsonify({"error": "分析結果不存在"}), 404
+   db.session.delete(r)
+   db.session.commit()
+   return jsonify({"success": True, "msg": "分析結果已刪除"})
+
+# ========== POOP LOCATIONS ==========
+
+@app.route('/poop_locations', methods=['GET'])
+def get_poop_locations():
+   locations = PoopLocation.query.all()
+   return jsonify([
+       {
+           "location_id": l.location_id,
+           "user_id": l.user_id,
+           "record_id": l.record_id,
+           "record_time": l.record_time,
+           "latitude": l.latitude,
+           "longitude": l.longitude,
+           "location_name": l.location_name,
+           "notes": l.notes,
+           "expression_text": l.expression_text
+       } for l in locations
+   ])
+
+@app.route('/poop_locations/<int:id>', methods=['GET'])
+def get_poop_location(id):
+   l = PoopLocation.query.get(id)
+   if not l:
+       return jsonify({"error": "紀錄不存在"}), 404
+   return jsonify({
+       "location_id": l.location_id,
+       "user_id": l.user_id,
+       "record_id": l.record_id,
+       "record_time": l.record_time,
+       "latitude": l.latitude,
+       "longitude": l.longitude,
+       "location_name": l.location_name,
+       "notes": l.notes,
+       "expression_text": l.expression_text
+   })
+
+@app.route('/poop_locations', methods=['POST'])
+def create_poop_location():
+   data = request.json
+   location = PoopLocation(
+       user_id=data.get('user_id'),
+       record_id=data.get('record_id'),
+       record_time=datetime.utcnow(),
+       latitude=data.get('latitude'),
+       longitude=data.get('longitude'),
+       location_name=data.get('location_name'),
+       notes=data.get('notes'),
+       expression_text=data.get('expression_text')
+   )
+   db.session.add(location)
+   db.session.commit()
+   return jsonify({"success": True, "msg": "地點紀錄新增成功"})
+
+@app.route('/poop_locations/<int:id>', methods=['PUT'])
+def update_poop_location(id):
+   location = PoopLocation.query.get(id)
+   if not location:
+       return jsonify({"error": "地點紀錄不存在"}), 404
+
+   data = request.json
+   location.user_id = data.get('user_id', location.user_id)
+   location.record_id = data.get('record_id', location.record_id)
+   location.latitude = data.get('latitude', location.latitude)
+   location.longitude = data.get('longitude', location.longitude)
+   location.location_name = data.get('location_name', location.location_name)
+   location.notes = data.get('notes', location.notes)
+   location.expression_text = data.get('expression_text', location.expression_text)
+   location.record_time = datetime.utcnow()
+
+   db.session.commit()
+   return jsonify({"success": True, "msg": "地點紀錄更新成功"})
+
+@app.route('/poop_locations/<int:id>', methods=['DELETE'])
+def delete_poop_location(id):
+   location = PoopLocation.query.get(id)
+   if not location:
+       return jsonify({"error": "地點紀錄不存在"}), 404
+
+   db.session.delete(location)
+   db.session.commit()
+   return jsonify({"success": True, "msg": "地點紀錄已刪除"})
+
+# ========== POOP RECORDS ==========
+@app.route('/poop-records', methods=['GET'])
+def get_poop_records():
+   records = PoopRecord.query.all()
+   result = []
+   for r in records:
+       result.append({
+           "record_id": r.record_id,
+           "user_id": r.user_id,
+           "record_time": r.record_time,
+           "bristol_scale": r.bristol_scale,
+           "color": r.color,
+           "consistency": r.consistency,
+           "volume": r.volume,
+           "odor": r.odor,
+           "has_blood": r.has_blood,
+           "has_mucus": r.has_mucus,
+           "image_url": r.image_url,
+           "ai_poop_type": r.ai_poop_type,
+           "ai_poop_color": r.ai_poop_color,
+           "ai_poop_volume": r.ai_poop_volume,
+           "ai_diagnosis_summary": r.ai_diagnosis_summary,
+           "health_recommendations": r.health_recommendations,
+           "health_indicators": r.health_indicators
+       })
+   return jsonify(result)
+
+@app.route('/poop-records', methods=['POST'])
+def create_poop_record():
+   data = request.json
+   record = PoopRecord(
+       user_id=data['user_id'],
+       record_time=datetime.utcnow(),
+       bristol_scale=data.get('bristol_scale'),
+       color=data.get('color'),
+       consistency=data.get('consistency'),
+       volume=data.get('volume'),
+       odor=data.get('odor'),
+       has_blood=data.get('has_blood', False),
+       has_mucus=data.get('has_mucus', False),
+       image_url=data.get('image_url'),
+       ai_poop_type=data.get('ai_poop_type'),
+       ai_poop_color=data.get('ai_poop_color'),
+       ai_poop_volume=data.get('ai_poop_volume'),
+       ai_diagnosis_summary=data.get('ai_diagnosis_summary'),
+       health_recommendations=data.get('health_recommendations'),
+       health_indicators=data.get('health_indicators')
+   )
+   db.session.add(record)
+   db.session.commit()
+   return jsonify({"success": True, "msg": "糞便紀錄建立成功"})
+
+@app.route('/poop-records/<int:record_id>', methods=['PUT'])
+def update_poop_record(record_id):
+   record = PoopRecord.query.get(record_id)
+   if not record:
+       return jsonify({"error": "紀錄不存在"}), 404
+
+   data = request.json
+   record.bristol_scale = data.get('bristol_scale', record.bristol_scale)
+   record.color = data.get('color', record.color)
+   record.consistency = data.get('consistency', record.consistency)
+   record.volume = data.get('volume', record.volume)
+   record.odor = data.get('odor', record.odor)
+   record.has_blood = data.get('has_blood', record.has_blood)
+   record.has_mucus = data.get('has_mucus', record.has_mucus)
+   record.image_url = data.get('image_url', record.image_url)
+   record.ai_poop_type = data.get('ai_poop_type', record.ai_poop_type)
+   record.ai_poop_color = data.get('ai_poop_color', record.ai_poop_color)
+   record.ai_poop_volume = data.get('ai_poop_volume', record.ai_poop_volume)
+   record.ai_diagnosis_summary = data.get('ai_diagnosis_summary', record.ai_diagnosis_summary)
+   record.health_recommendations = data.get('health_recommendations', record.health_recommendations)
+   record.health_indicators = data.get('health_indicators', record.health_indicators)
+
+   db.session.commit()
+   return jsonify({"success": True, "msg": "糞便紀錄更新成功"})
+
+@app.route('/poop-records/<int:record_id>', methods=['DELETE'])
+def delete_poop_record(record_id):
+   record = PoopRecord.query.get(record_id)
+   if not record:
+       return jsonify({"error": "紀錄不存在"}), 404
+
+   db.session.delete(record)
+   db.session.commit()
+   return jsonify({"success": True, "msg": "糞便紀錄已刪除"})
+
+# ========== PUBLIC_TOILETS ==========
+@app.route('/toilets', methods=['GET'])
+def get_all_toilets():
+   toilets = PublicToilet.query.all()
+   return jsonify([t.__dict__ for t in toilets if '_sa_instance_state' not in t.__dict__])
+
+@app.route('/toilets/<string:toilet_id>', methods=['GET'])
+def get_toilet(toilet_id):
+   toilet = PublicToilet.query.get(toilet_id)
+   if not toilet:
+       return jsonify({'error': 'Toilet not found'}), 404
+   return jsonify(toilet.__dict__)
+
+@app.route('/toilets', methods=['POST'])
+def create_toilet():
+   data = request.json
+   new_toilet = PublicToilet(**data)
+   db.session.add(new_toilet)
+   db.session.commit()
+   return jsonify({'message': 'Toilet created'}), 201
+
+@app.route('/toilets/<string:toilet_id>', methods=['PUT'])
+def update_toilet(toilet_id):
+   toilet = PublicToilet.query.get(toilet_id)
+   if not toilet:
+       return jsonify({'error': 'Toilet not found'}), 404
+   for key, value in request.json.items():
+       setattr(toilet, key, value)
+   db.session.commit()
+   return jsonify({'message': 'Toilet updated'})
+
+@app.route('/toilets/<string:toilet_id>', methods=['DELETE'])
+def delete_toilet(toilet_id):
+   toilet = PublicToilet.query.get(toilet_id)
+   if not toilet:
+       return jsonify({'error': 'Toilet not found'}), 404
+   db.session.delete(toilet)
+   db.session.commit()
+   return jsonify({'message': 'Toilet deleted'})
+
+# ========== TOILET_CHECKINS ==========
+# 🔍 GET 全部資料
+@app.route('/toilet_checkins', methods=['GET'])
+def get_toilet_checkins():
+   all_checkins = ToiletCheckin.query.all()
+   result = []
+   for c in all_checkins:
+       result.append({
+           'toilet_checkin_id': c.toilet_checkin_id,
+           'user_id': c.user_id,
+           'checkin_time': c.checkin_time,
+           'latitude': c.latitude,
+           'longitude': c.longitude,
+           'toilet_name': c.toilet_name,
+           'toilet_rating_cleanliness': c.toilet_rating_cleanliness,
+           'toilet_rating_privacy': c.toilet_rating_privacy,
+           'toilet_rating_amenities': c.toilet_rating_amenities,
+           'toilet_review_text': c.toilet_review_text,
+           'public_toilet_id': c.public_toilet_id,
+       })
+   return jsonify(result)
+
+# 🔍 GET 單筆
+@app.route('/toilet_checkins/<int:checkin_id>', methods=['GET'])
+def get_toilet_checkin(checkin_id):
+   c = ToiletCheckin.query.get_or_404(checkin_id)
+   return jsonify({
+       'toilet_checkin_id': c.toilet_checkin_id,
+       'user_id': c.user_id,
+       'checkin_time': c.checkin_time,
+       'latitude': c.latitude,
+       'longitude': c.longitude,
+       'toilet_name': c.toilet_name,
+       'toilet_rating_cleanliness': c.toilet_rating_cleanliness,
+       'toilet_rating_privacy': c.toilet_rating_privacy,
+       'toilet_rating_amenities': c.toilet_rating_amenities,
+       'toilet_review_text': c.toilet_review_text,
+       'public_toilet_id': c.public_toilet_id,
+   })
+
+# ➕ POST 新增
+@app.route('/toilet_checkins', methods=['POST'])
+def create_toilet_checkin():
+   data = request.get_json()
+   new_checkin = ToiletCheckin(
+       user_id=data['user_id'],
+       checkin_time=datetime.strptime(data['checkin_time'], '%Y-%m-%d %H:%M:%S'),
+       latitude=data.get('latitude'),
+       longitude=data.get('longitude'),
+       toilet_name=data.get('toilet_name'),
+       toilet_rating_cleanliness=data.get('toilet_rating_cleanliness'),
+       toilet_rating_privacy=data.get('toilet_rating_privacy'),
+       toilet_rating_amenities=data.get('toilet_rating_amenities'),
+       toilet_review_text=data.get('toilet_review_text'),
+       public_toilet_id=data.get('public_toilet_id')
+   )
+   db.session.add(new_checkin)
+   db.session.commit()
+   return jsonify({'message': 'Checkin created successfully'}), 201
+
+# 📝 PUT 更新
+@app.route('/toilet_checkins/<int:checkin_id>', methods=['PUT'])
+def update_toilet_checkin(checkin_id):
+   c = ToiletCheckin.query.get_or_404(checkin_id)
+   data = request.get_json()
+   c.latitude = data.get('latitude', c.latitude)
+   c.longitude = data.get('longitude', c.longitude)
+   c.toilet_name = data.get('toilet_name', c.toilet_name)
+   c.toilet_rating_cleanliness = data.get('toilet_rating_cleanliness', c.toilet_rating_cleanliness)
+   c.toilet_rating_privacy = data.get('toilet_rating_privacy', c.toilet_rating_privacy)
+   c.toilet_rating_amenities = data.get('toilet_rating_amenities', c.toilet_rating_amenities)
+   c.toilet_review_text = data.get('toilet_review_text', c.toilet_review_text)
+   c.public_toilet_id = data.get('public_toilet_id', c.public_toilet_id)
+   db.session.commit()
+   return jsonify({'message': 'Checkin updated successfully'})
+
+# ❌ DELETE 刪除
+@app.route('/toilet_checkins/<int:checkin_id>', methods=['DELETE'])
+def delete_toilet_checkin(checkin_id):
+   c = ToiletCheckin.query.get_or_404(checkin_id)
+   db.session.delete(c)
+   db.session.commit()
+   return jsonify({'message': 'Checkin deleted successfully'})
+
+# ------map-------------------
+@app.route('/toilets/nearby', methods=['GET'])
+def get_nearby_toilets():
+    lat = float(request.args.get('lat'))
+    lng = float(request.args.get('lng'))
+    radius = int(request.args.get('radius', 1000))  # 預設 1km
+    limit = int(request.args.get('limit', 100))
+    
+    # 使用 PostgreSQL 的地理查詢
+    toilets = db.session.execute(text("""
+        SELECT *, 
+        (6371000 * acos(cos(radians(:lat)) * cos(radians(latitude)) * 
+         cos(radians(longitude) - radians(:lng)) + sin(radians(:lat)) * 
+         sin(radians(latitude)))) AS distance
+        FROM public_toilets 
+        WHERE (6371000 * acos(cos(radians(:lat)) * cos(radians(latitude)) * 
+               cos(radians(longitude) - radians(:lng)) + sin(radians(:lat)) * 
+               sin(radians(latitude)))) < :radius
+        ORDER BY distance 
+        LIMIT :limit
+    """), {"lat": lat, "lng": lng, "radius": radius, "limit": limit}).fetchall()
+    
+    return jsonify([dict(row._mapping) for row in toilets])
+
+@app.route('/toilets', methods=['GET'])
+def get_toilets_with_pagination():
+    page = int(request.args.get('page', 1))
+    limit = int(request.args.get('limit', 50))
+    city = request.args.get('city')
+    search = request.args.get('search')
+    
+    query = PublicToilet.query
+    
+    if city:
+        query = query.filter(PublicToilet.city.ilike(f'%{city}%'))
+    
+    if search:
+        query = query.filter(
             db.or_(
-                PublicToilet.name.ilike(search_term),
-                PublicToilet.address.ilike(search_term),
-                PublicToilet.city.ilike(search_term),
-                PublicToilet.administration.ilike(search_term)
-            ),
-            PublicToilet.latitude.isnot(None),
-            PublicToilet.longitude.isnot(None)
-        ).limit(limit).all()
-        
-        result_bathrooms = []
-        for toilet in toilets:
-            # 如果有使用者位置，計算距離
-            distance = None
-            if location:
-                try:
-                    distance_km = calculate_distance(
-                        location['latitude'], location['longitude'],
-                        toilet.latitude, toilet.longitude
-                    )
-                    distance = round(distance_km * 1000, 1)  # 轉換為公尺
-                except:
-                    pass
-            
-            # 判斷來源類型
-            if is_government_facility(toilet.name, toilet.address, toilet.toilet_type, toilet.type2):
-                source = 'gov'
-            else:
-                source = 'commercial'
-            
-            result_bathrooms.append({
-                'toilet_id': toilet.toilet_id,
-                'name': toilet.name or '公共廁所',
-                'address': toilet.address or '',
-                'latitude': float(toilet.latitude),
-                'longitude': float(toilet.longitude),
-                'distance': distance,
-                'toilet_type': toilet.toilet_type,
-                'type2': toilet.type2,
-                'city': toilet.city,
-                'administration': toilet.administration,
-                'source': source
-            })
-        
-        # 如果有距離資訊，按距離排序
-        if location:
-            result_bathrooms.sort(key=lambda x: x['distance'] or float('inf'))
-        
-        print(f"✅ 搜尋到 {len(result_bathrooms)} 個廁所")
-        
-        return jsonify(result_bathrooms)
-        
-    except Exception as e:
-        print(f"❌ 搜尋廁所錯誤: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+                PublicToilet.name.ilike(f'%{search}%'),
+                PublicToilet.address.ilike(f'%{search}%')
+            )
+        )
+    
+    toilets = query.paginate(
+        page=page, 
+        per_page=limit, 
+        error_out=False
+    )
+    
+    return jsonify({
+        'data': [toilet.__dict__ for toilet in toilets.items 
+                if '_sa_instance_state' not in toilet.__dict__],
+        'hasMore': toilets.has_next,
+        'totalCount': toilets.total
+    })
 
-@app.route('/api/bathrooms/stats', methods=['GET'])
-def get_bathroom_stats():
-    """獲取廁所統計資訊"""
-    try:
-        total_count = PublicToilet.query.count()
-        
-        # 按城市統計
-        city_stats = db.session.query(
-            PublicToilet.city,
-            db.func.count(PublicToilet.id).label('count')
-        ).group_by(PublicToilet.city).order_by(db.desc('count')).limit(10).all()
-        
-        # 按類型統計
-        type_stats = db.session.query(
-            PublicToilet.toilet_type,
-            db.func.count(PublicToilet.id).label('count')
-        ).group_by(PublicToilet.toilet_type).order_by(db.desc('count')).limit(10).all()
-        
-        result = {
-            'total': total_count,
-            'by_city': [{'city': city, 'count': count} for city, count in city_stats],
-            'by_type': [{'type': toilet_type, 'count': count} for toilet_type, count in type_stats]
-        }
-        
-        return jsonify(result)
-        
-    except Exception as e:
-        print(f"❌ 獲取統計資訊錯誤: {str(e)}")
-        return jsonify({"error": str(e)}), 500
-# ======= 測試路由 =======
-@app.route('/api/test', methods=['GET'])
-def test_database():
-    """測試資料庫連接和資料"""
-    try:
-        # 測試查詢前 5 個廁所
-        toilets = PublicToilet.query.limit(5).all()
-        
-        result = {
-            'database_connected': True,
-            'total_toilets': PublicToilet.query.count(),
-            'sample_toilets': [
-                {
-                    'toilet_id': toilet.toilet_id,
-                    'name': toilet.name,
-                    'city': toilet.city,
-                    'latitude': float(toilet.latitude) if toilet.latitude else None,
-                    'longitude': float(toilet.longitude) if toilet.longitude else None
-                }
-                for toilet in toilets
-            ]
-        }
-        
-        return jsonify(result)
-        
-    except Exception as e:
-        return jsonify({
-            'database_connected': False,
-            'error': str(e)
-        }), 500
 
+
+
+
+# ---------------- 啟動 ----------------
 
 if __name__ == '__main__':
-    app.run(debug=True, host="0.0.0.0")
+   app.run(debug=True, host='0.0.0.0', port=5001)
+
