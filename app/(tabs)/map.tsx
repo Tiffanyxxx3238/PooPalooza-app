@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo,memo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform, Dimensions, Alert, Modal, TextInput, ScrollView, Image, Share, KeyboardAvoidingView, Linking, FlatList } from 'react-native';
 import Colors from '@/constants/colors';
 import { MapPin, Navigation, Compass, List, Heart, Camera, Calendar, Trophy, Route, MessageCircle, Star, Upload, Mic, MicOff, Share2, Eye, EyeOff, Filter, ChevronDown, ChevronUp } from 'lucide-react-native';
@@ -91,6 +91,7 @@ interface CheckInRecord {
   anonymous: boolean;
   customMessage?: string;
 }
+
 const BRISTOL_EMOJIS: Record<number, string> = {
   1: '🥵', 2: '😓', 3: '🧻', 4: '😊', 5: '😅', 6: '🥲', 7: '💧',
 };
@@ -256,7 +257,6 @@ const localStorageUtil = {
     }
   }
 };
-
 export default function MapScreen() {
   const mapRef = useRef<any>(null);
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
@@ -326,6 +326,15 @@ export default function MapScreen() {
     return nearbyBathrooms; // 備用本地資料
   }, [dbNearbyBathrooms, nearbyBathrooms]);
 
+  // 🆕 狀態變化監控 - Debug用
+  useEffect(() => {
+    console.log('🔄 狀態變化監控:');
+    console.log('- showCheckInModal:', showCheckInModal);
+    console.log('- selectedBathroom:', selectedBathroom?.name);
+    console.log('- checkInMood:', checkInMood);
+    console.log('- location存在:', !!location);
+  }, [showCheckInModal, selectedBathroom, checkInMood, location]);
+
   // Load check-in records
   const loadCheckInRecords = async () => {
     try {
@@ -388,6 +397,7 @@ export default function MapScreen() {
       console.error('載入打卡記錄失敗:', error);
     }
   };
+
   // Image picker
   const pickImage = async () => {
     try {
@@ -435,20 +445,31 @@ export default function MapScreen() {
     }
   };
 
-  // Validate check-in form
+  // 🔧 修正：Validate check-in form
   const validateCheckInForm = (): boolean => {
-  if (!checkInMood) {
-    Alert.alert('選擇心情', '請選擇一個心情或大便狀態');
-    return false;
-  }
-  return true;
-};
+    console.log('🔍 驗證表單 - checkInMood:', checkInMood);
+    
+    if (!checkInMood) {
+      Alert.alert('選擇心情', '請選擇一個心情或大便狀態');
+      return false;
+    }
+    return true;
+  };
 
-  // Perform check-in
+  // 🔧 修正：Perform check-in
   const performCheckIn = async () => {
-    if (!selectedBathroom) return;
+    console.log('🚀 performCheckIn 開始執行');
+    console.log('selectedBathroom:', selectedBathroom);
+    console.log('checkInMood:', checkInMood);
+    
+    if (!selectedBathroom) {
+      console.log('❌ selectedBathroom 為空');
+      Alert.alert('錯誤', '無法取得打卡地點資料，請稍後再試');
+      return;
+    }
     
     if (!validateCheckInForm()) {
+      console.log('❌ 表單驗證失敗');
       return;
     }
     
@@ -474,25 +495,32 @@ export default function MapScreen() {
         customMessage: customMessage,
       };
       
+      console.log('📝 準備保存記錄:', newRecord);
+      
       const updatedRecords = [...checkInRecords, newRecord];
       setCheckInRecords(updatedRecords);
       setVisitedBathroomIds([...visitedBathroomIds, selectedBathroom.id]);
       
       await localStorageUtil.setItem('checkInRecords', JSON.stringify(updatedRecords));
       
+      // 重要：先關閉Modal再重置表單
+      setShowCheckInModal(false);
+      
       // Reset form
-      resetCheckInForm();
+      resetCheckInForm(false); // 傳入false避免再次關閉modal
       
       // Show success message
-      Alert.alert('🎉 Check-in Successful!', `Checked in at ${selectedBathroom.name}`, [
+      Alert.alert('🎉 打卡成功！', `已在 ${selectedBathroom.name} 打卡完成`, [
         {
-          text: 'Awesome!',
-          onPress: () => console.log('Check-in completed')
+          text: '太棒了！',
+          onPress: () => console.log('✅ 打卡流程完全結束')
         }
       ]);
+      
+      console.log('✅ performCheckIn 成功完成');
     } catch (error) {
-      console.error('Check-in error:', error);
-      Alert.alert('Error', 'Failed to save check-in. Please try again.');
+      console.error('❌ performCheckIn 錯誤:', error);
+      Alert.alert('錯誤', '打卡失敗，請稍後再試');
     }
   };
 
@@ -591,7 +619,6 @@ export default function MapScreen() {
       return recordDate.getTime() < today.getTime();
     });
   };
-
   // Filter bathrooms within 1.5km
   const filterNearbyBathrooms = (userLocation: Location.LocationObject, bathrooms: Bathroom[]) => {
     return bathrooms
@@ -659,7 +686,7 @@ const clusterNearbyMarkers = (bathrooms: Bathroom[], threshold = 0.001) => {
       });
       processed.add(bathroom.id);
     }
-  });
+    });
   
   return clusters;
 };
@@ -690,6 +717,7 @@ const clusterNearbyMarkers = (bathrooms: Bathroom[], threshold = 0.001) => {
       originalDescription: toilet.description,
     }));
   };
+
 // 🆕 模擬更多廁所資料（基於台灣常見地點）
 const generateMoreMockBathrooms = (userLat: number, userLng: number): Bathroom[] => {
   const commonPlaces = [
@@ -740,6 +768,7 @@ const generateMoreMockBathrooms = (userLat: number, userLng: number): Bathroom[]
   
   return mockBathrooms;
 };
+
   const bathroomStats = useMemo(() => {
     const targetBathrooms = finalNearbyBathrooms; 
     const govCount = targetBathrooms.filter(b => b.source === 'gov').length;
@@ -957,6 +986,7 @@ const generateMoreMockBathrooms = (userLat: number, userLng: number): Bathroom[]
 
     getLocationAndData();
   }, []);
+
   // Center map on user location
   const centerMapOnUser = useCallback(() => {
     if (location && mapRef.current) {
@@ -988,7 +1018,6 @@ const generateMoreMockBathrooms = (userLat: number, userLng: number): Bathroom[]
       setIsLocationLoading(false);
     }
   };
-
   const renderStars = (rating: number) => {
     const fullStars = Math.floor(rating);
     const halfStar = rating % 1 >= 0.5;
@@ -1078,7 +1107,7 @@ const generateMoreMockBathrooms = (userLat: number, userLng: number): Bathroom[]
     } else {
       primaryUrl = `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}&destination_place_id=${encodeURIComponent(name)}`;
     }
-    
+
     const webFallback = `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
     
     Linking.canOpenURL(primaryUrl)
@@ -1128,11 +1157,14 @@ const generateMoreMockBathrooms = (userLat: number, userLng: number): Bathroom[]
     setShowCheckInModal(true);
   };
 
-// 🆕 位置打卡處理函數
+// 🔧 修正：位置打卡處理函數
 const handleQuickLocationCheckIn = () => {
   console.log('🎯 Quick check-in button pressed');
+  console.log('location狀態:', location);
+  console.log('showCheckInModal當前狀態:', showCheckInModal);
   
   if (!location) {
+    console.log('❌ 沒有位置資訊');
     Alert.alert('⚠️ 無法打卡', '尚未取得 GPS 位置，請稍後再試');
     return;
   }
@@ -1152,13 +1184,18 @@ const handleQuickLocationCheckIn = () => {
     funnyQuote: 'I was here! 📍',
   };
 
+  console.log('📍 創建位置廁所:', currentLocationBathroom);
+
   // 直接打開 Modal
   resetCheckInForm(false);
   setSelectedBathroom(currentLocationBathroom);
   setShowCheckInModal(true);
+  
+  console.log('✅ Modal應該已開啟');
 };
 
   const handleMoodSelect = (emoji: string) => {
+    console.log('選擇心情:', emoji);
     setCheckInMood(emoji);
   };
 
@@ -1167,6 +1204,7 @@ const handleQuickLocationCheckIn = () => {
   };
 
   const handleBristolSelect = (type: number) => {
+    console.log('選擇Bristol類型:', type);
     setCheckInBristolType(type);
   };
 
@@ -1242,7 +1280,6 @@ const handleLocationCheckIn = async () => {
       console.log('🗺️ 切換到地圖頁面，準備移動到用戶位置');
     }
   };
-
   // 🔄 簡化評論 Modal
   const ReviewModal = () => (
     <Modal
@@ -1325,784 +1362,570 @@ const handleLocationCheckIn = async () => {
       </View>
     </Modal>
   );
-  // Map component - 使用優化後的限制 marker 數量
-  const MapComponent = () => {
-    if (Platform.OS === 'web') {
-      return (
-        <View style={styles.webMapPlaceholder}>
-          <MapPin size={48} color={Colors.primary.lightText} />
-          <Text style={styles.webMapTitle}>Map View</Text>
-          <Text style={styles.webMapText}>
-            Interactive map is available in the mobile app. Please use list view to see nearby bathrooms.
-          </Text>
-          <TouchableOpacity style={styles.webMapButton} onPress={() => setActiveTab('nearby')}>
-            <Text style={styles.webMapButtonText}>View List</Text>
-          </TouchableOpacity>
-        </View>
-      );
+
+const CheckInModal = memo(() => {
+  // 🔧 修正：使用本地狀態避免外部狀態變化導致重新渲染
+  const [localMood, setLocalMood] = useState('');
+  const [localMessage, setLocalMessage] = useState('');
+  const [localBristolType, setLocalBristolType] = useState(undefined);
+  const [localQuickTag, setLocalQuickTag] = useState('');
+  const [localRating, setLocalRating] = useState(5);
+
+  // 🔧 修正：只在 Modal 顯示時初始化本地狀態
+  useEffect(() => {
+    if (showCheckInModal) {
+      console.log('🔄 Modal opened - initializing local state');
+      setLocalMood(checkInMood || '');
+      setLocalMessage(customMessage || '');
+      setLocalBristolType(checkInBristolType);
+      setLocalQuickTag(checkInQuickTag || '');
+      setLocalRating(checkInRating || 5);
     }
+  }, [showCheckInModal]); // 只依賴 showCheckInModal
 
-    try {
-      const MapModule = require('react-native-maps');
-      const MapView = MapModule.default;
-      const { Marker, Callout, Polyline, PROVIDER_GOOGLE } = MapModule;
+  // 🔧 修正：穩定的關閉函數
+  const handleClose = useCallback(() => {
+    console.log('❌ Modal closing');
+    setShowCheckInModal(false);
+  }, []);
 
-      const defaultRegion = {
-        latitude: 25.0330,
-        longitude: 121.5654,
-        latitudeDelta: 0.01,
-        longitudeDelta: 0.01,
-      };
-
-      const currentRegion = location ? {
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-        latitudeDelta: 0.01,
-        longitudeDelta: 0.01,
-      } : defaultRegion;
-
-      const handleMarkerPress = (bathroom: Bathroom) => {
-        setSelectedBathroom(bathroom);
-        if (mapRef.current) {
-          mapRef.current.animateToRegion(
-            {
-              latitude: bathroom.latitude,
-              longitude: bathroom.longitude,
-              latitudeDelta: 0.01,
-              longitudeDelta: 0.01,
-            },
-            500,
-          );
-        }
-      };
-
-      const journeyCoordinates = activeTab === 'journey' && checkInRecords.length > 1
-        ? sortedRecords.map(record => ({
-            latitude: record.location.lat,
-            longitude: record.location.lng,
-          }))
-        : [];
-
-      return (
-        <View style={styles.mapContainer}>
-          <MapView
-            ref={mapRef}
-            style={styles.map}
-            provider={PROVIDER_GOOGLE}
-            initialRegion={currentRegion}
-            showsUserLocation={!!location}
-            showsMyLocationButton={false}
-            onMapReady={() => setMapReady(true)}
-          >
-          {limitedDisplayBathrooms.map((cluster) => (
-  <Marker
-    key={cluster.id}
-    coordinate={{ latitude: cluster.latitude, longitude: cluster.longitude }}
-    title={cluster.count > 1 ? `${cluster.count} 個廁所` : getBathroomDisplayName(cluster.bathrooms[0])}
-    onPress={() => {
-      if (cluster.count > 1) {
-        // 🆕 顯示聚集詳情Modal
-        setSelectedCluster(cluster);
-        setShowClusterModal(true);
-      } else {
-        // 單個廁所直接顯示詳情
-        setSelectedBathroom(cluster.bathrooms[0]);
-      }
-      
-      if (mapRef.current) {
-        mapRef.current.animateToRegion(
-          {
-            latitude: cluster.latitude,
-            longitude: cluster.longitude,
-            latitudeDelta: 0.01,
-            longitudeDelta: 0.01,
-          },
-          500,
-        );
-      }
-    }}
-  >
-    <View
-      style={[
-        styles.markerContainer, 
-        { 
-          borderColor: cluster.count > 1 ? '#FF6B6B' : getMarkerColor(cluster.bathrooms[0]),
-          backgroundColor: cluster.count > 1 ? '#FFEBEE' : '#FFFFFF'
-        },
-        selectedBathroom?.id === cluster.bathrooms[0].id && styles.selectedMarker
-      ]}
-    >
-      {cluster.count > 1 ? (
-        <View style={styles.clusterMarker}>
-          <Text style={styles.clusterCount}>{cluster.count}</Text>
-        </View>
-      ) : (
-        <Text style={[styles.markerEmoji, { color: getMarkerColor(cluster.bathrooms[0]) }]}>
-          {getBathroomIcon(cluster.bathrooms[0])}
-        </Text>
-      )}
-    </View>
-    <Callout tooltip>
-      <View style={styles.calloutContainer}>
-        {cluster.count > 1 ? (
-          <>
-            <Text style={styles.calloutTitle}>📍 {cluster.count} 個廁所聚集</Text>
-            <Text style={styles.calloutSubtitle}>點擊查看詳情</Text>
-          </>
-        ) : (
-          <>
-            <Text style={styles.calloutTitle}>{cluster.bathrooms[0].name}</Text>
-            <Text style={styles.calloutSubtitle}>{cluster.bathrooms[0].type}</Text>
-            <View style={styles.calloutRating}>{renderStars(cluster.bathrooms[0].rating)}</View>
-            <Text style={styles.calloutSource}>
-              Source: {cluster.bathrooms[0].source === 'gov' ? 'Government' : cluster.bathrooms[0].source === 'commercial' ? 'Commercial' : 'International'}
-            </Text>
-            {cluster.bathrooms[0].funnyQuote && (
-              <Text style={styles.calloutQuote}>💭 {cluster.bathrooms[0].funnyQuote}</Text>
-            )}
-            {(activeTab === 'visited' || activeTab === 'journey') && (
-              <Text style={styles.calloutVisited}>✅ Visited</Text>
-            )}
-          </>
-        )}
-      </View>
-    </Callout>
-  </Marker>
-))}                  
-
-            {/* Show journey route */}
-            {activeTab === 'journey' && journeyCoordinates.length > 1 && (
-              <Polyline
-                coordinates={journeyCoordinates}
-                strokeColor="#FF6B6B"
-                strokeWidth={3}
-                lineDashPattern={[5, 5]}
-              />
-            )}
-{(activeTab === 'visited' || activeTab === 'journey') && (() => {
-  const uniqueRecords = checkInRecords.reduce((acc, record) => {
-    const locationKey = `${record.location.lat.toFixed(4)}-${record.location.lng.toFixed(4)}`;
-    if (!acc[locationKey] || acc[locationKey].timestamp < record.timestamp) {
-      acc[locationKey] = record;
-    }
-    return acc;
-  }, {} as Record<string, CheckInRecord>);
-
-  return Object.values(uniqueRecords).map((record) => (
-    <Marker
-      key={`unique-record-${record.id}`}
-      coordinate={{ latitude: record.location.lat, longitude: record.location.lng }}
-      title={`${record.mood} ${record.location.name}`}
-      description={record.customMessage || record.note}
-    >
-      <View style={styles.checkInMarker}>
-        <Text style={styles.checkInEmoji}>{record.mood}</Text>
-      </View>
-    </Marker>
-  ));
-})()}
-          </MapView>
-
-          <View style={styles.mapControls}>
-            <TouchableOpacity 
-              style={[styles.mapControlButton, !location && styles.disabledButton]} 
-              onPress={centerMapOnUser}
-              disabled={!location}
-            >
-              <Compass size={24} color={location ? Colors.primary.accent : Colors.primary.lightText} />
-            </TouchableOpacity>
-          </View>
-
-          {/* Show bathroom statistics */}
-          <View style={styles.locationStatus}>
-            <Text style={styles.locationStatusText}>
-              {activeTab === 'visited' 
-                ? `📍 ${checkInRecords.length} Check-ins`
-                : activeTab === 'journey'
-                ? `🗺️ ${checkInRecords.length} Journey Points`
-                : activeTab === 'nearby'
-                ? `📍 ${nearbyBathrooms.length} Nearby Bathrooms`
-                : `🗺️ ${limitedDisplayBathrooms.length}/${allBathrooms.length} Bathrooms`
-              }
-            </Text>
-            {activeTab === 'nearby' && nearbyBathrooms.length > 0 && (
-              <Text style={styles.locationStatusSubtext}>
-                🏛️ {bathroomStats.govCount} Gov | 
-                🚻 {bathroomStats.commercialCount} Commercial |
-                🌍 {bathroomStats.internationalCount} International
-              </Text>
-            )}
-            {activeTab === 'map' && allBathrooms.length > 0 && (
-              <Text style={styles.locationStatusSubtext}>
-                🏛️ {allBathrooms.filter(b => b.source === 'gov').length} Gov | 
-                🚻 {allBathrooms.filter(b => b.source === 'commercial').length} Commercial |
-                🌍 {allBathrooms.filter(b => b.source === 'international').length} International
-              </Text>
-            )}
-            
-            {(activeTab === 'visited' || activeTab === 'journey') && checkInRecords.length > 0 && (
-              <Text style={styles.locationStatusSubtext}>
-                🎯 {journeyStats.uniqueLocations} Unique Locations | 
-                ⭐ Favorite: {journeyStats.favoriteLocation || 'None yet'}
-              </Text>
-            )}              
-          </View> 
-
-          {selectedBathroom && (
-            <View style={styles.bathroomDetailCard}>
-              <View style={styles.bathroomInfo}>
-                <View style={styles.bathroomHeader}>
-                  <Text style={styles.bathroomName}>{getBathroomDisplayName(selectedBathroom)}</Text>
-                  <View style={styles.typeTag}>
-                    <Text style={styles.typeText}>{selectedBathroom.type}</Text>
-                  </View>
-                </View>
-
-                <Text style={styles.bathroomAddress}>{selectedBathroom.address}</Text>
-                
-                {selectedBathroom.funnyQuote && (
-                  <Text style={styles.funnyQuote}>💭 {selectedBathroom.funnyQuote}</Text>
-                )}
-
-                <View style={styles.bathroomDetails}>
-                  <View style={styles.ratingContainer}>
-                    {renderStars(selectedBathroom.rating)}
-                    <Text style={styles.ratingText}>{selectedBathroom.rating.toFixed(1)}</Text>
-                    {selectedBathroom.reviews && selectedBathroom.reviews.length > 0 && (
-                      <Text style={styles.reviewCount}>({selectedBathroom.reviews.length} reviews)</Text>
-                    )}
-                  </View>
-                  <Text style={styles.distanceText}>
-                    {selectedBathroom.distance < 1 
-                      ? `${Math.round(selectedBathroom.distance * 1000)}m`
-                      : `${selectedBathroom.distance.toFixed(1)}km`
-                    }
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.actionButtons}>
-                <TouchableOpacity 
-                  style={styles.navigateButton} 
-                  onPress={() => handleNavigate(bathroom)}
-                >
-                  <Navigation size={20} color="#FFFFFF" />
-                  <Text style={styles.actionButtonText}>導航</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
-        </View>
-      );
-    } catch (error) {
-      console.error('地圖載入失敗:', error);
-      return (
-        <View style={styles.mapFallback}>
-          <MapPin size={64} color={Colors.primary.accent} />
-          <Text style={styles.mapFallbackTitle}>Map temporarily unavailable</Text>
-          <Text style={styles.mapFallbackText}>
-            Map functionality is loading. Please try again later or use list mode to view nearby bathrooms.
-          </Text>
-          <TouchableOpacity 
-            style={styles.fallbackButton}
-            onPress={() => setActiveTab('nearby')}
-          >
-            <Text style={styles.fallbackButtonText}>Switch to List Mode</Text>
-          </TouchableOpacity>
-          
-          {location && (
-            <View style={styles.locationInfo}>
-              <Text style={styles.locationInfoText}>
-                Your location: {location.coords.latitude.toFixed(4)}, {location.coords.longitude.toFixed(4)}
-              </Text>
-            </View>
-          )}
-        </View>
-      );
-    }
-  };
-  // Show nearby bathroom list (within 500m)
-  const renderNearbyList = () => (
-    <View style={styles.listContainer}>
-      <View style={styles.listHeader}>
-        <Text style={styles.sectionTitle}>Bathrooms within 500m</Text>
-        {nearbyBathrooms.length > 0 && (
-          <View style={styles.statsContainer}>
-            <Text style={styles.statsText}>
-              Total {nearbyBathrooms.length} | 
-              🏛️ {bathroomStats.govCount} Gov | 
-              🚻 {bathroomStats.commercialCount} Commercial |
-              🌍 {bathroomStats.internationalCount} International
-            </Text>
-          </View>
-        )}
-      </View>
-      
-      {nearbyBathrooms.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>
-            {location ? 'No bathrooms found within 500m' : 'Loading nearby bathrooms...'}
-          </Text>
-          {!location && (
-            <Text style={styles.emptySubtext}>
-              Please ensure GPS location services are enabled
-            </Text>
-          )}
-        </View>
-      ) : (
-<FlatList 
-  data={nearbyBathrooms}
-  keyExtractor={(item) => item.id}
-  renderItem={({ item: bathroom }) => (
-    <TouchableOpacity
-      style={[
-        styles.bathroomCard,
-        visitedBathroomIds.includes(bathroom.id) && styles.visitedCard
-      ]}
-      onPress={() => {
-        if (Platform.OS !== 'web') {
-          setActiveTab('map');
-          setSelectedBathroom(bathroom);
-        }
-      }}
-    >
-      <View style={styles.bathroomInfo}>
-        <View style={styles.bathroomHeader}>
-          <Text style={styles.bathroomName}>
-            {getBathroomIcon(bathroom)} {bathroom.name}
-            {visitedBathroomIds.includes(bathroom.id) && ' ✅'}
-          </Text>
-          <View style={[
-            styles.typeTag,
-            { backgroundColor: getMarkerColor(bathroom) }
-          ]}>
-            <Text style={styles.typeText}>{bathroom.type}</Text>
-          </View>
-        </View>
-        <Text style={styles.bathroomAddress}>{bathroom.address}</Text>
-        
-        {bathroom.funnyQuote && (
-          <Text style={styles.funnyQuote}>💭 {bathroom.funnyQuote}</Text>
-        )}
-        
-        <View style={styles.bathroomDetails}>
-          <View style={styles.ratingContainer}>
-            {renderStars(bathroom.rating)}
-            <Text style={styles.ratingText}>{bathroom.rating.toFixed(1)}</Text>
-            {bathroom.reviews && bathroom.reviews.length > 0 && (
-              <Text style={styles.reviewCount}>({bathroom.reviews.length})</Text>
-            )}
-          </View>
-          <Text style={styles.distanceText}>
-            {bathroom.distance < 1 
-              ? `${Math.round(bathroom.distance * 1000)}m`
-              : `${bathroom.distance.toFixed(1)}km`
-            }
-          </Text>
-        </View>
-      </View>
-      <View style={styles.actionButtons}>
-        <TouchableOpacity 
-          style={styles.navigateButton} 
-          onPress={() => handleNavigate(bathroom)}
-        >
-          <Navigation size={20} color="#FFFFFF" />
-          <Text style={styles.actionButtonText}>導航</Text>
-        </TouchableOpacity>
-      </View>
-    </TouchableOpacity>
-  )}
-  showsVerticalScrollIndicator={false}
-  contentContainerStyle={styles.scrollContent}
-/>
-      )}
-    </View>
-  );
-
-  // 🔄 簡化訪問內容顯示 - 移除成就系統
-  const renderVisitedContent = () => {
-    const todayRecords = getTodayRecords();
-    const previousRecords = getPreviousRecords();
-
-    if (checkInRecords.length === 0) {
-      return (
-        <View style={styles.emptyContainer}>
-          <MapPin size={48} color={Colors.primary.lightText} />
-          <Text style={styles.emptyTitle}>No Check-in Records</Text>
-          <Text style={styles.emptyText}>
-            Start using bathrooms and check in to build your "Poop Journey Map"!
-          </Text>
-          <TouchableOpacity 
-            style={styles.startButton}
-            onPress={() => setActiveTab('nearby')}
-          >
-            <Text style={styles.startButtonText}>Start Finding Bathrooms</Text>
-          </TouchableOpacity>
-        </View>
-      );
-    }
+  // 🔧 修正：穩定的打卡處理函數
+  const handleCheckIn = useCallback(async (isPrivate) => {
+    const checkInType = isPrivate ? 'Private' : 'Public';
+    console.log(`${isPrivate ? '🔒' : '🌍'} ${checkInType} check-in started`);
     
-    return (
-      <View style={styles.visitedContainer}>
-        {/* 地圖區域 */}
-        <View style={[
-          styles.visitedMapContainer,
-          { height: showRecords ? 300 : 500 }
-        ]}>
-          <MapComponent />
-
-          <TouchableOpacity 
-            style={styles.poopLineButton}
-            onPress={() => setShowPoopLinePage(true)}
-          >
-            <Route size={20} color="#FFFFFF" />
-            <Text style={styles.poopLineButtonText}>Poop Line</Text>
-          </TouchableOpacity>
-
-          {location && (
-            <TouchableOpacity 
-              style={styles.quickCheckInButton}
-            onPress={handleQuickLocationCheckIn}
-            >
-              <MapPin size={20} color="#FFFFFF" />
-              <Text style={styles.quickCheckInText}>throw 💩 in here</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* Toggle Show Records */}
-        <TouchableOpacity 
-          style={styles.toggleListButton}
-          onPress={() => setShowRecords(!showRecords)}
-        >
-          <Text style={styles.toggleListText}>
-            {showRecords ? '🔼 Hide Check-in Records' : '🔽 Show Check-in Records'}
-          </Text>
-        </TouchableOpacity>
-
-        {/* ScrollView - 紀錄區塊（可收合） */}
-        {showRecords ? (
-          <View style={styles.recordsWrapper}>
-            <ScrollView
-              style={styles.recordsScrollView}
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={styles.scrollContent}
-            >
-              {/* 打卡記錄內容 */}
-              <View style={styles.recordsSection}>
-                <TouchableOpacity
-                  style={styles.recordsHeader}
-                  onPress={() => setShowTodayRecords(!showTodayRecords)}
-                >
-                  <Text style={styles.sectionTitle}>📍 今日打卡紀錄 ({todayRecords.length})</Text>
-                  {showTodayRecords ? (
-                    <ChevronUp size={24} color={Colors.primary.text} />
-                  ) : (
-                    <ChevronDown size={24} color={Colors.primary.text} />
-                  )}
-                </TouchableOpacity>
-                {showTodayRecords && (
-                  todayRecords.length === 0 ? (
-                    <Text style={styles.noRecordsText}>今天沒有打卡紀錄</Text>
-                  ) : (
-                    todayRecords.map(record => (
-                      <View key={record.id} style={styles.recordCard}>
-                        <Text style={styles.recordMood}>{record.mood}</Text>
-                        <View style={styles.recordInfo}>
-                          <Text style={styles.recordName}>{record.bathroom.name}</Text>
-                          <Text style={styles.recordTime}>
-                            {new Date(record.timestamp).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })}
-                          </Text>
-                          {record.customMessage && (
-                            <Text style={styles.recordCustomMessage}>{record.customMessage}</Text>
-                          )}
-                          {record.quickTag && (
-                            <Text style={styles.recordTag}>🏷️ {record.quickTag}</Text>
-                          )}
-                        </View>
-                      </View>
-                    ))
-                  )
-                )}
-              </View>
-
-              <View style={styles.recordsSection}>
-                <TouchableOpacity
-                  style={styles.recordsHeader}
-                  onPress={() => setShowPreviousRecords(!showPreviousRecords)}
-                >
-                  <Text style={styles.sectionTitle}>📅 過去打卡紀錄 ({previousRecords.length})</Text>
-                  {showPreviousRecords ? (
-                    <ChevronUp size={24} color={Colors.primary.text} />
-                  ) : (
-                    <ChevronDown size={24} color={Colors.primary.text} />
-                  )}
-                </TouchableOpacity>
-                {showPreviousRecords && (
-                  previousRecords.length === 0 ? (
-                    <Text style={styles.noRecordsText}>沒有過去打卡紀錄</Text>
-                  ) : (
-                    previousRecords.map(record => (
-                      <View key={record.id} style={styles.recordCard}>
-                        <Text style={styles.recordMood}>{record.mood}</Text>
-                        <View style={styles.recordInfo}>
-                          <Text style={styles.recordName}>{record.bathroom.name}</Text>
-                          <Text style={styles.recordTime}>
-                            {new Date(record.timestamp).toLocaleDateString('zh-TW')} {new Date(record.timestamp).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })}
-                          </Text>
-                          {record.customMessage && (
-                            <Text style={styles.recordCustomMessage}>{record.customMessage}</Text>
-                          )}
-                          {record.quickTag && (
-                            <Text style={styles.recordTag}>🏷️ {record.quickTag}</Text>
-                          )}
-                        </View>
-                      </View>
-                    ))
-                  )
-                )}
-              </View>
-            </ScrollView>
-          </View>
-        ) : null}
-      </View>
-    );
-  };
-const renderJourneyContent = () => {
-  const todayRecords = getTodayRecords();
-  const previousRecords = getPreviousRecords();
-
-  return (
-    <View style={styles.journeyContainer}>
-      {/* 🎨 地圖區域 - 占滿整個螢幕 */}
-      <View style={styles.fullScreenMapSection}>
-        <MapComponent />
-        
-        {/* 🌟 主要打卡按鈕 - 重新定位 */}
-        {location && (
-          <TouchableOpacity 
-            style={styles.floatingCheckInButton}
-            onPress={() => {
-              console.log('🎯 Button clicked!');
-              handleQuickLocationCheckIn();
-            }}
-            activeOpacity={0.8}
-          >
-            <View style={styles.checkInButtonContent}>
-              <Text style={styles.checkInButtonEmoji}>💩</Text>
-              <Text style={styles.checkInButtonText}>Check In</Text>
-            </View>
-          </TouchableOpacity>
-        )}
-
-        {/* 🎨 頂部統計條 - 重新設計 */}
-        <View style={styles.topStatsBar}>
-          <View style={styles.statsItem}>
-            <Text style={styles.statsNumber}>{checkInRecords.length}</Text>
-            <Text style={styles.statsLabel}>Total</Text>
-          </View>
-          <View style={styles.statsDivider} />
-          <View style={styles.statsItem}>
-            <Text style={styles.statsNumber}>{journeyStats.uniqueLocations}</Text>
-            <Text style={styles.statsLabel}>Places</Text>
-          </View>
-          <View style={styles.statsDivider} />
-          <View style={styles.statsItem}>
-            <Text style={styles.statsNumber}>{todayRecords.length}</Text>
-            <Text style={styles.statsLabel}>Today</Text>
-          </View>
-        </View>
-
-        {/* 🎨 右上角控制按鈕 */}
-        <View style={styles.topRightControls}>
-          <TouchableOpacity 
-            style={[styles.controlButton, !location && styles.disabledButton]} 
-            onPress={centerMapOnUser}
-            disabled={!location}
-          >
-            <Compass size={18} color={location ? Colors.primary.accent : Colors.primary.lightText} />
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={styles.controlButton}
-            onPress={() => setShowPoopLinePage(true)}
-          >
-            <Route size={18} color={Colors.primary.accent} />
-          </TouchableOpacity>
-        </View>
-
-        {/* 🎨 底部抽屜觸發按鈕 */}
-        <TouchableOpacity 
-          style={styles.drawerTrigger}
-          onPress={() => setShowRecordsDrawer(true)}
-        >
-          <ChevronUp size={24} color="#FFFFFF" />
-          <Text style={styles.drawerTriggerText}>
-            View Records ({checkInRecords.length})
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-};
-
-
-  const renderContent = () => {
-    if (errorMsg) {
-      return (
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>{errorMsg}</Text>
-          <Text style={styles.errorSubtext}>
-            Please enable location services to find nearby bathrooms.
-          </Text>
-          <TouchableOpacity 
-            style={styles.retryButton} 
-            onPress={retryLocationRequest}
-          >
-            <Text style={styles.retryButtonText}>Retry Location</Text>
-          </TouchableOpacity>
-        </View>
+    try {
+      const newRecord = {
+        id: Date.now().toString(),
+        timestamp: Date.now(),
+        bathroom: selectedBathroom,
+        mood: localMood || '💩',
+        bristolType: localBristolType,
+        note: checkInNote,
+        quickTag: localQuickTag,
+        rating: localRating,
+        image: checkInImage || undefined,
+        audioUri: checkInAudio || undefined,
+        location: {
+          lat: selectedBathroom.latitude,
+          lng: selectedBathroom.longitude,
+          name: selectedBathroom.name,
+        },
+        isPrivate: isPrivate,
+        anonymous: isAnonymousCheckIn,
+        customMessage: localMessage || `${checkInType} check-in`,
+      };
+      
+      const updatedRecords = [...checkInRecords, newRecord];
+      setCheckInRecords(updatedRecords);
+      setVisitedBathroomIds([...visitedBathroomIds, selectedBathroom.id]);
+      
+      await localStorageUtil.setItem('checkInRecords', JSON.stringify(updatedRecords));
+      
+      // 關閉 Modal
+      setShowCheckInModal(false);
+      
+      // 重置所有狀態
+      setCheckInNote('');
+      setCheckInMood('');
+      setCheckInRating(5);
+      setCheckInBristolType(undefined);
+      setCheckInQuickTag('');
+      setCheckInImage(null);
+      setCheckInAudio(null);
+      setIsPrivateCheckIn(false);
+      setIsAnonymousCheckIn(false);
+      setCustomMessage('');
+      setSelectedBathroom(null);
+      
+      Alert.alert(
+        `✅ ${checkInType} Check-in Success!`, 
+        `Mood: ${localMood || '💩'}\n` +
+        `Description: ${localMessage || 'None'}\n` +
+        `Bristol: ${localBristolType ? `Type ${localBristolType}` : 'None'}\n` +
+        `Tag: ${localQuickTag || 'None'}\n` +
+        `Rating: ${localRating}/5 stars`,
+        [{ text: 'Awesome!' }]
       );
+      
+    } catch (error) {
+      console.error(`❌ ${checkInType} check-in error:`, error);
+      Alert.alert('Error', `${checkInType} check-in failed, please try again`);
     }
+  }, [localMood, localMessage, localBristolType, localQuickTag, localRating, selectedBathroom, checkInRecords, visitedBathroomIds]);
 
-    switch (activeTab) {
-      case 'map':
-        return <MapComponent />;
-      case 'nearby':
-        return renderNearbyList();
-      case 'visited':
-        return renderVisitedContent();
-      case 'journey':
-        return renderJourneyContent();
-      case 'poopline':                    
-        return renderJourneyContent();
-      default:
-        return renderNearbyList();
-    }
-  };
-
-const CheckInModal = () => {
-  if (!showCheckInModal || !selectedBathroom) return null;
+  // 🚨 如果 Modal 不顯示，直接返回 null，避免渲染
+  if (!showCheckInModal || !selectedBathroom) {
+    return null;
+  }
 
   return (
     <Modal
       visible={showCheckInModal}
       animationType="slide"
       transparent={true}
-      onRequestClose={() => setShowCheckInModal(false)}
+      onRequestClose={handleClose}
+      // 🔧 關鍵：添加這些屬性確保Modal穩定
+      presentationStyle="overFullScreen"
+      statusBarTranslucent={true}
     >
-      <View style={styles.modernModalOverlay}>
-        <View style={styles.modernModalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modernModalTitle}>💩 Poop Check-In</Text>
+      {/* 🔧 修正：使用固定的容器樣式 */}
+      <View style={{
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        justifyContent: 'flex-end',
+      }}>
+        <View style={{
+          backgroundColor: '#FFFFFF',
+          borderTopLeftRadius: 20,
+          borderTopRightRadius: 20,
+          height: '90%', // 🔧 修正：使用固定高度而不是 maxHeight
+          width: '100%',
+        }}>
+          {/* 固定Header */}
+          <View style={{
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: 20,
+            borderBottomWidth: 1,
+            borderBottomColor: 'rgba(0,0,0,0.1)',
+            backgroundColor: '#FFFFFF',
+            height: 70, // 固定高度
+          }}>
+            <Text style={{
+              fontSize: 20,
+              fontWeight: 'bold',
+              color: Colors.primary.text,
+            }}>💩 Poop Check-In</Text>
             <TouchableOpacity
-              style={styles.closeButton}
-              onPress={() => setShowCheckInModal(false)}
+              onPress={handleClose}
+              style={{
+                padding: 8,
+                borderRadius: 20,
+                backgroundColor: 'rgba(0,0,0,0.1)',
+              }}
             >
-              <Text style={styles.closeButtonText}>✕</Text>
+              <Text style={{ fontSize: 18, fontWeight: 'bold' }}>✕</Text>
             </TouchableOpacity>
           </View>
 
+          {/* 🔧 修正：ScrollView 使用固定高度 */}
           <ScrollView 
-            style={styles.modernModalContent}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ paddingBottom: 20 }}
+            style={{ 
+              flex: 1,
+              backgroundColor: '#FFFFFF',
+            }}
+            contentContainerStyle={{ 
+              padding: 20,
+              paddingBottom: 140, // 為底部按鈕留空間
+            }}
+            showsVerticalScrollIndicator={true}
+            keyboardShouldPersistTaps="handled" // 🔧 重要：處理鍵盤
+            keyboardDismissMode="on-drag" // 拖動時關閉鍵盤
           >
-            {/* 心情選擇 */}
-            <View style={styles.sectionContainer}>
-              <Text style={styles.modernSectionTitle}>Current Mood 😊</Text>
-              <View style={styles.modernEmojiGrid}>
-                {MOOD_EMOJIS.map((emoji) => (
+            {/* 1. 心情選擇 */}
+            <View style={{ 
+              marginBottom: 25,
+              backgroundColor: '#F0F8FF',
+              padding: 16,
+              borderRadius: 12,
+              borderWidth: 2,
+              borderColor: '#4A90E2',
+            }}>
+              <Text style={{
+                fontSize: 18,
+                fontWeight: 'bold',
+                color: '#2C3E50',
+                marginBottom: 8,
+              }}>😊 SELECT YOUR MOOD</Text>
+              
+              <Text style={{
+                fontSize: 14,
+                color: '#7F8C8D',
+                marginBottom: 12,
+              }}>Currently selected: {localMood ? `${localMood} (Selected)` : '❌ None selected'}</Text>
+              
+              <View style={{
+                flexDirection: 'row',
+                flexWrap: 'wrap',
+                justifyContent: 'center',
+                gap: 10,
+              }}>
+                {MOOD_EMOJIS.map((emoji, index) => (
                   <TouchableOpacity
-                    key={emoji}
-                    style={[
-                      styles.modernEmojiButton,
-                      checkInMood === emoji && styles.selectedModernEmoji
-                    ]}
-                    onPress={() => handleMoodSelect(emoji)}
+                    key={`mood-${emoji}-${index}`}
+                    style={{
+                      width: 65,
+                      height: 65,
+                      borderRadius: 32.5,
+                      backgroundColor: localMood === emoji ? '#4A90E2' : '#FFFFFF',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      borderWidth: 4,
+                      borderColor: localMood === emoji ? '#2E86AB' : '#BDC3C7',
+                      shadowColor: '#000',
+                      shadowOffset: { width: 0, height: 3 },
+                      shadowOpacity: 0.2,
+                      shadowRadius: 5,
+                      elevation: 5,
+                      ...(localMood === emoji && {
+                        transform: [{ scale: 1.15 }],
+                        shadowOpacity: 0.4,
+                      })
+                    }}
+                    onPress={() => {
+                      console.log(`✅ Selecting mood: ${emoji}`);
+                      setLocalMood(emoji); // 🔧 使用本地狀態
+                    }}
                     activeOpacity={0.7}
                   >
-                    <Text style={styles.modernEmojiText}>{emoji}</Text>
+                    <Text style={{ fontSize: 32 }}>{emoji}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
             </View>
 
-            {/* 心情描述 */}
-            <View style={styles.sectionContainer}>
-              <Text style={styles.modernSectionTitle}>Description 💭</Text>
+            {/* 2. 描述輸入 */}
+            <View style={{ 
+              marginBottom: 25,
+              backgroundColor: '#FFF8DC',
+              padding: 16,
+              borderRadius: 12,
+              borderWidth: 2,
+              borderColor: '#F39C12',
+            }}>
+              <Text style={{
+                fontSize: 18,
+                fontWeight: 'bold',
+                color: '#2C3E50',
+                marginBottom: 8,
+              }}>💭 DESCRIPTION</Text>
+              
+              <Text style={{
+                fontSize: 14,
+                color: '#7F8C8D',
+                marginBottom: 12,
+              }}>Content: {localMessage ? `"${localMessage}"` : '❌ Not filled'}</Text>
+              
               <TextInput
-                style={styles.modernTextInput}
+                style={{
+                  backgroundColor: '#FFFFFF',
+                  borderRadius: 12,
+                  padding: 16,
+                  fontSize: 16,
+                  color: '#2C3E50',
+                  textAlignVertical: 'top',
+                  minHeight: 100,
+                  borderWidth: 3,
+                  borderColor: localMessage ? '#27AE60' : '#BDC3C7',
+                }}
                 placeholder="Share your poop experience... e.g., So smooth today!"
-                value={customMessage}
-                onChangeText={setCustomMessage}
+                placeholderTextColor="#95A5A6"
+                value={localMessage}
+                onChangeText={(text) => {
+                  console.log('📝 Description input:', text);
+                  setLocalMessage(text); // 🔧 使用本地狀態
+                }}
                 maxLength={150}
-                multiline
-                numberOfLines={3}
+                multiline={true}
+                numberOfLines={4}
+                // 🔧 重要：防止輸入時重新渲染
+                autoCorrect={false}
+                autoCapitalize="none"
               />
+              <Text style={{
+                fontSize: 12,
+                color: '#7F8C8D',
+                textAlign: 'right',
+                marginTop: 5,
+              }}>{localMessage.length}/150 characters</Text>
             </View>
 
-            {/* 大便類型 */}
-            <View style={styles.sectionContainer}>
-              <Text style={styles.modernSectionTitle}>Bristol Type 🧻</Text>
-              <View style={styles.modernBristolGrid}>
-                {Object.entries(BRISTOL_EMOJIS).map(([type, emoji]) => (
+            {/* 3. Bristol Scale */}
+            <View style={{ 
+              marginBottom: 25,
+              backgroundColor: '#FFF0F5',
+              padding: 16,
+              borderRadius: 12,
+              borderWidth: 2,
+              borderColor: '#E74C3C',
+            }}>
+              <Text style={{
+                fontSize: 18,
+                fontWeight: 'bold',
+                color: '#2C3E50',
+                marginBottom: 8,
+              }}>🧻 BRISTOL STOOL SCALE</Text>
+              
+              <Text style={{
+                fontSize: 14,
+                color: '#7F8C8D',
+                marginBottom: 12,
+              }}>Selected: {localBristolType ? `✅ Type ${localBristolType}` : '❌ None selected'}</Text>
+              
+              <View style={{
+                flexDirection: 'row',
+                flexWrap: 'wrap',
+                justifyContent: 'center',
+                gap: 8,
+              }}>
+                {Object.entries(BRISTOL_EMOJIS).map(([type, emoji]) => {
+                  const typeNum = parseInt(type);
+                  return (
+                    <TouchableOpacity
+                      key={`bristol-${type}`}
+                      style={{
+                        width: 75,
+                        height: 85,
+                        borderRadius: 12,
+                        backgroundColor: localBristolType === typeNum ? '#E74C3C' : '#FFFFFF',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        borderWidth: 3,
+                        borderColor: localBristolType === typeNum ? '#C0392B' : '#BDC3C7',
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: 3 },
+                        shadowOpacity: 0.2,
+                        shadowRadius: 5,
+                        elevation: 5,
+                        ...(localBristolType === typeNum && {
+                          transform: [{ scale: 1.1 }],
+                        })
+                      }}
+                      onPress={() => {
+                        console.log(`🧻 Selecting Bristol type: ${type}`);
+                        setLocalBristolType(typeNum); // 🔧 使用本地狀態
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={{ fontSize: 30, marginBottom: 5 }}>{emoji}</Text>
+                      <Text style={{
+                        fontSize: 12,
+                        fontWeight: 'bold',
+                        color: localBristolType === typeNum ? '#FFFFFF' : '#2C3E50',
+                      }}>TYPE {type}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+
+            {/* 4. 快速標籤 */}
+            <View style={{ 
+              marginBottom: 25,
+              backgroundColor: '#F0FFF0',
+              padding: 16,
+              borderRadius: 12,
+              borderWidth: 2,
+              borderColor: '#27AE60',
+            }}>
+              <Text style={{
+                fontSize: 18,
+                fontWeight: 'bold',
+                color: '#2C3E50',
+                marginBottom: 8,
+              }}>🏷️ LOCATION TAGS</Text>
+              
+              <Text style={{
+                fontSize: 14,
+                color: '#7F8C8D',
+                marginBottom: 12,
+              }}>Selected: {localQuickTag ? `✅ ${localQuickTag}` : '❌ None selected'}</Text>
+              
+              <View style={{
+                flexDirection: 'row',
+                flexWrap: 'wrap',
+                gap: 8,
+              }}>
+                {QUICK_TAGS.map((tag) => (
                   <TouchableOpacity
-                    key={type}
-                    style={[
-                      styles.modernBristolButton,
-                      checkInBristolType === parseInt(type) && styles.selectedModernBristol
-                    ]}
-                    onPress={() => handleBristolSelect(parseInt(type))}
+                    key={`tag-${tag}`}
+                    style={{
+                      backgroundColor: localQuickTag === tag ? '#27AE60' : '#FFFFFF',
+                      paddingHorizontal: 16,
+                      paddingVertical: 12,
+                      borderRadius: 20,
+                      borderWidth: 2,
+                      borderColor: localQuickTag === tag ? '#1E8449' : '#BDC3C7',
+                      shadowColor: '#000',
+                      shadowOffset: { width: 0, height: 2 },
+                      shadowOpacity: 0.1,
+                      shadowRadius: 3,
+                      elevation: 3,
+                    }}
+                    onPress={() => {
+                      console.log(`🏷️ Selecting tag: ${tag}`);
+                      setLocalQuickTag(tag); // 🔧 使用本地狀態
+                    }}
                     activeOpacity={0.7}
                   >
-                    <Text style={styles.modernBristolEmoji}>{emoji}</Text>
-                    <Text style={styles.modernBristolType}>{type}</Text>
+                    <Text style={{
+                      fontSize: 14,
+                      color: localQuickTag === tag ? '#FFFFFF' : '#2C3E50',
+                      fontWeight: localQuickTag === tag ? 'bold' : 'normal',
+                    }}>{tag}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
+            </View>
+
+            {/* 5. 評分系統 */}
+            <View style={{ 
+              marginBottom: 25,
+              backgroundColor: '#FFFACD',
+              padding: 16,
+              borderRadius: 12,
+              borderWidth: 2,
+              borderColor: '#F1C40F',
+            }}>
+              <Text style={{
+                fontSize: 18,
+                fontWeight: 'bold',
+                color: '#2C3E50',
+                marginBottom: 8,
+              }}>⭐ RATING SYSTEM</Text>
+              
+              <Text style={{
+                fontSize: 14,
+                color: '#7F8C8D',
+                marginBottom: 12,
+              }}>Current rating: ✅ {localRating}/5 stars</Text>
+              
+              <View style={{
+                flexDirection: 'row',
+                justifyContent: 'center',
+                gap: 12,
+              }}>
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <TouchableOpacity
+                    key={`star-${star}`}
+                    onPress={() => {
+                      console.log(`⭐ Selecting rating: ${star}`);
+                      setLocalRating(star); // 🔧 使用本地狀態
+                    }}
+                    activeOpacity={0.7}
+                    style={{
+                      padding: 8,
+                    }}
+                  >
+                    <Text style={{
+                      fontSize: 45,
+                      color: star <= localRating ? '#F1C40F' : '#BDC3C7',
+                      textShadowColor: star <= localRating ? '#F39C12' : 'transparent',
+                      textShadowOffset: { width: 1, height: 1 },
+                      textShadowRadius: 2,
+                    }}>★</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* 6. 當前選擇總結 */}
+            <View style={{ 
+              marginBottom: 30,
+              backgroundColor: '#E8F5E8',
+              padding: 16,
+              borderRadius: 12,
+              borderWidth: 3,
+              borderColor: '#27AE60',
+            }}>
+              <Text style={{
+                fontSize: 16,
+                fontWeight: 'bold',
+                color: '#2C3E50',
+                marginBottom: 12,
+                textAlign: 'center',
+              }}>📋 CURRENT SELECTIONS SUMMARY</Text>
+              
+              <Text style={{ fontSize: 15, marginBottom: 6, fontWeight: '600' }}>
+                😊 Mood: {localMood || '❌ Not selected'}
+              </Text>
+              <Text style={{ fontSize: 15, marginBottom: 6, fontWeight: '600' }}>
+                💭 Description: {localMessage || '❌ Not filled'}
+              </Text>
+              <Text style={{ fontSize: 15, marginBottom: 6, fontWeight: '600' }}>
+                🧻 Bristol Type: {localBristolType ? `✅ Type ${localBristolType}` : '❌ Not selected'}
+              </Text>
+              <Text style={{ fontSize: 15, marginBottom: 6, fontWeight: '600' }}>
+                🏷️ Location Tag: {localQuickTag || '❌ Not selected'}
+              </Text>
+              <Text style={{ fontSize: 15, fontWeight: '600' }}>
+                ⭐ Rating: ✅ {localRating}/5 stars
+              </Text>
             </View>
           </ScrollView>
 
-          {/* 底部按鈕 - 兩個打卡選項 */}
-          <View style={styles.modernModalFooter}>
+          {/* 🔧 修正：固定底部按鈕 */}
+          <View style={{
+            position: 'absolute', // 🔧 絕對定位確保固定
+            bottom: 0,
+            left: 0,
+            right: 0,
+            flexDirection: 'row',
+            padding: 20,
+            backgroundColor: '#FFFFFF',
+            borderTopWidth: 2,
+            borderTopColor: '#E0E0E0',
+            gap: 15,
+            height: 90, // 固定高度
+          }}>
             <TouchableOpacity
-              style={[
-                styles.privateCheckInButton,
-                !checkInMood && styles.modernButtonDisabled
-              ]}
-              onPress={() => {
-                if (!checkInMood) return;
-                setIsPrivateCheckIn(true);
-                performCheckIn();
+              style={{
+                flex: 1,
+                paddingVertical: 18,
+                borderRadius: 12,
+                backgroundColor: '#6C757D',
+                alignItems: 'center',
+                justifyContent: 'center',
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 3 },
+                shadowOpacity: 0.3,
+                shadowRadius: 5,
+                elevation: 5,
               }}
-              disabled={!checkInMood}
+              onPress={() => handleCheckIn(true)}
               activeOpacity={0.8}
             >
-              <Text style={styles.privateCheckInText}>🔒 Check In Private</Text>
+              <Text style={{
+                fontSize: 12,
+                fontWeight: 'bold',
+                color: '#FFFFFF',
+              }}>🔒 CHECK IN PRIVATE</Text>
             </TouchableOpacity>
             
             <TouchableOpacity
-              style={[
-                styles.publicCheckInButton,
-                !checkInMood && styles.modernButtonDisabled
-              ]}
-              onPress={() => {
-                if (!checkInMood) return;
-                setIsPrivateCheckIn(false);
-                performCheckIn();
+              style={{
+                flex: 1,
+                paddingVertical: 18,
+                borderRadius: 12,
+                backgroundColor: Colors.primary.accent,
+                alignItems: 'center',
+                justifyContent: 'center',
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 3 },
+                shadowOpacity: 0.3,
+                shadowRadius: 5,
+                elevation: 5,
               }}
-              disabled={!checkInMood}
+              onPress={() => handleCheckIn(false)}
               activeOpacity={0.8}
             >
-              <Text style={styles.publicCheckInText}>🌍 Check In Public</Text>
+              <Text style={{
+                fontSize: 12,
+                fontWeight: 'bold',
+                color: '#FFFFFF',
+              }}>🌍 CHECK IN PUBLIC</Text>
             </TouchableOpacity>
           </View>
         </View>
       </View>
     </Modal>
   );
-};
+});
+
+// 🔧 重要：設定 displayName 用於 debugging
+CheckInModal.displayName = 'CheckInModal';
 const ClusterModal = () => {
   if (!showClusterModal || !selectedCluster) return null;
 
@@ -2387,7 +2210,767 @@ const RecordsDrawer = () => {
     </Modal>
   );
 };
+const MapComponent = () => {
+  if (Platform.OS === 'web') {
+    return (
+      <View style={styles.webMapPlaceholder}>
+        <MapPin size={48} color={Colors.primary.lightText} />
+        <Text style={styles.webMapTitle}>Map View</Text>
+        <Text style={styles.webMapText}>
+          Interactive map is available in the mobile app. Please use list view to see nearby bathrooms.
+        </Text>
+        <TouchableOpacity style={styles.webMapButton} onPress={() => setActiveTab('nearby')}>
+          <Text style={styles.webMapButtonText}>View List</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
+  try {
+    const MapModule = require('react-native-maps');
+    const MapView = MapModule.default;
+    const { Marker, Callout, Polyline, PROVIDER_GOOGLE } = MapModule;
+
+    const defaultRegion = {
+      latitude: 25.0330,
+      longitude: 121.5654,
+      latitudeDelta: 0.01,
+      longitudeDelta: 0.01,
+    };
+
+    const currentRegion = location ? {
+      latitude: location.coords.latitude,
+      longitude: location.coords.longitude,
+      latitudeDelta: 0.01,
+      longitudeDelta: 0.01,
+    } : defaultRegion;
+
+    const journeyCoordinates = activeTab === 'journey' && checkInRecords.length > 1
+      ? sortedRecords.map(record => ({
+          latitude: record.location.lat,
+          longitude: record.location.lng,
+        }))
+      : [];
+
+    return (
+      <View style={styles.mapContainer}>
+        <MapView
+          ref={mapRef}
+          style={styles.map}
+          provider={PROVIDER_GOOGLE}
+          initialRegion={currentRegion}
+          showsUserLocation={!!location}
+          showsMyLocationButton={false}
+          onMapReady={() => setMapReady(true)}
+          // 🔧 重要：隱藏原生的UI元素，避免重疊
+          showsCompass={false}
+          showsScale={false}
+          showsBuildings={false}
+          showsTraffic={false}
+          showsIndoors={false}
+          showsPointsOfInterest={false}
+          toolbarEnabled={false}
+        >
+          {/* 地圖標記 */}
+          {limitedDisplayBathrooms.map((cluster) => (
+            <Marker
+              key={cluster.id}
+              coordinate={{ latitude: cluster.latitude, longitude: cluster.longitude }}
+              title={cluster.count > 1 ? `${cluster.count} 個廁所` : getBathroomDisplayName(cluster.bathrooms[0])}
+              onPress={() => {
+                if (cluster.count > 1) {
+                  setSelectedCluster(cluster);
+                  setShowClusterModal(true);
+                } else {
+                  setSelectedBathroom(cluster.bathrooms[0]);
+                }
+                
+                if (mapRef.current) {
+                  mapRef.current.animateToRegion(
+                    {
+                      latitude: cluster.latitude,
+                      longitude: cluster.longitude,
+                      latitudeDelta: 0.01,
+                      longitudeDelta: 0.01,
+                    },
+                    500,
+                  );
+                }
+              }}
+            >
+              <View
+                style={[
+                  styles.markerContainer, 
+                  { 
+                    borderColor: cluster.count > 1 ? '#FF6B6B' : getMarkerColor(cluster.bathrooms[0]),
+                    backgroundColor: cluster.count > 1 ? '#FFEBEE' : '#FFFFFF'
+                  },
+                  selectedBathroom?.id === cluster.bathrooms[0].id && styles.selectedMarker
+                ]}
+              >
+                {cluster.count > 1 ? (
+                  <View style={styles.clusterMarker}>
+                    <Text style={styles.clusterCount}>{cluster.count}</Text>
+                  </View>
+                ) : (
+                  <Text style={[styles.markerEmoji, { color: getMarkerColor(cluster.bathrooms[0]) }]}>
+                    {getBathroomIcon(cluster.bathrooms[0])}
+                  </Text>
+                )}
+              </View>
+              <Callout tooltip>
+                <View style={styles.calloutContainer}>
+                  {cluster.count > 1 ? (
+                    <>
+                      <Text style={styles.calloutTitle}>📍 {cluster.count} 個廁所聚集</Text>
+                      <Text style={styles.calloutSubtitle}>點擊查看詳情</Text>
+                    </>
+                  ) : (
+                    <>
+                      <Text style={styles.calloutTitle}>{cluster.bathrooms[0].name}</Text>
+                      <Text style={styles.calloutSubtitle}>{cluster.bathrooms[0].type}</Text>
+                      <View style={styles.calloutRating}>{renderStars(cluster.bathrooms[0].rating)}</View>
+                      {cluster.bathrooms[0].funnyQuote && (
+                        <Text style={styles.calloutQuote}>💭 {cluster.bathrooms[0].funnyQuote}</Text>
+                      )}
+                      {(activeTab === 'visited' || activeTab === 'journey') && (
+                        <Text style={styles.calloutVisited}>✅ Visited</Text>
+                      )}
+                    </>
+                  )}
+                </View>
+              </Callout>
+            </Marker>
+          ))}
+
+          {/* Journey路線 */}
+          {activeTab === 'journey' && journeyCoordinates.length > 1 && (
+            <Polyline
+              coordinates={journeyCoordinates}
+              strokeColor="#FF6B6B"
+              strokeWidth={3}
+              lineDashPattern={[5, 5]}
+            />
+          )}
+
+          {/* 打卡記錄標記 */}
+          {(activeTab === 'visited' || activeTab === 'journey') && (() => {
+            const uniqueRecords = checkInRecords.reduce((acc, record) => {
+              const locationKey = `${record.location.lat.toFixed(4)}-${record.location.lng.toFixed(4)}`;
+              if (!acc[locationKey] || acc[locationKey].timestamp < record.timestamp) {
+                acc[locationKey] = record;
+              }
+              return acc;
+            }, {} as Record<string, CheckInRecord>);
+
+            return Object.values(uniqueRecords).map((record) => (
+              <Marker
+                key={`unique-record-${record.id}`}
+                coordinate={{ latitude: record.location.lat, longitude: record.location.lng }}
+                title={`${record.mood} ${record.location.name}`}
+                description={record.customMessage || record.note}
+              >
+                <View style={styles.checkInMarker}>
+                  <Text style={styles.checkInEmoji}>{record.mood}</Text>
+                </View>
+              </Marker>
+            ));
+          })()}
+        </MapView>
+
+        {/* 🚨 移除原本的 locationStatus，避免重複顯示 */}
+        {/* locationStatus 已移至底部統一顯示 */}
+
+        {/* 選中廁所的詳細卡片 */}
+        {selectedBathroom && (
+          <View style={styles.bathroomDetailCard}>
+            <View style={styles.bathroomInfo}>
+              <View style={styles.bathroomHeader}>
+                <Text style={styles.bathroomName}>{getBathroomDisplayName(selectedBathroom)}</Text>
+                <View style={styles.typeTag}>
+                  <Text style={styles.typeText}>{selectedBathroom.type}</Text>
+                </View>
+              </View>
+
+              <Text style={styles.bathroomAddress}>{selectedBathroom.address}</Text>
+              
+              {selectedBathroom.funnyQuote && (
+                <Text style={styles.funnyQuote}>💭 {selectedBathroom.funnyQuote}</Text>
+              )}
+
+              <View style={styles.bathroomDetails}>
+                <View style={styles.ratingContainer}>
+                  {renderStars(selectedBathroom.rating)}
+                  <Text style={styles.ratingText}>{selectedBathroom.rating.toFixed(1)}</Text>
+                  {selectedBathroom.reviews && selectedBathroom.reviews.length > 0 && (
+                    <Text style={styles.reviewCount}>({selectedBathroom.reviews.length} reviews)</Text>
+                  )}
+                </View>
+                <Text style={styles.distanceText}>
+                  {selectedBathroom.distance < 1 
+                    ? `${Math.round(selectedBathroom.distance * 1000)}m`
+                    : `${selectedBathroom.distance.toFixed(1)}km`
+                  }
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.actionButtons}>
+              <TouchableOpacity 
+                style={styles.navigateButton} 
+                onPress={() => handleNavigate(selectedBathroom)}
+              >
+                <Navigation size={20} color="#FFFFFF" />
+                <Text style={styles.actionButtonText}>導航</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+      </View>
+    );
+  } catch (error) {
+    console.error('地圖載入失敗:', error);
+    return (
+      <View style={styles.mapFallback}>
+        <MapPin size={64} color={Colors.primary.accent} />
+        <Text style={styles.mapFallbackTitle}>Map temporarily unavailable</Text>
+        <Text style={styles.mapFallbackText}>
+          Map functionality is loading. Please try again later or use list mode to view nearby bathrooms.
+        </Text>
+        <TouchableOpacity 
+          style={styles.fallbackButton}
+          onPress={() => setActiveTab('nearby')}
+        >
+          <Text style={styles.fallbackButtonText}>Switch to List Mode</Text>
+        </TouchableOpacity>
+        
+        {location && (
+          <View style={styles.locationInfo}>
+            <Text style={styles.locationInfoText}>
+              Your location: {location.coords.latitude.toFixed(4)}, {location.coords.longitude.toFixed(4)}
+            </Text>
+          </View>
+        )}
+      </View>
+    );
+  }
+};
+  // Show nearby bathroom list (within 500m)
+  const renderNearbyList = () => (
+    <View style={styles.listContainer}>
+      <View style={styles.listHeader}>
+        <Text style={styles.sectionTitle}>Bathrooms within 500m</Text>
+        {nearbyBathrooms.length > 0 && (
+          <View style={styles.statsContainer}>
+            <Text style={styles.statsText}>
+              Total {nearbyBathrooms.length} | 
+              🏛️ {bathroomStats.govCount} Gov | 
+              🚻 {bathroomStats.commercialCount} Commercial |
+              🌍 {bathroomStats.internationalCount} International
+            </Text>
+            </View>
+        )}
+      </View>
+      
+      {nearbyBathrooms.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>
+            {location ? 'No bathrooms found within 500m' : 'Loading nearby bathrooms...'}
+          </Text>
+          {!location && (
+            <Text style={styles.emptySubtext}>
+              Please ensure GPS location services are enabled
+            </Text>
+          )}
+        </View>
+      ) : (
+<FlatList 
+  data={nearbyBathrooms}
+  keyExtractor={(item) => item.id}
+  renderItem={({ item: bathroom }) => (
+    <TouchableOpacity
+      style={[
+        styles.bathroomCard,
+        visitedBathroomIds.includes(bathroom.id) && styles.visitedCard
+      ]}
+      onPress={() => {
+        if (Platform.OS !== 'web') {
+          setActiveTab('map');
+          setSelectedBathroom(bathroom);
+        }
+      }}
+    >
+      <View style={styles.bathroomInfo}>
+        <View style={styles.bathroomHeader}>
+          <Text style={styles.bathroomName}>
+            {getBathroomIcon(bathroom)} {bathroom.name}
+            {visitedBathroomIds.includes(bathroom.id) && ' ✅'}
+          </Text>
+          <View style={[
+            styles.typeTag,
+            { backgroundColor: getMarkerColor(bathroom) }
+          ]}>
+            <Text style={styles.typeText}>{bathroom.type}</Text>
+          </View>
+        </View>
+        <Text style={styles.bathroomAddress}>{bathroom.address}</Text>
+        
+        {bathroom.funnyQuote && (
+          <Text style={styles.funnyQuote}>💭 {bathroom.funnyQuote}</Text>
+        )}
+        
+        <View style={styles.bathroomDetails}>
+          <View style={styles.ratingContainer}>
+            {renderStars(bathroom.rating)}
+            <Text style={styles.ratingText}>{bathroom.rating.toFixed(1)}</Text>
+            {bathroom.reviews && bathroom.reviews.length > 0 && (
+              <Text style={styles.reviewCount}>({bathroom.reviews.length})</Text>
+            )}
+          </View>
+          <Text style={styles.distanceText}>
+            {bathroom.distance < 1 
+              ? `${Math.round(bathroom.distance * 1000)}m`
+              : `${bathroom.distance.toFixed(1)}km`
+            }
+          </Text>
+        </View>
+      </View>
+      <View style={styles.actionButtons}>
+        <TouchableOpacity 
+          style={styles.navigateButton} 
+          onPress={() => handleNavigate(bathroom)}
+        >
+          <Navigation size={20} color="#FFFFFF" />
+          <Text style={styles.actionButtonText}>導航</Text>
+        </TouchableOpacity>
+      </View>
+    </TouchableOpacity>
+  )}
+  showsVerticalScrollIndicator={false}
+  contentContainerStyle={styles.scrollContent}
+/>
+      )}
+    </View>
+  );
+
+  // 🔄 簡化訪問內容顯示 - 移除成就系統
+  const renderVisitedContent = () => {
+    const todayRecords = getTodayRecords();
+    const previousRecords = getPreviousRecords();
+
+    if (checkInRecords.length === 0) {
+      return (
+        <View style={styles.emptyContainer}>
+          <MapPin size={48} color={Colors.primary.lightText} />
+          <Text style={styles.emptyTitle}>No Check-in Records</Text>
+          <Text style={styles.emptyText}>
+            Start using bathrooms and check in to build your "Poop Journey Map"!
+          </Text>
+          <TouchableOpacity 
+            style={styles.startButton}
+            onPress={() => setActiveTab('nearby')}
+          >
+            <Text style={styles.startButtonText}>Start Finding Bathrooms</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    
+    return (
+      <View style={styles.visitedContainer}>
+        {/* 地圖區域 */}
+        <View style={[
+          styles.visitedMapContainer,
+          { height: showRecords ? 300 : 500 }
+        ]}>
+          <MapComponent />
+
+          <TouchableOpacity 
+            style={styles.poopLineButton}
+            onPress={() => setShowPoopLinePage(true)}
+          >
+            <Route size={20} color="#FFFFFF" />
+            <Text style={styles.poopLineButtonText}>Poop Line</Text>
+          </TouchableOpacity>
+
+          {location && (
+            <TouchableOpacity 
+              style={styles.quickCheckInButton}
+            onPress={handleQuickLocationCheckIn}
+            >
+              <MapPin size={20} color="#FFFFFF" />
+              <Text style={styles.quickCheckInText}>throw 💩 in here</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Toggle Show Records */}
+        <TouchableOpacity 
+          style={styles.toggleListButton}
+          onPress={() => setShowRecords(!showRecords)}
+        >
+          <Text style={styles.toggleListText}>
+            {showRecords ? '🔼 Hide Check-in Records' : '🔽 Show Check-in Records'}
+          </Text>
+        </TouchableOpacity>
+
+        {/* ScrollView - 紀錄區塊（可收合） */}
+        {showRecords ? (
+          <View style={styles.recordsWrapper}>
+            <ScrollView
+              style={styles.recordsScrollView}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.scrollContent}
+            >
+              {/* 打卡記錄內容 */}
+              <View style={styles.recordsSection}>
+                <TouchableOpacity
+                  style={styles.recordsHeader}
+                  onPress={() => setShowTodayRecords(!showTodayRecords)}
+                >
+                  <Text style={styles.sectionTitle}>📍 今日打卡紀錄 ({todayRecords.length})</Text>
+                  {showTodayRecords ? (
+                    <ChevronUp size={24} color={Colors.primary.text} />
+                  ) : (
+                    <ChevronDown size={24} color={Colors.primary.text} />
+                  )}
+                </TouchableOpacity>
+                {showTodayRecords && (
+                  todayRecords.length === 0 ? (
+                    <Text style={styles.noRecordsText}>今天沒有打卡紀錄</Text>
+                  ) : (
+                    todayRecords.map(record => (
+                      <View key={record.id} style={styles.recordCard}>
+                        <Text style={styles.recordMood}>{record.mood}</Text>
+                        <View style={styles.recordInfo}>
+                          <Text style={styles.recordName}>{record.bathroom.name}</Text>
+                          <Text style={styles.recordTime}>
+                            {new Date(record.timestamp).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })}
+                          </Text>
+                          {record.customMessage && (
+                            <Text style={styles.recordCustomMessage}>{record.customMessage}</Text>
+                          )}
+                          {record.quickTag && (
+                            <Text style={styles.recordTag}>🏷️ {record.quickTag}</Text>
+                          )}
+                        </View>
+                      </View>
+                    ))
+                  )
+                )}
+              </View>
+
+              <View style={styles.recordsSection}>
+                <TouchableOpacity
+                  style={styles.recordsHeader}
+                  onPress={() => setShowPreviousRecords(!showPreviousRecords)}
+                >
+                  <Text style={styles.sectionTitle}>📅 過去打卡紀錄 ({previousRecords.length})</Text>
+                  {showPreviousRecords ? (
+                    <ChevronUp size={24} color={Colors.primary.text} />
+                  ) : (
+                    <ChevronDown size={24} color={Colors.primary.text} />
+                  )}
+                </TouchableOpacity>
+                {showPreviousRecords && (
+                  previousRecords.length === 0 ? (
+                    <Text style={styles.noRecordsText}>沒有過去打卡紀錄</Text>
+                  ) : (
+                    previousRecords.map(record => (
+                      <View key={record.id} style={styles.recordCard}>
+                        <Text style={styles.recordMood}>{record.mood}</Text>
+                        <View style={styles.recordInfo}>
+                          <Text style={styles.recordName}>{record.bathroom.name}</Text>
+                          <Text style={styles.recordTime}>
+                            {new Date(record.timestamp).toLocaleDateString('zh-TW')} {new Date(record.timestamp).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })}
+                          </Text>
+                          {record.customMessage && (
+                            <Text style={styles.recordCustomMessage}>{record.customMessage}</Text>
+                          )}
+                          {record.quickTag && (
+                            <Text style={styles.recordTag}>🏷️ {record.quickTag}</Text>
+                          )}
+                        </View>
+                      </View>
+                    ))
+                  )
+                )}
+              </View>
+            </ScrollView>
+          </View>
+        ) : null}
+      </View>
+    );
+  };
+
+const renderJourneyContent = () => {
+  const todayRecords = getTodayRecords();
+  const previousRecords = getPreviousRecords();
+
+  return (
+    <View style={styles.journeyContainer}>
+      {/* 全螢幕地圖區域 */}
+      <View style={styles.fullScreenMapSection}>
+        <MapComponent />
+        
+        {/* 🚨 完全移除頂部統計條，避免與地圖原生元素重疊 */}
+        {/* 統計條已移除，改在底部抽屜顯示 */}
+
+        {/* 🔧 修正：右上角控制按鈕 - 移到更右下的位置 */}
+        <View style={{
+          position: 'absolute',
+          top: Platform.OS === 'ios' ? 80 : 60, // 降低位置
+          right: 16,
+          flexDirection: 'column',
+          gap: 15,
+          zIndex: 1000,
+        }}>
+          {/* 定位按鈕 */}
+          <TouchableOpacity 
+            style={{
+              width: 50,
+              height: 50,
+              borderRadius: 25,
+              backgroundColor: '#FFFFFF',
+              justifyContent: 'center',
+              alignItems: 'center',
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.25,
+              shadowRadius: 6,
+              elevation: 8,
+              borderWidth: 2,
+              borderColor: location ? Colors.primary.accent : '#E0E0E0',
+              opacity: location ? 1 : 0.6,
+            }}
+            onPress={centerMapOnUser}
+            disabled={!location}
+          >
+            <Compass size={22} color={location ? Colors.primary.accent : Colors.primary.lightText} />
+          </TouchableOpacity>
+          
+          {/* Poop Line 按鈕 */}
+          <TouchableOpacity 
+            style={{
+              width: 50,
+              height: 50,
+              borderRadius: 25,
+              backgroundColor: '#FFFFFF',
+              justifyContent: 'center',
+              alignItems: 'center',
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.25,
+              shadowRadius: 6,
+              elevation: 8,
+              borderWidth: 2,
+              borderColor: Colors.primary.accent,
+            }}
+            onPress={() => setShowPoopLinePage(true)}
+          >
+            <Route size={22} color={Colors.primary.accent} />
+          </TouchableOpacity>
+        </View>
+
+        {/* 🌟 主要打卡按鈕 - 稍微調整位置 */}
+        {location && (
+          <TouchableOpacity 
+            style={{
+              position: 'absolute',
+              bottom: 120, // 稍微提高，避免與底部按鈕重疊
+              right: 20,
+              width: 85,
+              height: 85,
+              borderRadius: 42.5,
+              backgroundColor: '#FF6B6B',
+              justifyContent: 'center',
+              alignItems: 'center',
+              shadowColor: '#FF6B6B',
+              shadowOffset: { width: 0, height: 6 },
+              shadowOpacity: 0.4,
+              shadowRadius: 10,
+              elevation: 10,
+              borderWidth: 4,
+              borderColor: '#FFFFFF',
+              zIndex: 1001,
+            }}
+            onPress={() => {
+              console.log('🎯 打卡按鈕被點擊！');
+              handleQuickLocationCheckIn();
+            }}
+            activeOpacity={0.8}
+          >
+            <Text style={{ fontSize: 28, marginBottom: 2 }}>💩</Text>
+            <Text style={{ 
+              fontSize: 11, 
+              fontWeight: 'bold', 
+              color: '#FFFFFF',
+              textAlign: 'center',
+            }}>Check In</Text>
+          </TouchableOpacity>
+        )}
+
+        {/* GPS 等待狀態 */}
+        {!location && (
+          <View style={{
+            position: 'absolute',
+            bottom: 120,
+            right: 20,
+            width: 85,
+            height: 85,
+            borderRadius: 42.5,
+            backgroundColor: '#95A5A6',
+            justifyContent: 'center',
+            alignItems: 'center',
+            borderWidth: 4,
+            borderColor: '#FFFFFF',
+          }}>
+            <Text style={{ fontSize: 24, marginBottom: 2 }}>📍</Text>
+            <Text style={{ 
+              fontSize: 10, 
+              fontWeight: 'bold', 
+              color: '#FFFFFF',
+              textAlign: 'center',
+            }}>Getting GPS</Text>
+          </View>
+        )}
+
+        {/* 🔧 修正：底部資訊欄 - 包含統計資訊和抽屜觸發 */}
+        <View style={{
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          backgroundColor: 'rgba(255, 255, 255, 0.95)',
+          borderTopWidth: 1,
+          borderTopColor: 'rgba(0,0,0,0.1)',
+          paddingHorizontal: 16,
+          paddingVertical: 12,
+          paddingBottom: Platform.OS === 'ios' ? 28 : 12, // iOS 安全區域
+        }}>
+          {/* 統計資訊列 */}
+          <View style={{
+            flexDirection: 'row',
+            justifyContent: 'space-around',
+            alignItems: 'center',
+            marginBottom: 8,
+          }}>
+            <View style={{ alignItems: 'center' }}>
+              <Text style={{
+                fontSize: 18,
+                fontWeight: 'bold',
+                color: Colors.primary.accent,
+              }}>{checkInRecords.length}</Text>
+              <Text style={{
+                fontSize: 11,
+                color: Colors.primary.lightText,
+              }}>Total Points</Text>
+            </View>
+            
+            <View style={{
+              width: 1,
+              height: 30,
+              backgroundColor: Colors.primary.border,
+            }} />
+            
+            <View style={{ alignItems: 'center' }}>
+              <Text style={{
+                fontSize: 18,
+                fontWeight: 'bold',
+                color: Colors.primary.accent,
+              }}>{journeyStats.uniqueLocations}</Text>
+              <Text style={{
+                fontSize: 11,
+                color: Colors.primary.lightText,
+              }}>Unique Places</Text>
+            </View>
+            
+            <View style={{
+              width: 1,
+              height: 30,
+              backgroundColor: Colors.primary.border,
+            }} />
+            
+            <View style={{ alignItems: 'center' }}>
+              <Text style={{
+                fontSize: 18,
+                fontWeight: 'bold',
+                color: Colors.primary.accent,
+              }}>{todayRecords.length}</Text>
+              <Text style={{
+                fontSize: 11,
+                color: Colors.primary.lightText,
+              }}>Today</Text>
+            </View>
+          </View>
+          
+          {/* 抽屜觸發按鈕 */}
+          <TouchableOpacity 
+            style={{
+              flexDirection: 'row',
+              backgroundColor: Colors.primary.accent,
+              borderRadius: 25,
+              paddingVertical: 10,
+              paddingHorizontal: 20,
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              shadowColor: Colors.primary.accent,
+              shadowOffset: { width: 0, height: 3 },
+              shadowOpacity: 0.3,
+              shadowRadius: 5,
+              elevation: 5,
+            }}
+            onPress={() => setShowRecordsDrawer(true)}
+          >
+            <ChevronUp size={20} color="#FFFFFF" />
+            <Text style={{
+              color: '#FFFFFF',
+              fontSize: 14,
+              fontWeight: 'bold',
+            }}>
+              View Check-in Records ({checkInRecords.length})
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  );
+};
+
+  const renderContent = () => {
+    if (errorMsg) {
+      return (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{errorMsg}</Text>
+          <Text style={styles.errorSubtext}>
+            Please enable location services to find nearby bathrooms.
+          </Text>
+          <TouchableOpacity 
+            style={styles.retryButton} 
+            onPress={retryLocationRequest}
+          >
+            <Text style={styles.retryButtonText}>Retry Location</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    switch (activeTab) {
+      case 'map':
+        return <MapComponent />;
+      case 'nearby':
+        return renderNearbyList();
+      case 'visited':
+        return renderVisitedContent();
+      case 'journey':
+        return renderJourneyContent();
+      case 'poopline':                    
+        return renderJourneyContent();
+      default:
+        return renderNearbyList();
+    }
+  };
   return (
     <View style={styles.container}>
       <View
@@ -2434,6 +3017,7 @@ const RecordsDrawer = () => {
         {renderContent()}
       </View>
 
+      {/* 🚨 重要：確保所有Modal都在這裡渲染 */}
       <CheckInModal />
       <ReviewModal />
       <ClusterModal />
@@ -3686,64 +4270,7 @@ const styles = StyleSheet.create({
     color: Colors.primary.text,
   },
   
-  // 隱私設定樣式
-  modernPrivacyToggle: {
-    backgroundColor: 'rgba(0,0,0,0.05)',
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 2,
-    borderColor: 'rgba(0,0,0,0.1)',
-  },
-  publicToggle: {
-    backgroundColor: 'rgba(76, 175, 80, 0.1)',
-    borderColor: '#4CAF50',
-  },
-  privacyToggleContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  privacyToggleEmoji: {
-    fontSize: 24,
-  },
-  privacyToggleText: {
-    flex: 1,
-  },
-  privacyToggleTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: Colors.primary.text,
-    marginBottom: 2,
-  },
-  privacyToggleDesc: {
-    fontSize: 13,
-    color: Colors.primary.lightText,
-  },
-  toggleSwitch: {
-    width: 48,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: 'rgba(0,0,0,0.2)',
-    padding: 2,
-    justifyContent: 'center',
-  },
-  toggleSwitchActive: {
-    backgroundColor: '#4CAF50',
-  },
-  toggleKnob: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  toggleKnobActive: {
-    marginLeft: 20,
-  },
+  // 🔧 修正：Modal Footer 樣式
   modernModalFooter: {
    flexDirection: 'row',
    padding: 20,
@@ -3751,6 +4278,7 @@ const styles = StyleSheet.create({
    borderTopWidth: 1,
    borderTopColor: 'rgba(0,0,0,0.05)',
    gap: 12,
+   zIndex: 1001, // 確保足夠高的層級
 },
   modernCancelButton: {
     flex: 1,
@@ -3787,62 +4315,50 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
 
-  // Journey 頁面樣式
-  journeyMapSection: {
-    height: 350,
+  // 🔧 修正：Journey 頁面樣式
+  fullScreenMapSection: {
+    flex: 1,
     position: 'relative',
-    backgroundColor: Colors.primary.card,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 8,
   },
-  mainCheckInButton: {
+  floatingCheckInButton: {
     position: 'absolute',
-    bottom: 20,
-    left: '50%',
-    marginLeft: -80,
-    width: 160,
+    bottom: 100,
+    right: 20,
+    width: 80,
     height: 80,
     borderRadius: 40,
     backgroundColor: '#FF6B6B',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#FF6B6B',
-    shadowOffset: { width: 0, height: 6 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 12,
+    shadowRadius: 8,
+    elevation: 8,
     borderWidth: 3,
     borderColor: '#FFFFFF',
+    zIndex: 1000, // 確保按鈕在最上層
   },
-  checkInButtonInner: {
+  checkInButtonContent: {
     alignItems: 'center',
   },
-  checkInButtonSubtext: {
-    fontSize: 10,
+  checkInButtonEmoji: {
+    fontSize: 24,
+    marginBottom: 2,
+  },
+  checkInButtonText: {
+    fontSize: 12,
+    fontWeight: 'bold',
     color: '#FFFFFF',
-    opacity: 0.9,
   },
-  mapControlsGroup: {
+  topStatsBar: {
     position: 'absolute',
-    top: 16,
-    right: 16,
-    flexDirection: 'column',
-    gap: 8,
-  },
-  journeyStatusBar: {
-    position: 'absolute',
-    top: 16,
+    top: 50,
     left: 16,
     right: 80,
     flexDirection: 'row',
     backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderRadius: 20,
+    borderRadius: 16,
     padding: 12,
     alignItems: 'center',
     justifyContent: 'space-around',
@@ -3852,198 +4368,106 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 4,
   },
-  statusItem: {
+  statsItem: {
     alignItems: 'center',
     flex: 1,
+    minWidth: 40,
   },
-  statusNumber: {
-    fontSize: 18,
+  statsNumber: {
+    fontSize: 16,
     fontWeight: 'bold',
     color: Colors.primary.accent,
   },
-  statusLabel: {
-    fontSize: 11,
+  statsLabel: {
+    fontSize: 10,
     color: Colors.primary.lightText,
     marginTop: 2,
+    textAlign: 'center',
   },
-  statusDivider: {
+  statsDivider: {
     width: 1,
-    height: 30,
+    height: 24,
     backgroundColor: Colors.primary.border,
     marginHorizontal: 8,
   },
-  recordsTabContainer: {
-    flexDirection: 'row',
-    backgroundColor: Colors.primary.card,
-    marginHorizontal: 16,
-    marginTop: 16,
-    borderRadius: 16,
-    padding: 4,
+  topRightControls: {
+    position: 'absolute',
+    top: 50,
+    right: 16,
+    flexDirection: 'column',
+    gap: 8,
+  },
+  controlButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.15,
     shadowRadius: 4,
-    elevation: 2,
+    elevation: 4,
   },
-  recordsTab: {
-    flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  activeRecordsTab: {
-    backgroundColor: Colors.primary.accent,
-    shadowColor: Colors.primary.accent,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  recordsTabText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.primary.lightText,
-  },
-  activeRecordsTabText: {
-    color: '#FFFFFF',
-    fontWeight: 'bold',
-  },
-  shareTab: {
+  drawerTrigger: {
+    position: 'absolute',
+    bottom: 16,
+    left: 16,
+    right: 16,
     flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.primary.accent,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    gap: 6,
-    shadowColor: Colors.primary.accent,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  shareTabText: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
-  recordsScrollArea: {
-    flex: 1,
-    marginTop: 8,
-  },
-  recordsScrollContent: {
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 32,
-  },
-  recordsContent: {
-    flex: 1,
-  },
-  emptyRecordsContainer: {
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    borderRadius: 20,
+    padding: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 48,
+    gap: 8,
   },
-  emptyRecordsEmoji: {
-    fontSize: 48,
-    marginBottom: 16,
-  },
-  emptyRecordsTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: Colors.primary.text,
-    marginBottom: 8,
-  },
-  emptyRecordsText: {
+  drawerTriggerText: {
+    color: '#FFFFFF',
     fontSize: 14,
-    color: Colors.primary.lightText,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  recordsList: {
-    gap: 12,
-  },
-  modernRecordCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
-    borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.05)',
-  },
-  recordCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  recordMoodLarge: {
-    fontSize: 40,
-  },
-  recordTimeInfo: {
-    alignItems: 'flex-end',
-  },
-  recordTimeText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: Colors.primary.text,
-  },
-  privateTag: {
-    backgroundColor: 'rgba(255, 107, 107, 0.1)',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 8,
-    marginTop: 4,
-  },
-  privateTagText: {
-    fontSize: 10,
-    color: '#FF6B6B',
-    fontWeight: 'bold',
-  },
-  recordMessageContainer: {
-    backgroundColor: 'rgba(108, 99, 255, 0.1)',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 12,
-    borderLeftWidth: 3,
-    borderLeftColor: Colors.primary.accent,
-  },
-  recordMessage: {
-    fontSize: 15,
-    color: Colors.primary.text,
-    fontStyle: 'italic',
-    lineHeight: 22,
-  },
-  recordFooterInfo: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  recordLocationText: {
-    fontSize: 13,
-    color: Colors.primary.lightText,
-    flex: 1,
-  },
-  recordBristolText: {
-    fontSize: 12,
-    color: Colors.primary.accent,
     fontWeight: '600',
   },
-  dateGroup: {
-    marginBottom: 20,
+  privateCheckInButton: {
+    flex: 1,
+    paddingVertical: 16,
+    borderRadius: 16,
+    backgroundColor: '#6C757D', // 灰色代表私人
+    alignItems: 'center',
+    marginRight: 6,
+    shadowColor: '#6C757D',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+    minHeight: 50, // 確保按鈕足夠大
   },
-  dateHeader: {
+  publicCheckInButton: {
+    flex: 1,
+    paddingVertical: 16,
+    borderRadius: 16,
+    backgroundColor: Colors.primary.accent, // 主題色代表公開
+    alignItems: 'center',
+    marginLeft: 6,
+    shadowColor: Colors.primary.accent,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+    minHeight: 50, // 確保按鈕足夠大
+  },
+  privateCheckInText: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: Colors.primary.text,
-    marginBottom: 12,
-    paddingLeft: 4,
+    color: '#FFFFFF',
   },
+  publicCheckInText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+
+  // Cluster Modal 樣式
    clusterModalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -4114,255 +4538,199 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  fullScreenMapSection: {
+
+  // Records Drawer 樣式
+  drawerOverlay: {
     flex: 1,
-    position: 'relative',
+    justifyContent: 'flex-end',
   },
-drawerOverlay: {
-  flex: 1,
-  justifyContent: 'flex-end',
-},
-
-drawerBackdrop: {
-  flex: 1,
-  backgroundColor: 'rgba(0, 0, 0, 0.3)',
-},
-
-drawerContainer: {
-  backgroundColor: '#FFFFFF',
-  borderTopLeftRadius: 24,
-  borderTopRightRadius: 24,
-  maxHeight: '80%',
-  minHeight: '50%',
-},
-
-drawerHandle: {
-  width: 40,
-  height: 4,
-  backgroundColor: 'rgba(0, 0, 0, 0.2)',
-  borderRadius: 2,
-  alignSelf: 'center',
-  marginTop: 8,
-  marginBottom: 16,
-},
-
-drawerHeader: {
-  flexDirection: 'row',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  paddingHorizontal: 20,
-  paddingBottom: 16,
-  borderBottomWidth: 1,
-  borderBottomColor: 'rgba(0, 0, 0, 0.1)',
-},
-
-drawerTitle: {
-  fontSize: 20,
-  fontWeight: 'bold',
-  color: Colors.primary.text,
-},
-
-shareButton: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  backgroundColor: Colors.primary.accent,
-  paddingVertical: 8,
-  paddingHorizontal: 16,
-  borderRadius: 20,
-  gap: 6,
-},
-
-shareButtonText: {
-  color: '#FFFFFF',
-  fontWeight: 'bold',
-  fontSize: 14,
-},
-
-// 抽屜內的Tab
-drawerTabContainer: {
-  flexDirection: 'row',
-  backgroundColor: 'rgba(0, 0, 0, 0.05)',
-  marginHorizontal: 20,
-  marginVertical: 16,
-  borderRadius: 16,
-  padding: 4,
-},
-
-drawerTab: {
-  flex: 1,
-  paddingVertical: 12,
-  paddingHorizontal: 16,
-  borderRadius: 12,
-  alignItems: 'center',
-},
-
-activeDrawerTab: {
-  backgroundColor: Colors.primary.accent,
-  shadowColor: Colors.primary.accent,
-  shadowOffset: { width: 0, height: 2 },
-  shadowOpacity: 0.3,
-  shadowRadius: 4,
-  elevation: 3,
-},
-
-drawerTabText: {
-  fontSize: 14,
-  fontWeight: '600',
-  color: Colors.primary.lightText,
-},
-
-activeDrawerTabText: {
-  color: '#FFFFFF',
-  fontWeight: 'bold',
-},
-
-drawerContent: {
-  flex: 1,
-  paddingHorizontal: 20,
-},
-
-recordsSection: {
-  paddingBottom: 20,
-},
-floatingCheckInButton: {
-  position: 'absolute',
-  bottom: 100,
-  right: 20,
-  width: 80,
-  height: 80,
-  borderRadius: 40,
-  backgroundColor: '#FF6B6B',
-  justifyContent: 'center',
-  alignItems: 'center',
-  shadowColor: '#FF6B6B',
-  shadowOffset: { width: 0, height: 4 },
-  shadowOpacity: 0.4,
-  shadowRadius: 8,
-  elevation: 8,
-  borderWidth: 3,
-  borderColor: '#FFFFFF',
-},
-checkInButtonContent: {
-  alignItems: 'center',
-},
-checkInButtonEmoji: {
-  fontSize: 24,
-  marginBottom: 2,
-},
-checkInButtonText: {
-  fontSize: 12,
-  fontWeight: 'bold',
-  color: '#FFFFFF',
-},
-topStatsBar: {
-  position: 'absolute',
-  top: 50,
-  left: 16,
-  right: 80,
-  flexDirection: 'row',
-  backgroundColor: 'rgba(255, 255, 255, 0.95)',
-  borderRadius: 16,
-  padding: 12,
-  alignItems: 'center',
-  justifyContent: 'space-around',
-  shadowColor: '#000',
-  shadowOffset: { width: 0, height: 2 },
-  shadowOpacity: 0.1,
-  shadowRadius: 4,
-  elevation: 4,
-},
-statsItem: {
-  alignItems: 'center',
-  flex: 1,
-},
-statsNumber: {
-  fontSize: 16,
-  fontWeight: 'bold',
-  color: Colors.primary.accent,
-},
-statsLabel: {
-  fontSize: 10,
-  color: Colors.primary.lightText,
-  marginTop: 2,
-},
-statsDivider: {
-  width: 1,
-  height: 24,
-  backgroundColor: Colors.primary.border,
-  marginHorizontal: 8,
-},
-topRightControls: {
-  position: 'absolute',
-  top: 50,
-  right: 16,
-  flexDirection: 'column',
-  gap: 8,
-},
-controlButton: {
-  width: 40,
-  height: 40,
-  borderRadius: 20,
-  backgroundColor: '#FFFFFF',
-  justifyContent: 'center',
-  alignItems: 'center',
-  shadowColor: '#000',
-  shadowOffset: { width: 0, height: 2 },
-  shadowOpacity: 0.15,
-  shadowRadius: 4,
-  elevation: 4,
-},
-drawerTrigger: {
-  position: 'absolute',
-  bottom: 16,
-  left: 16,
-  right: 16,
-  flexDirection: 'row',
-  backgroundColor: 'rgba(0, 0, 0, 0.7)',
-  borderRadius: 20,
-  padding: 12,
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: 8,
-},
-drawerTriggerText: {
-  color: '#FFFFFF',
-  fontSize: 14,
-  fontWeight: '600',
-},
-privateCheckInButton: {
-  flex: 1,
-  paddingVertical: 16,
-  borderRadius: 16,
-  backgroundColor: '#6C757D', // 灰色代表私人
-  alignItems: 'center',
-  marginRight: 6,
-  shadowColor: '#6C757D',
-  shadowOffset: { width: 0, height: 4 },
-  shadowOpacity: 0.3,
-  shadowRadius: 8,
-  elevation: 6,
-},
-publicCheckInButton: {
-  flex: 1,
-  paddingVertical: 16,
-  borderRadius: 16,
-  backgroundColor: Colors.primary.accent, // 主題色代表公開
-  alignItems: 'center',
-  marginLeft: 6,
-  shadowColor: Colors.primary.accent,
-  shadowOffset: { width: 0, height: 4 },
-  shadowOpacity: 0.3,
-  shadowRadius: 8,
-  elevation: 6,
-},
-privateCheckInText: {
-  fontSize: 16,
-  fontWeight: 'bold',
-  color: '#FFFFFF',
-},
-publicCheckInText: {
-  fontSize: 16,
-  fontWeight: 'bold',
-  color: '#FFFFFF',
-},
+  drawerBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+  },
+  drawerContainer: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '80%',
+    minHeight: '50%',
+  },
+  drawerHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginTop: 8,
+    marginBottom: 16,
+  },
+  drawerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
+  },
+  drawerTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: Colors.primary.text,
+  },
+  shareButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.primary.accent,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    gap: 6,
+  },
+  shareButtonText: {
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
+  drawerTabContainer: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+    marginHorizontal: 20,
+    marginVertical: 16,
+    borderRadius: 16,
+    padding: 4,
+  },
+  drawerTab: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  activeDrawerTab: {
+    backgroundColor: Colors.primary.accent,
+    shadowColor: Colors.primary.accent,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  drawerTabText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.primary.lightText,
+  },
+  activeDrawerTabText: {
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+  },
+  drawerContent: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  recordsSection: {
+    paddingBottom: 20,
+  },
+  emptyRecordsContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 48,
+  },
+  emptyRecordsEmoji: {
+    fontSize: 48,
+    marginBottom: 16,
+  },
+  emptyRecordsTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: Colors.primary.text,
+    marginBottom: 8,
+  },
+  emptyRecordsText: {
+    fontSize: 14,
+    color: Colors.primary.lightText,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  modernRecordCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.05)',
+    marginBottom: 12,
+  },
+  recordCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  recordMoodLarge: {
+    fontSize: 40,
+  },
+  recordTimeInfo: {
+    alignItems: 'flex-end',
+  },
+  recordTimeText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: Colors.primary.text,
+  },
+  privateTag: {
+    backgroundColor: 'rgba(255, 107, 107, 0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    marginTop: 4,
+  },
+  privateTagText: {
+    fontSize: 10,
+    color: '#FF6B6B',
+    fontWeight: 'bold',
+  },
+  recordMessageContainer: {
+    backgroundColor: 'rgba(108, 99, 255, 0.1)',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: Colors.primary.accent,
+  },
+  recordMessage: {
+    fontSize: 15,
+    color: Colors.primary.text,
+    fontStyle: 'italic',
+    lineHeight: 22,
+  },
+  recordFooterInfo: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  recordLocationText: {
+    fontSize: 13,
+    color: Colors.primary.lightText,
+    flex: 1,
+  },
+  recordBristolText: {
+    fontSize: 12,
+    color: Colors.primary.accent,
+    fontWeight: '600',
+  },
+  dateGroup: {
+    marginBottom: 20,
+  },
+  dateHeader: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: Colors.primary.text,
+    marginBottom: 12,
+    paddingLeft: 4,
+  },
 });
