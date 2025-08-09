@@ -2210,251 +2210,302 @@ const RecordsDrawer = () => {
     </Modal>
   );
 };
-const MapComponent = () => {
-  if (Platform.OS === 'web') {
-    return (
-      <View style={styles.webMapPlaceholder}>
-        <MapPin size={48} color={Colors.primary.lightText} />
-        <Text style={styles.webMapTitle}>Map View</Text>
-        <Text style={styles.webMapText}>
-          Interactive map is available in the mobile app. Please use list view to see nearby bathrooms.
-        </Text>
-        <TouchableOpacity style={styles.webMapButton} onPress={() => setActiveTab('nearby')}>
-          <Text style={styles.webMapButtonText}>View List</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
+// Map component - 使用優化後的限制 marker 數量
+  const MapComponent = () => {
+    if (Platform.OS === 'web') {
+      return (
+        <View style={styles.webMapPlaceholder}>
+          <MapPin size={48} color={Colors.primary.lightText} />
+          <Text style={styles.webMapTitle}>Map View</Text>
+          <Text style={styles.webMapText}>
+            Interactive map is available in the mobile app. Please use list view to see nearby bathrooms.
+          </Text>
+          <TouchableOpacity style={styles.webMapButton} onPress={() => setActiveTab('nearby')}>
+            <Text style={styles.webMapButtonText}>View List</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
 
-  try {
-    const MapModule = require('react-native-maps');
-    const MapView = MapModule.default;
-    const { Marker, Callout, Polyline, PROVIDER_GOOGLE } = MapModule;
+    try {
+      const MapModule = require('react-native-maps');
+      const MapView = MapModule.default;
+      const { Marker, Callout, Polyline, PROVIDER_GOOGLE } = MapModule;
 
-    const defaultRegion = {
-      latitude: 25.0330,
-      longitude: 121.5654,
-      latitudeDelta: 0.01,
-      longitudeDelta: 0.01,
-    };
+      const defaultRegion = {
+        latitude: 25.0330,
+        longitude: 121.5654,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      };
 
-    const currentRegion = location ? {
-      latitude: location.coords.latitude,
-      longitude: location.coords.longitude,
-      latitudeDelta: 0.01,
-      longitudeDelta: 0.01,
-    } : defaultRegion;
+      const currentRegion = location ? {
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      } : defaultRegion;
 
-    const journeyCoordinates = activeTab === 'journey' && checkInRecords.length > 1
-      ? sortedRecords.map(record => ({
-          latitude: record.location.lat,
-          longitude: record.location.lng,
-        }))
-      : [];
+      const handleMarkerPress = (bathroom: Bathroom) => {
+        setSelectedBathroom(bathroom);
+        if (mapRef.current) {
+          mapRef.current.animateToRegion(
+            {
+              latitude: bathroom.latitude,
+              longitude: bathroom.longitude,
+              latitudeDelta: 0.01,
+              longitudeDelta: 0.01,
+            },
+            500,
+          );
+        }
+      };
 
-    return (
-      <View style={styles.mapContainer}>
-        <MapView
-          ref={mapRef}
-          style={styles.map}
-          provider={PROVIDER_GOOGLE}
-          initialRegion={currentRegion}
-          showsUserLocation={!!location}
-          showsMyLocationButton={false}
-          onMapReady={() => setMapReady(true)}
-          // 🔧 重要：隱藏原生的UI元素，避免重疊
-          showsCompass={false}
-          showsScale={false}
-          showsBuildings={false}
-          showsTraffic={false}
-          showsIndoors={false}
-          showsPointsOfInterest={false}
-          toolbarEnabled={false}
-        >
-          {/* 地圖標記 */}
+      const journeyCoordinates = activeTab === 'journey' && checkInRecords.length > 1
+        ? sortedRecords.map(record => ({
+            latitude: record.location.lat,
+            longitude: record.location.lng,
+          }))
+        : [];
+
+      return (
+        <View style={styles.mapContainer}>
+          <MapView
+            ref={mapRef}
+            style={styles.map}
+            provider={PROVIDER_GOOGLE}
+            initialRegion={currentRegion}
+            showsUserLocation={!!location}
+            showsMyLocationButton={false}
+            onMapReady={() => setMapReady(true)}
+          >
           {limitedDisplayBathrooms.map((cluster) => (
-            <Marker
-              key={cluster.id}
-              coordinate={{ latitude: cluster.latitude, longitude: cluster.longitude }}
-              title={cluster.count > 1 ? `${cluster.count} 個廁所` : getBathroomDisplayName(cluster.bathrooms[0])}
-              onPress={() => {
-                if (cluster.count > 1) {
-                  setSelectedCluster(cluster);
-                  setShowClusterModal(true);
-                } else {
-                  setSelectedBathroom(cluster.bathrooms[0]);
-                }
-                
-                if (mapRef.current) {
-                  mapRef.current.animateToRegion(
-                    {
-                      latitude: cluster.latitude,
-                      longitude: cluster.longitude,
-                      latitudeDelta: 0.01,
-                      longitudeDelta: 0.01,
-                    },
-                    500,
-                  );
-                }
-              }}
-            >
-              <View
-                style={[
-                  styles.markerContainer, 
-                  { 
-                    borderColor: cluster.count > 1 ? '#FF6B6B' : getMarkerColor(cluster.bathrooms[0]),
-                    backgroundColor: cluster.count > 1 ? '#FFEBEE' : '#FFFFFF'
-                  },
-                  selectedBathroom?.id === cluster.bathrooms[0].id && styles.selectedMarker
-                ]}
-              >
-                {cluster.count > 1 ? (
-                  <View style={styles.clusterMarker}>
-                    <Text style={styles.clusterCount}>{cluster.count}</Text>
-                  </View>
-                ) : (
-                  <Text style={[styles.markerEmoji, { color: getMarkerColor(cluster.bathrooms[0]) }]}>
-                    {getBathroomIcon(cluster.bathrooms[0])}
-                  </Text>
-                )}
-              </View>
-              <Callout tooltip>
-                <View style={styles.calloutContainer}>
-                  {cluster.count > 1 ? (
-                    <>
-                      <Text style={styles.calloutTitle}>📍 {cluster.count} 個廁所聚集</Text>
-                      <Text style={styles.calloutSubtitle}>點擊查看詳情</Text>
-                    </>
-                  ) : (
-                    <>
-                      <Text style={styles.calloutTitle}>{cluster.bathrooms[0].name}</Text>
-                      <Text style={styles.calloutSubtitle}>{cluster.bathrooms[0].type}</Text>
-                      <View style={styles.calloutRating}>{renderStars(cluster.bathrooms[0].rating)}</View>
-                      {cluster.bathrooms[0].funnyQuote && (
-                        <Text style={styles.calloutQuote}>💭 {cluster.bathrooms[0].funnyQuote}</Text>
-                      )}
-                      {(activeTab === 'visited' || activeTab === 'journey') && (
-                        <Text style={styles.calloutVisited}>✅ Visited</Text>
-                      )}
-                    </>
-                  )}
-                </View>
-              </Callout>
-            </Marker>
-          ))}
-
-          {/* Journey路線 */}
-          {activeTab === 'journey' && journeyCoordinates.length > 1 && (
-            <Polyline
-              coordinates={journeyCoordinates}
-              strokeColor="#FF6B6B"
-              strokeWidth={3}
-              lineDashPattern={[5, 5]}
-            />
-          )}
-
-          {/* 打卡記錄標記 */}
-          {(activeTab === 'visited' || activeTab === 'journey') && (() => {
-            const uniqueRecords = checkInRecords.reduce((acc, record) => {
-              const locationKey = `${record.location.lat.toFixed(4)}-${record.location.lng.toFixed(4)}`;
-              if (!acc[locationKey] || acc[locationKey].timestamp < record.timestamp) {
-                acc[locationKey] = record;
-              }
-              return acc;
-            }, {} as Record<string, CheckInRecord>);
-
-            return Object.values(uniqueRecords).map((record) => (
-              <Marker
-                key={`unique-record-${record.id}`}
-                coordinate={{ latitude: record.location.lat, longitude: record.location.lng }}
-                title={`${record.mood} ${record.location.name}`}
-                description={record.customMessage || record.note}
-              >
-                <View style={styles.checkInMarker}>
-                  <Text style={styles.checkInEmoji}>{record.mood}</Text>
-                </View>
-              </Marker>
-            ));
-          })()}
-        </MapView>
-
-        {/* 🚨 移除原本的 locationStatus，避免重複顯示 */}
-        {/* locationStatus 已移至底部統一顯示 */}
-
-        {/* 選中廁所的詳細卡片 */}
-        {selectedBathroom && (
-          <View style={styles.bathroomDetailCard}>
-            <View style={styles.bathroomInfo}>
-              <View style={styles.bathroomHeader}>
-                <Text style={styles.bathroomName}>{getBathroomDisplayName(selectedBathroom)}</Text>
-                <View style={styles.typeTag}>
-                  <Text style={styles.typeText}>{selectedBathroom.type}</Text>
-                </View>
-              </View>
-
-              <Text style={styles.bathroomAddress}>{selectedBathroom.address}</Text>
-              
-              {selectedBathroom.funnyQuote && (
-                <Text style={styles.funnyQuote}>💭 {selectedBathroom.funnyQuote}</Text>
-              )}
-
-              <View style={styles.bathroomDetails}>
-                <View style={styles.ratingContainer}>
-                  {renderStars(selectedBathroom.rating)}
-                  <Text style={styles.ratingText}>{selectedBathroom.rating.toFixed(1)}</Text>
-                  {selectedBathroom.reviews && selectedBathroom.reviews.length > 0 && (
-                    <Text style={styles.reviewCount}>({selectedBathroom.reviews.length} reviews)</Text>
-                  )}
-                </View>
-                <Text style={styles.distanceText}>
-                  {selectedBathroom.distance < 1 
-                    ? `${Math.round(selectedBathroom.distance * 1000)}m`
-                    : `${selectedBathroom.distance.toFixed(1)}km`
-                  }
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.actionButtons}>
-              <TouchableOpacity 
-                style={styles.navigateButton} 
-                onPress={() => handleNavigate(selectedBathroom)}
-              >
-                <Navigation size={20} color="#FFFFFF" />
-                <Text style={styles.actionButtonText}>導航</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-      </View>
-    );
-  } catch (error) {
-    console.error('地圖載入失敗:', error);
-    return (
-      <View style={styles.mapFallback}>
-        <MapPin size={64} color={Colors.primary.accent} />
-        <Text style={styles.mapFallbackTitle}>Map temporarily unavailable</Text>
-        <Text style={styles.mapFallbackText}>
-          Map functionality is loading. Please try again later or use list mode to view nearby bathrooms.
+  <Marker
+    key={cluster.id}
+    coordinate={{ latitude: cluster.latitude, longitude: cluster.longitude }}
+    title={cluster.count > 1 ? `${cluster.count} 個廁所` : getBathroomDisplayName(cluster.bathrooms[0])}
+    onPress={() => {
+      if (cluster.count > 1) {
+        // 🆕 顯示聚集詳情Modal
+        setSelectedCluster(cluster);
+        setShowClusterModal(true);
+      } else {
+        // 單個廁所直接顯示詳情
+        setSelectedBathroom(cluster.bathrooms[0]);
+      }
+      
+      if (mapRef.current) {
+        mapRef.current.animateToRegion(
+          {
+            latitude: cluster.latitude,
+            longitude: cluster.longitude,
+            latitudeDelta: 0.01,
+            longitudeDelta: 0.01,
+          },
+          500,
+        );
+      }
+    }}
+  >
+    <View
+      style={[
+        styles.markerContainer, 
+        { 
+          borderColor: cluster.count > 1 ? '#FF6B6B' : getMarkerColor(cluster.bathrooms[0]),
+          backgroundColor: cluster.count > 1 ? '#FFEBEE' : '#FFFFFF'
+        },
+        selectedBathroom?.id === cluster.bathrooms[0].id && styles.selectedMarker
+      ]}
+    >
+      {cluster.count > 1 ? (
+        <View style={styles.clusterMarker}>
+          <Text style={styles.clusterCount}>{cluster.count}</Text>
+        </View>
+      ) : (
+        <Text style={[styles.markerEmoji, { color: getMarkerColor(cluster.bathrooms[0]) }]}>
+          {getBathroomIcon(cluster.bathrooms[0])}
         </Text>
-        <TouchableOpacity 
-          style={styles.fallbackButton}
-          onPress={() => setActiveTab('nearby')}
-        >
-          <Text style={styles.fallbackButtonText}>Switch to List Mode</Text>
-        </TouchableOpacity>
-        
-        {location && (
-          <View style={styles.locationInfo}>
-            <Text style={styles.locationInfoText}>
-              Your location: {location.coords.latitude.toFixed(4)}, {location.coords.longitude.toFixed(4)}
+      )}
+    </View>
+    <Callout tooltip>
+      <View style={styles.calloutContainer}>
+        {cluster.count > 1 ? (
+          <>
+            <Text style={styles.calloutTitle}>📍 {cluster.count} 個廁所聚集</Text>
+            <Text style={styles.calloutSubtitle}>點擊查看詳情</Text>
+          </>
+        ) : (
+          <>
+            <Text style={styles.calloutTitle}>{cluster.bathrooms[0].name}</Text>
+            <Text style={styles.calloutSubtitle}>{cluster.bathrooms[0].type}</Text>
+            <View style={styles.calloutRating}>{renderStars(cluster.bathrooms[0].rating)}</View>
+            <Text style={styles.calloutSource}>
+              Source: {cluster.bathrooms[0].source === 'gov' ? 'Government' : cluster.bathrooms[0].source === 'commercial' ? 'Commercial' : 'International'}
             </Text>
-          </View>
+            {cluster.bathrooms[0].funnyQuote && (
+              <Text style={styles.calloutQuote}>💭 {cluster.bathrooms[0].funnyQuote}</Text>
+            )}
+            {(activeTab === 'visited' || activeTab === 'journey') && (
+              <Text style={styles.calloutVisited}>✅ Visited</Text>
+            )}
+          </>
         )}
       </View>
-    );
-  }
-};
+    </Callout>
+  </Marker>
+))}                  
+
+            {/* Show journey route */}
+            {activeTab === 'journey' && journeyCoordinates.length > 1 && (
+              <Polyline
+                coordinates={journeyCoordinates}
+                strokeColor="#FF6B6B"
+                strokeWidth={3}
+                lineDashPattern={[5, 5]}
+              />
+            )}
+{(activeTab === 'visited' || activeTab === 'journey') && (() => {
+  const uniqueRecords = checkInRecords.reduce((acc, record) => {
+    const locationKey = `${record.location.lat.toFixed(4)}-${record.location.lng.toFixed(4)}`;
+    if (!acc[locationKey] || acc[locationKey].timestamp < record.timestamp) {
+      acc[locationKey] = record;
+    }
+    return acc;
+  }, {} as Record<string, CheckInRecord>);
+
+  return Object.values(uniqueRecords).map((record) => (
+    <Marker
+      key={`unique-record-${record.id}`}
+      coordinate={{ latitude: record.location.lat, longitude: record.location.lng }}
+      title={`${record.mood} ${record.location.name}`}
+      description={record.customMessage || record.note}
+    >
+      <View style={styles.checkInMarker}>
+        <Text style={styles.checkInEmoji}>{record.mood}</Text>
+      </View>
+    </Marker>
+  ));
+})()}
+          </MapView>
+
+          <View style={styles.mapControls}>
+            <TouchableOpacity 
+              style={[styles.mapControlButton, !location && styles.disabledButton]} 
+              onPress={centerMapOnUser}
+              disabled={!location}
+            >
+              <Compass size={24} color={location ? Colors.primary.accent : Colors.primary.lightText} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Show bathroom statistics */}
+          <View style={styles.locationStatus}>
+            <Text style={styles.locationStatusText}>
+              {activeTab === 'visited' 
+                ? `📍 ${checkInRecords.length} Check-ins`
+                : activeTab === 'journey'
+                ? `🗺️ ${checkInRecords.length} Journey Points`
+                : activeTab === 'nearby'
+                ? `📍 ${nearbyBathrooms.length} Nearby Bathrooms`
+                : `🗺️ ${limitedDisplayBathrooms.length}/${allBathrooms.length} Bathrooms`
+              }
+            </Text>
+            {activeTab === 'nearby' && nearbyBathrooms.length > 0 && (
+              <Text style={styles.locationStatusSubtext}>
+                🏛️ {bathroomStats.govCount} Gov | 
+                🚻 {bathroomStats.commercialCount} Commercial |
+                🌍 {bathroomStats.internationalCount} International
+              </Text>
+            )}
+            {activeTab === 'map' && allBathrooms.length > 0 && (
+              <Text style={styles.locationStatusSubtext}>
+                🏛️ {allBathrooms.filter(b => b.source === 'gov').length} Gov | 
+                🚻 {allBathrooms.filter(b => b.source === 'commercial').length} Commercial |
+                🌍 {allBathrooms.filter(b => b.source === 'international').length} International
+              </Text>
+            )}
+            
+            {(activeTab === 'visited' || activeTab === 'journey') && checkInRecords.length > 0 && (
+              <Text style={styles.locationStatusSubtext}>
+                🎯 {journeyStats.uniqueLocations} Unique Locations | 
+                ⭐ Favorite: {journeyStats.favoriteLocation || 'None yet'}
+              </Text>
+            )}              
+          </View> 
+
+          {selectedBathroom && (
+            <View style={styles.bathroomDetailCard}>
+              <View style={styles.bathroomInfo}>
+                <View style={styles.bathroomHeader}>
+                  <Text style={styles.bathroomName}>{getBathroomDisplayName(selectedBathroom)}</Text>
+                  <View style={styles.typeTag}>
+                    <Text style={styles.typeText}>{selectedBathroom.type}</Text>
+                  </View>
+                </View>
+
+                <Text style={styles.bathroomAddress}>{selectedBathroom.address}</Text>
+                
+                {selectedBathroom.funnyQuote && (
+                  <Text style={styles.funnyQuote}>💭 {selectedBathroom.funnyQuote}</Text>
+                )}
+
+                <View style={styles.bathroomDetails}>
+                  <View style={styles.ratingContainer}>
+                    {renderStars(selectedBathroom.rating)}
+                    <Text style={styles.ratingText}>{selectedBathroom.rating.toFixed(1)}</Text>
+                    {selectedBathroom.reviews && selectedBathroom.reviews.length > 0 && (
+                      <Text style={styles.reviewCount}>({selectedBathroom.reviews.length} reviews)</Text>
+                    )}
+                  </View>
+                  <Text style={styles.distanceText}>
+                    {selectedBathroom.distance < 1 
+                      ? `${Math.round(selectedBathroom.distance * 1000)}m`
+                      : `${selectedBathroom.distance.toFixed(1)}km`
+                    }
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.actionButtons}>
+                <TouchableOpacity 
+                  style={styles.navigateButton} 
+                  onPress={() => handleNavigate(selectedBathroom)}
+                >
+                  <Navigation size={20} color="#FFFFFF" />
+                  <Text style={styles.actionButtonText}>導航</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+        </View>
+      );
+    } catch (error) {
+      console.error('地圖載入失敗:', error);
+      return (
+        <View style={styles.mapFallback}>
+          <MapPin size={64} color={Colors.primary.accent} />
+          <Text style={styles.mapFallbackTitle}>Map temporarily unavailable</Text>
+          <Text style={styles.mapFallbackText}>
+            Map functionality is loading. Please try again later or use list mode to view nearby bathrooms.
+          </Text>
+          <TouchableOpacity 
+            style={styles.fallbackButton}
+            onPress={() => setActiveTab('nearby')}
+          >
+            <Text style={styles.fallbackButtonText}>Switch to List Mode</Text>
+          </TouchableOpacity>
+          
+          {location && (
+            <View style={styles.locationInfo}>
+              <Text style={styles.locationInfoText}>
+                Your location: {location.coords.latitude.toFixed(4)}, {location.coords.longitude.toFixed(4)}
+              </Text>
+            </View>
+          )}
+        </View>
+      );
+    }
+  };
   // Show nearby bathroom list (within 500m)
   const renderNearbyList = () => (
     <View style={styles.listContainer}>
@@ -2553,156 +2604,7 @@ const MapComponent = () => {
     </View>
   );
 
-  // 🔄 簡化訪問內容顯示 - 移除成就系統
-  const renderVisitedContent = () => {
-    const todayRecords = getTodayRecords();
-    const previousRecords = getPreviousRecords();
-
-    if (checkInRecords.length === 0) {
-      return (
-        <View style={styles.emptyContainer}>
-          <MapPin size={48} color={Colors.primary.lightText} />
-          <Text style={styles.emptyTitle}>No Check-in Records</Text>
-          <Text style={styles.emptyText}>
-            Start using bathrooms and check in to build your "Poop Journey Map"!
-          </Text>
-          <TouchableOpacity 
-            style={styles.startButton}
-            onPress={() => setActiveTab('nearby')}
-          >
-            <Text style={styles.startButtonText}>Start Finding Bathrooms</Text>
-          </TouchableOpacity>
-        </View>
-      );
-    }
-    
-    return (
-      <View style={styles.visitedContainer}>
-        {/* 地圖區域 */}
-        <View style={[
-          styles.visitedMapContainer,
-          { height: showRecords ? 300 : 500 }
-        ]}>
-          <MapComponent />
-
-          <TouchableOpacity 
-            style={styles.poopLineButton}
-            onPress={() => setShowPoopLinePage(true)}
-          >
-            <Route size={20} color="#FFFFFF" />
-            <Text style={styles.poopLineButtonText}>Poop Line</Text>
-          </TouchableOpacity>
-
-          {location && (
-            <TouchableOpacity 
-              style={styles.quickCheckInButton}
-            onPress={handleQuickLocationCheckIn}
-            >
-              <MapPin size={20} color="#FFFFFF" />
-              <Text style={styles.quickCheckInText}>throw 💩 in here</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* Toggle Show Records */}
-        <TouchableOpacity 
-          style={styles.toggleListButton}
-          onPress={() => setShowRecords(!showRecords)}
-        >
-          <Text style={styles.toggleListText}>
-            {showRecords ? '🔼 Hide Check-in Records' : '🔽 Show Check-in Records'}
-          </Text>
-        </TouchableOpacity>
-
-        {/* ScrollView - 紀錄區塊（可收合） */}
-        {showRecords ? (
-          <View style={styles.recordsWrapper}>
-            <ScrollView
-              style={styles.recordsScrollView}
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={styles.scrollContent}
-            >
-              {/* 打卡記錄內容 */}
-              <View style={styles.recordsSection}>
-                <TouchableOpacity
-                  style={styles.recordsHeader}
-                  onPress={() => setShowTodayRecords(!showTodayRecords)}
-                >
-                  <Text style={styles.sectionTitle}>📍 今日打卡紀錄 ({todayRecords.length})</Text>
-                  {showTodayRecords ? (
-                    <ChevronUp size={24} color={Colors.primary.text} />
-                  ) : (
-                    <ChevronDown size={24} color={Colors.primary.text} />
-                  )}
-                </TouchableOpacity>
-                {showTodayRecords && (
-                  todayRecords.length === 0 ? (
-                    <Text style={styles.noRecordsText}>今天沒有打卡紀錄</Text>
-                  ) : (
-                    todayRecords.map(record => (
-                      <View key={record.id} style={styles.recordCard}>
-                        <Text style={styles.recordMood}>{record.mood}</Text>
-                        <View style={styles.recordInfo}>
-                          <Text style={styles.recordName}>{record.bathroom.name}</Text>
-                          <Text style={styles.recordTime}>
-                            {new Date(record.timestamp).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })}
-                          </Text>
-                          {record.customMessage && (
-                            <Text style={styles.recordCustomMessage}>{record.customMessage}</Text>
-                          )}
-                          {record.quickTag && (
-                            <Text style={styles.recordTag}>🏷️ {record.quickTag}</Text>
-                          )}
-                        </View>
-                      </View>
-                    ))
-                  )
-                )}
-              </View>
-
-              <View style={styles.recordsSection}>
-                <TouchableOpacity
-                  style={styles.recordsHeader}
-                  onPress={() => setShowPreviousRecords(!showPreviousRecords)}
-                >
-                  <Text style={styles.sectionTitle}>📅 過去打卡紀錄 ({previousRecords.length})</Text>
-                  {showPreviousRecords ? (
-                    <ChevronUp size={24} color={Colors.primary.text} />
-                  ) : (
-                    <ChevronDown size={24} color={Colors.primary.text} />
-                  )}
-                </TouchableOpacity>
-                {showPreviousRecords && (
-                  previousRecords.length === 0 ? (
-                    <Text style={styles.noRecordsText}>沒有過去打卡紀錄</Text>
-                  ) : (
-                    previousRecords.map(record => (
-                      <View key={record.id} style={styles.recordCard}>
-                        <Text style={styles.recordMood}>{record.mood}</Text>
-                        <View style={styles.recordInfo}>
-                          <Text style={styles.recordName}>{record.bathroom.name}</Text>
-                          <Text style={styles.recordTime}>
-                            {new Date(record.timestamp).toLocaleDateString('zh-TW')} {new Date(record.timestamp).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })}
-                          </Text>
-                          {record.customMessage && (
-                            <Text style={styles.recordCustomMessage}>{record.customMessage}</Text>
-                          )}
-                          {record.quickTag && (
-                            <Text style={styles.recordTag}>🏷️ {record.quickTag}</Text>
-                          )}
-                        </View>
-                      </View>
-                    ))
-                  )
-                )}
-              </View>
-            </ScrollView>
-          </View>
-        ) : null}
-      </View>
-    );
-  };
-
+// 🔧 完全重寫：Journey 頁面 - 徹底解決重疊問題
 const renderJourneyContent = () => {
   const todayRecords = getTodayRecords();
   const previousRecords = getPreviousRecords();
@@ -2713,89 +2615,119 @@ const renderJourneyContent = () => {
       <View style={styles.fullScreenMapSection}>
         <MapComponent />
         
-        {/* 🚨 完全移除頂部統計條，避免與地圖原生元素重疊 */}
-        {/* 統計條已移除，改在底部抽屜顯示 */}
-
-        {/* 🔧 修正：右上角控制按鈕 - 移到更右下的位置 */}
+        {/* 🚫 完全遮蔽 MapComponent 原始控制按鈕 */}
         <View style={{
           position: 'absolute',
-          top: Platform.OS === 'ios' ? 80 : 60, // 降低位置
+          top: 0,
+          right: 0,
+          width: 80,
+          height: 120,
+          backgroundColor: 'transparent',
+          zIndex: 50, // 超高層級遮蔽原按鈕
+        }} />
+
+        {/* ✨ 整合統計條 + 功能按鈕在同一框 */}
+        <View style={{
+          position: 'absolute',
+          top: Platform.OS === 'ios' ? 60 : 50,
+          left: 16,
           right: 16,
-          flexDirection: 'column',
-          gap: 15,
-          zIndex: 1000,
+          backgroundColor: 'rgba(255, 255, 255, 0.95)',
+          borderRadius: 16,
+          padding: 12,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 4,
+          elevation: 4,
+          zIndex: 100,
         }}>
-          {/* 定位按鈕 */}
-          <TouchableOpacity 
-            style={{
-              width: 50,
-              height: 50,
-              borderRadius: 25,
-              backgroundColor: '#FFFFFF',
-              justifyContent: 'center',
+          <View style={{ 
+            flexDirection: 'row', 
+            alignItems: 'center', 
+            justifyContent: 'space-between' 
+          }}>
+            {/* 左側：統計數據區域 */}
+            <View style={{ 
+              flexDirection: 'row', 
+              alignItems: 'center', 
+              flex: 1 
+            }}>
+              <View style={styles.statsItem}>
+                <Text style={styles.statsNumber}>{checkInRecords.length}</Text>
+                <Text style={styles.statsLabel}>Total</Text>
+              </View>
+              <View style={styles.statsDivider} />
+              <View style={styles.statsItem}>
+                <Text style={styles.statsNumber}>{journeyStats.uniqueLocations}</Text>
+                <Text style={styles.statsLabel}>Places</Text>
+              </View>
+              <View style={styles.statsDivider} />
+              <View style={styles.statsItem}>
+                <Text style={styles.statsNumber}>{todayRecords.length}</Text>
+                <Text style={styles.statsLabel}>Today</Text>
+              </View>
+            </View>
+
+            {/* 右側：功能按鈕組 */}
+            <View style={{ 
+              flexDirection: 'row', 
               alignItems: 'center',
-              shadowColor: '#000',
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.25,
-              shadowRadius: 6,
-              elevation: 8,
-              borderWidth: 2,
-              borderColor: location ? Colors.primary.accent : '#E0E0E0',
-              opacity: location ? 1 : 0.6,
-            }}
-            onPress={centerMapOnUser}
-            disabled={!location}
-          >
-            <Compass size={22} color={location ? Colors.primary.accent : Colors.primary.lightText} />
-          </TouchableOpacity>
-          
-          {/* Poop Line 按鈕 */}
-          <TouchableOpacity 
-            style={{
-              width: 50,
-              height: 50,
-              borderRadius: 25,
-              backgroundColor: '#FFFFFF',
-              justifyContent: 'center',
-              alignItems: 'center',
-              shadowColor: '#000',
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.25,
-              shadowRadius: 6,
-              elevation: 8,
-              borderWidth: 2,
-              borderColor: Colors.primary.accent,
-            }}
-            onPress={() => setShowPoopLinePage(true)}
-          >
-            <Route size={22} color={Colors.primary.accent} />
-          </TouchableOpacity>
+              gap: 8,
+              marginLeft: 16,
+            }}>
+              
+              {/* Route 按鈕 */}
+              <TouchableOpacity 
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 18,
+                  backgroundColor: '#FFFFFF',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 1 },
+                  shadowOpacity: 0.15,
+                  shadowRadius: 2,
+                  elevation: 3,
+                  borderWidth: 1,
+                  borderColor: 'rgba(0,0,0,0.08)',
+                }}
+                onPress={() => setShowPoopLinePage(true)}
+              >
+                <Route size={16} color="#8B4513" />
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
 
-        {/* 🌟 主要打卡按鈕 - 稍微調整位置 */}
-        {location && (
+        {/* 🗑️ 移除獨立的功能按鈕組 - 已整合到統計條內 */}
+
+        {/* ✨ 主要打卡按鈕 */}
+        {location ? (
           <TouchableOpacity 
             style={{
               position: 'absolute',
-              bottom: 120, // 稍微提高，避免與底部按鈕重疊
+              bottom: 120,
               right: 20,
-              width: 85,
-              height: 85,
-              borderRadius: 42.5,
+              width: 80,
+              height: 80,
+              borderRadius: 40,
               backgroundColor: '#FF6B6B',
               justifyContent: 'center',
               alignItems: 'center',
               shadowColor: '#FF6B6B',
               shadowOffset: { width: 0, height: 6 },
               shadowOpacity: 0.4,
-              shadowRadius: 10,
-              elevation: 10,
+              shadowRadius: 12,
+              elevation: 12,
               borderWidth: 4,
               borderColor: '#FFFFFF',
-              zIndex: 1001,
+              zIndex: 1000,
             }}
             onPress={() => {
-              console.log('🎯 打卡按鈕被點擊！');
+              console.log('🎯 浮動按鈕被點擊！');
               handleQuickLocationCheckIn();
             }}
             activeOpacity={0.8}
@@ -2805,139 +2737,75 @@ const renderJourneyContent = () => {
               fontSize: 11, 
               fontWeight: 'bold', 
               color: '#FFFFFF',
-              textAlign: 'center',
-            }}>Check In</Text>
+              textAlign: 'center' 
+            }}>
+              Check In
+            </Text>
           </TouchableOpacity>
-        )}
-
-        {/* GPS 等待狀態 */}
-        {!location && (
+        ) : (
           <View style={{
             position: 'absolute',
             bottom: 120,
             right: 20,
-            width: 85,
-            height: 85,
-            borderRadius: 42.5,
-            backgroundColor: '#95A5A6',
+            width: 80,
+            height: 80,
+            borderRadius: 40,
+            backgroundColor: '#BDC3C7',
             justifyContent: 'center',
             alignItems: 'center',
             borderWidth: 4,
             borderColor: '#FFFFFF',
           }}>
-            <Text style={{ fontSize: 24, marginBottom: 2 }}>📍</Text>
+            <Text style={{ fontSize: 28, marginBottom: 2 }}>📍</Text>
             <Text style={{ 
               fontSize: 10, 
               fontWeight: 'bold', 
               color: '#FFFFFF',
-              textAlign: 'center',
-            }}>Getting GPS</Text>
+              textAlign: 'center' 
+            }}>
+              GPS...
+            </Text>
           </View>
         )}
 
-        {/* 🔧 修正：底部資訊欄 - 包含統計資訊和抽屜觸發 */}
-        <View style={{
-          position: 'absolute',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          backgroundColor: 'rgba(255, 255, 255, 0.95)',
-          borderTopWidth: 1,
-          borderTopColor: 'rgba(0,0,0,0.1)',
-          paddingHorizontal: 16,
-          paddingVertical: 12,
-          paddingBottom: Platform.OS === 'ios' ? 28 : 12, // iOS 安全區域
-        }}>
-          {/* 統計資訊列 */}
-          <View style={{
+        {/* ✨ 底部抽屜觸發器 */}
+        <TouchableOpacity 
+          style={{
+            position: 'absolute',
+            bottom: 20,
+            left: 20,
+            right: 120, // 為打卡按鈕預留空間
+            backgroundColor: 'rgba(0, 0, 0, 0.75)',
+            borderRadius: 25,
+            paddingVertical: 16,
+            paddingHorizontal: 20,
             flexDirection: 'row',
-            justifyContent: 'space-around',
             alignItems: 'center',
-            marginBottom: 8,
+            justifyContent: 'center',
+            gap: 10,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.3,
+            shadowRadius: 8,
+            elevation: 8,
+            maxWidth: Dimensions.get('window').width - 140,
+          }}
+          onPress={() => setShowRecordsDrawer(true)}
+        >
+          <ChevronUp size={24} color="#FFFFFF" />
+          <Text style={{
+            color: '#FFFFFF',
+            fontSize: 15,
+            fontWeight: '600',
+            flexShrink: 1,
           }}>
-            <View style={{ alignItems: 'center' }}>
-              <Text style={{
-                fontSize: 18,
-                fontWeight: 'bold',
-                color: Colors.primary.accent,
-              }}>{checkInRecords.length}</Text>
-              <Text style={{
-                fontSize: 11,
-                color: Colors.primary.lightText,
-              }}>Total Points</Text>
-            </View>
-            
-            <View style={{
-              width: 1,
-              height: 30,
-              backgroundColor: Colors.primary.border,
-            }} />
-            
-            <View style={{ alignItems: 'center' }}>
-              <Text style={{
-                fontSize: 18,
-                fontWeight: 'bold',
-                color: Colors.primary.accent,
-              }}>{journeyStats.uniqueLocations}</Text>
-              <Text style={{
-                fontSize: 11,
-                color: Colors.primary.lightText,
-              }}>Unique Places</Text>
-            </View>
-            
-            <View style={{
-              width: 1,
-              height: 30,
-              backgroundColor: Colors.primary.border,
-            }} />
-            
-            <View style={{ alignItems: 'center' }}>
-              <Text style={{
-                fontSize: 18,
-                fontWeight: 'bold',
-                color: Colors.primary.accent,
-              }}>{todayRecords.length}</Text>
-              <Text style={{
-                fontSize: 11,
-                color: Colors.primary.lightText,
-              }}>Today</Text>
-            </View>
-          </View>
-          
-          {/* 抽屜觸發按鈕 */}
-          <TouchableOpacity 
-            style={{
-              flexDirection: 'row',
-              backgroundColor: Colors.primary.accent,
-              borderRadius: 25,
-              paddingVertical: 10,
-              paddingHorizontal: 20,
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 8,
-              shadowColor: Colors.primary.accent,
-              shadowOffset: { width: 0, height: 3 },
-              shadowOpacity: 0.3,
-              shadowRadius: 5,
-              elevation: 5,
-            }}
-            onPress={() => setShowRecordsDrawer(true)}
-          >
-            <ChevronUp size={20} color="#FFFFFF" />
-            <Text style={{
-              color: '#FFFFFF',
-              fontSize: 14,
-              fontWeight: 'bold',
-            }}>
-              View Check-in Records ({checkInRecords.length})
-            </Text>
-          </TouchableOpacity>
-        </View>
+            View Records ({checkInRecords.length})
+          </Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
 };
-
   const renderContent = () => {
     if (errorMsg) {
       return (
