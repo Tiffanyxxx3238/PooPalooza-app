@@ -318,7 +318,7 @@ const FoodInfluenceDisplay = ({ foodInfluence }: { foodInfluence: any }) => {
         Possibility of Influence: {foodInfluence.likelihood}
       </Text>
       <Text style={styles.foodInfluenceText}>
-        Possible Foods: {foodInfluence.possible_foods?.slice(0, 3).join('、')}等
+        Possible Foods: {foodInfluence.possible_foods?.slice(0, 3).join(', ')} etc.
       </Text>
       <Text style={styles.foodInfluenceText}>
         Duration:  {foodInfluence.duration}
@@ -726,7 +726,7 @@ if (!response.ok) {
       
       // 🔥 其他400/502錯誤才是真的客戶端錯誤
       setIsAnalyzing(false);
-      setAnalysisError(`上傳問題: ${errorJson.message || errorJson.error}`);
+      setAnalysisError(`Upload issue: ${errorJson.message || errorJson.error}`);
       return;
       
     } catch (parseError) {
@@ -744,7 +744,7 @@ if (!response.ok) {
       }
       
       setIsAnalyzing(false);
-      setAnalysisError('圖片處理失敗，請檢查圖片格式');
+      setAnalysisError('Image processing failed, please check image format');
       return;
     }
   }
@@ -800,8 +800,8 @@ if (!response.ok) {
       setIsAnalyzing(false);
       setNonPoopDetectionResult({
         error: "No poop detected",
-        message: "未檢測到大便照片，請上傳真實的大便照片",
-        suggestion: "請確保照片清晰，光線充足，並且是真實的大便照片",
+        message: "No poop detected, please upload a real poop photo",
+        suggestion: "Please ensure the photo is clear, well-lit, and shows real poop",
         detected_objects: [
           { class: "image", confidence: 0.85 },
           { class: "object", confidence: 0.62 }
@@ -810,7 +810,7 @@ if (!response.ok) {
           color_name: "Mixed Colors",
           detected_color_type: "Unclear",
           hex_color: "#A0A0A0",
-          note: "圖片內容複雜，無法進行顏色分析",
+          nnote: "Complex image content, unable to perform color analysis",
           rgb_color: [160, 160, 160]
         }
       });
@@ -826,9 +826,9 @@ if (!response.ok) {
     
     const getAdviceByType = (type: number) => {
       const adviceMap: { [key: number]: string } = {
-        3: '🟢 偏乾但接近正常 | 💧 飲食建議: 維持現有纖維及水分攝取，適度增加蔬果 | 🚶‍♀️ 生活建議: 保持運動與規律生活',
-        4: '🎉 正常狀態 | 💧 飲食建議: 持續均衡飲食，攝取足夠纖維與水分 | 💪 生活建議: 維持規律運動與作息',
-        5: '🟡 略軟需注意 | 💧 飲食建議: 檢視纖維或水分攝取是否過量 | 🍽️ 生活建議: 維持規律飲食與運動'
+        3: '🟢 Slightly Dry but Near Normal | 💧 Diet Advice: Maintain current fiber and water intake, moderately increase fruits and vegetables | 🚶‍♀️ Lifestyle Advice: Keep exercising and regular living',
+        4: '🎉 Normal State | 💧 Diet Advice: Continue balanced diet, adequate fiber and water intake | 💪 Lifestyle Advice: Maintain regular exercise and routine',
+        5: '🟡 Slightly Soft - Attention Needed | 💧 Diet Advice: Check if fiber or water intake is excessive | 🍽️ Lifestyle Advice: Maintain regular diet and exercise'
       };
       return adviceMap[type] || adviceMap[4];
     };
@@ -842,7 +842,7 @@ if (!response.ok) {
     setPredictedColor(mockColor);
     setSelectedColor(mockColor);
     
-    setAnalysisDetails(`🎯 本地AI分析結果\n📊 檢測類型: Bristol Type ${mockType}\n🔍 由於服務器資源限制，使用本地模型進行分析\n💡 建議結合個人健康狀況進行參考`);
+    setAnalysisDetails(`🎯 Local AI Analysis Results\n📊 Detection Type: Bristol Type ${mockType}\n🔍 Using local model due to server resource limitations\n💡 Recommend combining with personal health conditions for reference`);
     setRecommendations(mockAdvice);
     
     // 豐富的模擬數據
@@ -850,14 +850,14 @@ if (!response.ok) {
       summary: { 
         Local: { 
           color: mockColor === 1 ? 'Normal_Brown' : mockColor === 2 ? 'Dark_Tone' : 'Light_Tone', 
-          color_name: mockColor === 1 ? '正常棕色' : mockColor === 2 ? '深棕色' : '淺棕色', 
-          health_status: '本地分析',
+          color_name: mockColor === 1 ? 'Normal Brown' : mockColor === 2 ? 'Dark Brown' : 'Light Brown',
+          health_status: 'Local Analysis',
           confidence: 0.70 + Math.random() * 0.2
         } 
       },
       health_alerts: [],
       food_influence_summary: {},
-      overall_color_health: '本地AI分析完成，建議以實際觀察為準'
+      overall_color_health: 'Local AI analysis completed, recommend actual observation'
     };
     
     setColorAnalysis(mockColorAnalysis);
@@ -872,7 +872,7 @@ if (!response.ok) {
     
   } catch (error) {
     console.error('Enhanced mock analysis error:', error);
-    setAnalysisError('本地分析失敗');
+    setAnalysisError('Local analysis failed');
     setIsAnalyzing(false);
   }
 };  
@@ -1035,7 +1035,7 @@ function processEnhancedPoopAPIResponse(result: any) {
       analysisText += `\n🍎 Detected Possible Food Influence:\n`;
       analysisText += `  • Influence Likelihood: ${foodInfluenceInfo.likelihood || 'Unknown'}\n`;
       if (foodInfluenceInfo.possible_foods && Array.isArray(foodInfluenceInfo.possible_foods)) {
-        analysisText += `  • Possible Foods: ${foodInfluenceInfo.possible_foods.slice(0, 3).join('、')}等\n`;
+        analysisText += `  • Possible Foods: ${foodInfluenceInfo.possible_foods.slice(0, 3).join(', ')} etc.\n`;
       }
     }
 
@@ -1061,10 +1061,10 @@ function processEnhancedPoopAPIResponse(result: any) {
 
       let fullRecommendations = enhancedPersonalizedAdvice;
       if (colorAdvice) {
-        fullRecommendations += `\n\n🎨 顏色專項建議:\n${colorAdvice}`;
+        fullRecommendations += `\n\n🎨 Color-Specific Recommendations:\n${colorAdvice}`;
       }
       if (foodInfluenceInfo && foodInfluenceInfo.recommendation) {
-        fullRecommendations += `\n\n🍎 食物影響建議:\n${foodInfluenceInfo.recommendation}`;
+        fullRecommendations += `\n\n🍎 Food Influence Recommendations:\n${foodInfluenceInfo.recommendation}`;
       }
 
       setRecommendations(fullRecommendations);
@@ -1082,9 +1082,9 @@ function processEnhancedPoopAPIResponse(result: any) {
     
     // 🔥 改進：提供更詳細的錯誤信息
     if (error instanceof Error) {
-      setAnalysisError(`處理分析結果時出錯: ${error.message}`);
+      setAnalysisError(`Error processing analysis results: ${error.message}`);
     } else {
-      setAnalysisError('無法處理分析結果，請重試');
+      setAnalysisError('Unable to process analysis results, please try again');
     }
     
     setIsAnalyzing(false);
@@ -1124,15 +1124,15 @@ const generateEnhancedPersonalizedAdvice = (
       try {
         const hasAbnormalColors = Object.values(colorAnalysis.summary).some((info: any) => {
           if (!info || !info.health_status) return false;
-          return info.health_status !== '正常' && info.health_status !== 'Normal';
+          return info.health_status !== 'Normal' && info.health_status !== 'Healthy';
         });
         
         if (hasAbnormalColors) {
-          personalizedAdvice += `\n\n🎨 顏色健康評估:`;
+          personalizedAdvice += `\n\n🎨 Color Health Assessment:`;
           
           Object.entries(colorAnalysis.summary).forEach(([type, info]: [string, any]) => {
             if (info && info.health_status && info.color_name && 
-                info.health_status !== '正常' && info.health_status !== 'Normal') {
+                info.health_status !== 'Normal' && info.health_status !== 'Healthy') {
               personalizedAdvice += `\n• ${type}: ${info.color_name} - ${info.health_status}`;
             }
           });
@@ -1143,7 +1143,7 @@ const generateEnhancedPersonalizedAdvice = (
     }
     
     // 追蹤建議
-    personalizedAdvice += `\n\n📊 追蹤建議: 建議記錄未來3-7天的便便變化，特別關注顏色和形狀的改善`;
+    personalizedAdvice += `\n\n📊 Tracking Recommendations: We recommend recording poop changes over the next 3-7 days, paying special attention to improvements in color and shape`;
     
     return personalizedAdvice;
     
@@ -1157,19 +1157,19 @@ const generateEnhancedPersonalizedAdvice = (
   // Get advice for specific type
   const getAdviceForType = (type: string): string => {
     const adviceMap: { [key: string]: string } = {
-      'Constipated': '🔴 便秘狀態 | 💧 飲食建議: 增加膳食纖維攝取（全穀、蔬菜、水果、豆類），每日攝取2000ml以上水分 | 🏃‍♂️ 生活建議: 規律運動促進腸蠕動，腹部按摩',
-      'Normal': '🎉 正常狀態 | 💧 飲食建議: 持續均衡飲食，攝取足夠纖維與水分 | 💪 生活建議: 維持規律運動與作息',
-      'Loose': '🟠 腹瀉狀態 | 💧 飲食建議: 減少高油脂、辛辣食物，少量多餐補充益生菌 | ⏰ 生活建議: 規律三餐避免暴飲暴食',
-      'type1': '🔴 嚴重便秘警示 | 💧 飲食建議: 增加膳食纖維攝取（全穀、蔬菜、水果、豆類），每日攝取2000ml以上水分 | 🏃‍♂️ 生活建議: 規律運動促進腸蠕動，腹部按摩',
-      'type2': '🟡 輕度便秘 | 💧 飲食建議: 強調纖維與水分攝取，減少高油脂及加工食品 | 🧘‍♀️ 生活建議: 維持規律作息減少壓力',
-      'type3': '🟢 偏乾但接近正常 | 💧 飲食建議: 維持現有纖維及水分攝取，適度增加蔬果 | 🚶‍♀️ 生活建議: 保持運動與規律生活',
-      'type4': '🎉 完美便便狀態 | 💧 飲食建議: 持續均衡飲食，攝取足夠纖維與水分 | 💪 生活建議: 維持規律運動與作息',
-      'type5': '🟡 略軟需注意 | 💧 飲食建議: 檢視纖維或水分攝取是否過量，避免刺激性食物 | 🍽️ 生活建議: 維持規律飲食與運動',
-      'type6': '🟠 輕度腹瀉警示 | 💧 飲食建議: 減少高油脂、辛辣食物，少量多餐補充益生菌 | ⏰ 生活建議: 規律三餐避免暴飲暴食',
-      'type7': '🔴 嚴重腹瀉緊急 | 💧 緊急處理: 立即補充水分與電解質，攝取易消化食物 | 🏥 就醫建議: 持續超過48小時請就醫'
+      'Constipated': '🔴 Constipation State | 💧 Diet Advice: Increase dietary fiber intake (whole grains, vegetables, fruits, legumes), drink 2000ml+ water daily | 🏃‍♂️ Lifestyle: Regular exercise to promote bowel movement, abdominal massage',
+      'Normal': '🎉 Normal State | 💧 Diet Advice: Continue balanced diet, adequate fiber and water intake | 💪 Lifestyle: Maintain regular exercise and routine',
+      'Loose': '🟠 Diarrhea State | 💧 Diet Advice: Reduce high-fat, spicy foods, eat small frequent meals with probiotics | ⏰ Lifestyle: Regular meals, avoid overeating',
+      'type1': '🔴 Severe Constipation Alert | 💧 Diet Advice: Increase dietary fiber intake (whole grains, vegetables, fruits, legumes), drink 2000ml+ water daily | 🏃‍♂️ Lifestyle: Regular exercise to promote bowel movement, abdominal massage',
+      'type2': '🟡 Mild Constipation | 💧 Diet Advice: Emphasize fiber and water intake, reduce high-fat and processed foods | 🧘‍♀️ Lifestyle: Maintain regular schedule to reduce stress',
+      'type3': '🟢 Slightly Dry but Near Normal | 💧 Diet Advice: Maintain current fiber and water intake, moderately increase fruits and vegetables | 🚶‍♀️ Lifestyle: Keep exercising and regular living',
+      'type4': '🎉 Perfect Stool State | 💧 Diet Advice: Continue balanced diet, adequate fiber and water intake | 💪 Lifestyle: Maintain regular exercise and routine',
+      'type5': '🟡 Slightly Soft - Attention Needed | 💧 Diet Advice: Check if fiber or water intake is excessive, avoid irritating foods | 🍽️ Lifestyle: Maintain regular diet and exercise',
+      'type6': '🟠 Mild Diarrhea Warning | 💧 Diet Advice: Reduce high-fat, spicy foods, eat small frequent meals with probiotics | ⏰ Lifestyle: Regular meals, avoid overeating',
+      'type7': '🔴 Severe Diarrhea Emergency | 💧 Emergency Care: Immediately replenish fluids and electrolytes, eat easily digestible foods | 🏥 Medical Advice: Seek medical attention if persists over 48 hours'
     };
 
-    return adviceMap[type] || '🎯 基本建議 | 💧 飲食: 保持均衡飲食 | 🏃‍♂️ 運動: 規律運動';
+    return adviceMap[type] || '🎯 Basic Advice | 💧 Diet: Maintain balanced diet | 🏃‍♂️ Exercise: Regular exercise';
   };
 
   // 增強版體積建議
@@ -1182,29 +1182,29 @@ const getEnhancedVolumeAdvice = (volumeClass: string, volumeAnalysis: any): stri
     }
     
     const baseAdvice: { [key: string]: string } = {
-      'Small': '📏 體積偏小建議: 可能攝取不足或消化吸收問題',
-      'small': '📏 體積偏小建議: 可能攝取不足或消化吸收問題',
-      'Medium': '📏 體積正常: 維持當前飲食習慣',
-      'medium': '📏 體積正常: 維持當前飲食習慣',
-      'normal': '📏 體積正常: 維持當前飲食習慣',
-      'Large': '📏 體積較大建議: 可能攝取過量或消化時間過長',
-      'large': '📏 體積較大建議: 可能攝取過量或消化時間過長',
-      'big': '📏 體積較大建議: 可能攝取過量或消化時間過長'
+      'Small': '📏 Small Volume Advice: Possible insufficient intake or digestion issues',
+      'small': '📏 Small Volume Advice: Possible insufficient intake or digestion issues',
+      'Medium': '📏 Normal Volume: Maintain current eating habits',
+      'medium': '📏 Normal Volume: Maintain current eating habits',
+      'normal': '📏 Normal Volume: Maintain current eating habits',
+      'Large': '📏 Large Volume Advice: Possible excessive intake or prolonged digestion',
+      'large': '📏 Large Volume Advice: Possible excessive intake or prolonged digestion',
+      'big': '📏 Large Volume Advice: Possible excessive intake or prolonged digestion'
     };
     
     let advice = baseAdvice[volumeClass] || baseAdvice[volumeClass.toLowerCase()] || '';
     
     // 安全檢查 volumeAnalysis
     if (volumeAnalysis && volumeAnalysis.detailed_data) {
-      advice += '\n• 詳細建議: ';
+      advice += '\n• Detailed Advice: ';
       const volumeClassLower = volumeClass.toLowerCase();
       
       if (volumeClassLower.includes('small')) {
-        advice += '增加健康脂肪如堅果、酪梨，確保足夠營養攝取';
+        advice += 'Increase healthy fats like nuts, avocado, ensure adequate nutrition';
       } else if (volumeClassLower.includes('large') || volumeClassLower.includes('big')) {
-        advice += '考慮分餐進食，增加消化時間，避免一次性大量進食';
+        advice += 'Consider eating smaller portions, increase digestion time, avoid large meals';
       } else {
-        advice += '繼續保持均衡飲食';
+        advice += 'Continue balanced diet';
       }
     }
     
@@ -1212,21 +1212,21 @@ const getEnhancedVolumeAdvice = (volumeClass: string, volumeAnalysis: any): stri
     
   } catch (error) {
     console.warn('Error in getEnhancedVolumeAdvice:', error);
-    return '📏 體積分析: 維持均衡飲食習慣'; // 備用建議
+    return '📏 Volume Analysis: Maintain balanced eating habits'; // 備用建議
   }
 };
 
   // Enhanced mock analysis with realistic data
   const mockAnalysisWithRealData = async () => {
-    setAnalysisProgress('正在使用通用AI進行分析...');
-    
-    await new Promise(resolve => setTimeout(resolve, 3000));
-    
-    const mockType = 4;
-    const mockVolume = 2;
-    const mockColor = 1;
-    
-    const mockAdvice = `🟢 接近正常狀態 | 💧 飲食建議: 維持現有纖維及水分攝取，適度增加蔬果 | 🚶‍♀️ 生活建議: 保持運動與規律生活 | ✅ 狀態說明: 建議繼續保持良好的生活習慣`;
+  setAnalysisProgress('Using general AI for analysis...');
+  
+  await new Promise(resolve => setTimeout(resolve, 3000));
+  
+  const mockType = 4;
+  const mockVolume = 2;
+  const mockColor = 1;
+  
+  const mockAdvice = `🟢 Near Normal State | 💧 Diet Advice: Maintain current fiber and water intake, moderately increase fruits and vegetables | 🚶‍♀️ Lifestyle Advice: Keep exercising and regular living | ✅ Status Description: Recommend continuing good lifestyle habits`;
     
     setPredictedType(mockType);
     setSelectedType(mockType);
@@ -1237,12 +1237,12 @@ const getEnhancedVolumeAdvice = (volumeClass: string, volumeAnalysis: any): stri
     setPredictedColor(mockColor);
     setSelectedColor(mockColor);
     
-    setAnalysisDetails('🎯 基於圖片特徵的AI分析\n📊 使用通用健康模型進行評估\n💡 建議結合個人健康狀況進行參考');
+    setAnalysisDetails('🎯 AI analysis based on image features\n📊 Using general health model for evaluation\n💡 Recommend combining with personal health conditions for reference');
     setRecommendations(mockAdvice);
     
     // 設置模擬的增強數據
     setColorAnalysis({
-      summary: { Normal: { color: 'Normal_Brown', color_name: '正常棕色', health_status: '正常' } },
+      summary: { Normal: { color: 'Normal_Brown', color_name: 'Normal Brown', health_status: 'Normal' } },
       health_alerts: [],
       food_influence_summary: {}
     });
@@ -1283,8 +1283,8 @@ const getEnhancedVolumeAdvice = (volumeClass: string, volumeAnalysis: any): stri
         setPredictedColor(mockColor);
         setSelectedColor(mockColor);
         
-        setAnalysisDetails('這是網頁版模擬分析結果。實際應用中，AI會分析圖片並提供詳細的便便健康報告。');
-        setRecommendations('🎯 網頁模擬建議 | 💧 飲食建議: 保持均衡飲食 | 🏃‍♂️ 運動建議: 規律運動 | 📱 提示: 使用手機APP獲得完整功能');
+        setAnalysisDetails('This is a web version simulation result. In actual application, AI will analyze images and provide detailed poop health reports.');
+        setRecommendations('🎯 Web Simulation Advice | 💧 Diet Advice: Maintain balanced diet | 🏃‍♂️ Exercise Advice: Regular exercise | 📱 Tip: Use mobile APP for complete features');
         
         setIsAnalyzing(false);
       }
@@ -1404,18 +1404,18 @@ const handleContinueWithLowConfidence = (result: any) => {
       setSelectedColor(1); // 預設棕色
       
       // 安全地獲取檢測信息
-      const detectionClass = detection.class || '未知物件';
-      const confidence = detection.confidence ? (detection.confidence * 100).toFixed(1) : '未知';
-      
-      setAnalysisDetails(`⚠️ 低信心度分析結果\n檢測到: ${detectionClass}\n信心度: ${confidence}%\n注意: 建議改善拍攝條件以獲得更準確的分析`);
-      setRecommendations('🎯 基本建議 | 💧 飲食: 保持均衡飲食 | 🏃‍♂️ 運動: 規律運動 | 📸 建議: 下次請在更好的光線條件下拍攝');
+      const detectionClass = detection.class || 'Unknown Object';
+      const confidence = detection.confidence ? (detection.confidence * 100).toFixed(1) : 'Unknown';
+
+      setAnalysisDetails(`⚠️ Low Confidence Analysis Result\nDetected: ${detectionClass}\nConfidence: ${confidence}%\nNote: Recommend improving shooting conditions for more accurate analysis`);
+      setRecommendations('🎯 Basic Advice | 💧 Diet: Maintain balanced diet | 🏃‍♂️ Exercise: Regular exercise | 📸 Suggestion: Please shoot under better lighting conditions next time');
       
       setColorAnalysis({
         summary: { 
           LowConfidence: { 
             color: 'Normal_Brown', 
-            color_name: '基本檢測', 
-            health_status: '需要更好的圖片',
+            color_name: 'Basic Detection', 
+            health_status: 'Needs Better Image',
             confidence: detection.confidence || 0.3
           } 
         },
@@ -1433,7 +1433,7 @@ const handleContinueWithLowConfidence = (result: any) => {
       console.log('✅ 低信心度結果處理完成');
     } else {
       console.warn('沒有有效的檢測結果');
-      setAnalysisError('檢測結果中沒有有用的信息，請重新拍攝');
+      setAnalysisError('No useful information in detection results, please retake photo');
     }
   } catch (error) {
     console.error('處理低信心度結果時出錯:', error);
@@ -1463,7 +1463,7 @@ const handleContinueWithPartial = () => {
       // 驗證檢測結果
       if (!bestDetection) {
         console.warn('最佳檢測結果為空');
-        setAnalysisError('部分分析結果無效');
+        setAnalysisError('Partial analysis results invalid');
         return;
       }
       
@@ -1473,25 +1473,25 @@ const handleContinueWithPartial = () => {
       setSelectedColor(1); // 預設棕色
       
       // 安全地獲取檢測信息
-      const detectionClass = bestDetection.class || '未知物件';
-      const confidence = bestDetection.confidence ? (bestDetection.confidence * 100).toFixed(1) : '未知';
-      
-      setAnalysisDetails(`🎯 部分分析結果\n檢測到: ${detectionClass}\n信心度: ${confidence}%\n注意: 由於圖片品質限制，無法進行完整分析`);
-      setRecommendations('🎯 基本建議 | 💧 飲食: 保持均衡飲食 | 🏃‍♂️ 運動: 規律運動 | 📸 建議: 下次拍攝更清晰的照片以獲得完整分析');
+      const detectionClass = bestDetection.class || 'Unknown Object';
+      const confidence = bestDetection.confidence ? (bestDetection.confidence * 100).toFixed(1) : 'Unknown';
+
+      setAnalysisDetails(`🎯 Partial Analysis Result\nDetected: ${detectionClass}\nConfidence: ${confidence}%\nNote: Cannot perform complete analysis due to image quality limitations`);
+      setRecommendations('🎯 Basic Advice | 💧 Diet: Maintain balanced diet | 🏃‍♂️ Exercise: Regular exercise | 📸 Suggestion: Take clearer photos next time for complete analysis');
       
       // 🔥 新增：設置基本的增強分析數據
       setColorAnalysis({
         summary: { 
           Partial: { 
             color: 'Normal_Brown', 
-            color_name: '部分檢測', 
-            health_status: '需要更清晰的圖片',
+            color_name: 'Partial Detection', 
+            health_status: 'Needs Clearer Image',
             confidence: bestDetection.confidence || 0.5
           } 
         },
         health_alerts: [],
         food_influence_summary: {},
-        overall_color_health: '部分分析完成，建議拍攝更清晰的照片'
+        overall_color_health: 'Partial analysis completed, recommend taking clearer photos'
       });
       setVolumeAnalysis({ overall_volume_class: 'Medium' });
       setHealthAlerts([]);
@@ -1503,11 +1503,11 @@ const handleContinueWithPartial = () => {
       console.log('✅ 部分分析結果處理完成');
     } else {
       console.warn('部分分析結果中沒有有效的檢測物件');
-      setAnalysisError('部分分析結果中沒有可用信息，請重新拍攝');
+      setAnalysisError('No available information in partial analysis results, please retake photo');
     }
   } catch (error) {
     console.error('處理部分分析結果時出錯:', error);
-    setAnalysisError('處理部分分析結果時發生錯誤');
+    setAnalysisError('Error occurred while processing partial analysis results');
     setIsAnalyzing(false);
   }
 };
@@ -1654,12 +1654,12 @@ const renderContent = () => {
       {/* 按鈕區塊 */}
       <View style={styles.buttonContainer}>
         <Button
-          title="繼續"
+          title="Continue"
           onPress={handleContinue}
           style={styles.continueButton}
         />
         <Button
-          title="取消"
+          title="Cancel"
           onPress={handleCancel}
           variant="outline"
           style={styles.cancelButton}
