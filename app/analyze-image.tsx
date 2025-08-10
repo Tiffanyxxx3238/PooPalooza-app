@@ -666,25 +666,37 @@ const analyzeWithPoopAPI = async (imageUri: string) => {
 
 if (!response.ok) {
   const errorText = await response.text();
-  console.error('API Error Response:', errorText);
-  console.log('Response status:', response.status);
+  
+  // 🧹 修改：只在開發模式下顯示技術訊息
+  if (__DEV__) {
+    console.log('📋 API Response Details:', {
+      status: response.status,
+      errorText: errorText
+    });
+  }
   
   // 🔥 修復：502錯誤也可能是Cloudflare代理的400錯誤
   if (response.status === 400 || response.status === 502) {
     try {
       // 🔥 502錯誤時，errorText可能是空的，需要特殊處理
       if (response.status === 502 && (!errorText || errorText.trim() === '')) {
-        console.log('🔄 502錯誤且無錯誤內容，可能是Cloudflare代理問題');
+        if (__DEV__) {
+          console.log('🔄 502錯誤且無錯誤內容，可能是Cloudflare代理問題');
+        }
         // 這可能是非大便檢測的502代理錯誤，使用備用分析
         throw new Error('Server temporarily unavailable');
       }
       
       const errorJson = JSON.parse(errorText);
-      console.log('✅ 解析到400/502錯誤（客戶端問題）:', errorJson);
+      if (__DEV__) {
+        console.log('✅ 解析到400/502回應:', errorJson);
+      }
       
       // 🔥 非大便檢測 - 不是錯誤，是正常的檢測結果
       if (errorJson.error === "No objects detected" || errorJson.error === "No poop detected") {
-        console.log('🎯 檢測到非大便圖片，顯示友好界面');
+        if (__DEV__) {
+          console.log('🎯 檢測到非大便圖片，顯示友好界面');
+        }
         setIsAnalyzing(false);
         
         setNonPoopDetectionResult({
@@ -701,7 +713,9 @@ if (!response.ok) {
       
       // 🔥 低信心度檢測 - 也不是錯誤，是分析結果
       if (errorJson.error === "Low confidence detection") {
-        console.log('🎯 檢測到低信心度結果，顯示友好界面');
+        if (__DEV__) {
+          console.log('🎯 檢測到低信心度結果，顯示友好界面');
+        }
         setIsAnalyzing(false);
         
         setLowConfidenceResult({
@@ -718,7 +732,9 @@ if (!response.ok) {
       
       // 🔥 部分分析 - 也不是錯誤，是分析結果
       if (errorJson.error === "Cannot perform detailed analysis") {
-        console.log('🎯 檢測到部分分析結果，顯示友好界面');
+        if (__DEV__) {
+          console.log('🎯 檢測到部分分析結果，顯示友好界面');
+        }
         setIsAnalyzing(false);
         
         setPartialAnalysisResult({
@@ -739,12 +755,16 @@ if (!response.ok) {
       return;
       
     } catch (parseError) {
-      console.error('❌ 無法解析400/502錯誤JSON:', parseError);
-      console.log('Raw error text:', errorText);
+      if (__DEV__) {
+        console.warn('無法解析400/502錯誤JSON:', parseError);
+        console.log('Raw error text:', errorText);
+      }
       
       // 🔥 如果是502且無法解析JSON，很可能是Cloudflare代理的非大便檢測
       if (response.status === 502) {
-        console.log('🔄 502錯誤無法解析JSON，可能是Cloudflare代理問題，使用備用分析');
+        if (__DEV__) {
+          console.log('🔄 502錯誤無法解析JSON，可能是Cloudflare代理問題，使用備用分析');
+        }
         throw new Error('Cloudflare proxy error - likely non-poop detection');
       }
       
@@ -756,7 +776,9 @@ if (!response.ok) {
   
   // 503錯誤處理（服務器問題）
   if (response.status === 503) {
-    console.log('🔄 Service unavailable (503), using fallback');
+    if (__DEV__) {
+      console.log('🔄 Service unavailable (503), using fallback');
+    }
     setAnalysisProgress('服務暫時不可用，使用備用分析...');
     throw new Error('Service temporarily unavailable');
   }
@@ -1769,7 +1791,7 @@ const styles = StyleSheet.create({
     minWidth: 120,
     borderColor: Colors.primary.warning,
     borderWidth: 1,
-    backgroundColor: '#FFF7ED',
+    backgroundColor: '#e1a65eff',
   },
   resultContainer: {
     backgroundColor: Colors.primary.card,
