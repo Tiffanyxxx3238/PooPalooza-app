@@ -148,7 +148,7 @@ const EnhancedColorAnalysisDisplay = ({ colorAnalysis }: { colorAnalysis: any })
 
   return (
     <View style={styles.enhancedColorContainer}>
-      <Text style={styles.enhancedColorTitle}>🎨 詳細顏色分析</Text>
+      <Text style={styles.enhancedColorTitle}>🎨 Detailed Color Analysis</Text>
       
       {Object.entries(colorAnalysis.summary).map(([type, info]: [string, any], index) => {
         const healthColors = getHealthStatusColor(info.health_status);
@@ -178,7 +178,7 @@ const EnhancedColorAnalysisDisplay = ({ colorAnalysis }: { colorAnalysis: any })
                   {info.color_name || info.color}
                 </Text>
                 <Text style={[styles.colorAnalysisType, { color: healthColors.text }]}>
-                  類型: {type}
+                  Type: {type}
                 </Text>
               </View>
               <View style={styles.healthStatusBadge}>
@@ -198,7 +198,7 @@ const EnhancedColorAnalysisDisplay = ({ colorAnalysis }: { colorAnalysis: any })
             {/* 如果有信心度 */}
             {info.confidence && (
               <Text style={styles.colorConfidence}>
-                🎯 檢測信心度: {(info.confidence * 100).toFixed(1)}%
+                🎯 Detection Confidence: {(info.confidence * 100).toFixed(1)}%
               </Text>
             )}
           </View>
@@ -208,7 +208,7 @@ const EnhancedColorAnalysisDisplay = ({ colorAnalysis }: { colorAnalysis: any })
       {/* 顏色健康總結 */}
       {colorAnalysis.overall_color_health && (
         <View style={styles.overallColorHealth}>
-          <Text style={styles.overallColorTitle}>🏥 顏色健康總評</Text>
+          <Text style={styles.overallColorTitle}>🏥 Overall Color Health Assessment</Text>
           <Text style={styles.overallColorText}>
             {colorAnalysis.overall_color_health}
           </Text>
@@ -229,23 +229,23 @@ const EnhancedPoopColorSelector = ({
   detectedColor?: number,
   colorAnalysis?: any
 }) => {
-  const colors = [
-    { id: 1, name: '棕色', color: '#8B4513', description: '正常健康' },
-    { id: 2, name: '深棕', color: '#654321', description: '可能脫水' },
-    { id: 3, name: '淺棕', color: '#D2B48C', description: '消化快速' },
-    { id: 4, name: '黃色', color: '#DAA520', description: '脂肪含量高' },
-    { id: 5, name: '綠色', color: '#8FBC8F', description: '膽汁或蔬菜' },
-    { id: 6, name: '紅色', color: '#CD5C5C', description: '需要注意' },
-    { id: 7, name: '黑色', color: '#2F2F2F', description: '需要檢查' },
-  ];
+const colors = [
+  { id: 1, name: 'Brown', color: '#8B4513', description: 'Normal & Healthy' },
+  { id: 2, name: 'Dark Brown', color: '#654321', description: 'Possible Dehydration' },
+  { id: 3, name: 'Light Brown', color: '#D2B48C', description: 'Fast Digestion' },
+  { id: 4, name: 'Yellow', color: '#DAA520', description: 'High Fat Content' },
+  { id: 5, name: 'Green', color: '#8FBC8F', description: 'Bile or Vegetables' },
+  { id: 6, name: 'Red', color: '#CD5C5C', description: 'Needs Attention' },
+  { id: 7, name: 'Black', color: '#2F2F2F', description: 'Needs Examination' },
+];
 
   return (
     <View style={styles.enhancedColorSelector}>
       <View style={styles.selectorHeader}>
-        <Text style={styles.selectorTitle}>💩 便便顏色</Text>
+        <Text style={styles.selectorTitle}>💩 Poop Color</Text>
         {detectedColor && (
           <Text style={styles.aiDetectedLabel}>
-            🤖 AI檢測: {colors[detectedColor - 1]?.name}
+            🤖 AI Detected: {colors[detectedColor - 1]?.name}
           </Text>
         )}
       </View>
@@ -296,7 +296,7 @@ const EnhancedPoopColorSelector = ({
       {/* 顏色建議 */}
       {colorAnalysis?.color_advice_summary && (
         <View style={styles.colorAdviceContainer}>
-          <Text style={styles.colorAdviceTitle}>💡 顏色建議</Text>
+          <Text style={styles.colorAdviceTitle}>💡 Color Advice</Text>
           <Text style={styles.colorAdviceText}>
             {colorAnalysis.color_advice_summary}
           </Text>
@@ -313,15 +313,15 @@ const FoodInfluenceDisplay = ({ foodInfluence }: { foodInfluence: any }) => {
   
   return (
     <View style={styles.foodInfluenceContainer}>
-      <Text style={styles.foodInfluenceTitle}>🍎 可能的食物影響</Text>
+      <Text style={styles.foodInfluenceTitle}>🍎 Possible Food Influence</Text>
       <Text style={styles.foodInfluenceText}>
-        影響可能性: {foodInfluence.likelihood}
+        Possibility of Influence: {foodInfluence.likelihood}
       </Text>
       <Text style={styles.foodInfluenceText}>
-        可能食物: {foodInfluence.possible_foods?.slice(0, 3).join('、')}等
+        Possible Foods: {foodInfluence.possible_foods?.slice(0, 3).join('、')}等
       </Text>
       <Text style={styles.foodInfluenceText}>
-        持續時間: {foodInfluence.duration}
+        Duration:  {foodInfluence.duration}
       </Text>
       <Text style={styles.foodInfluenceAdvice}>
         {foodInfluence.recommendation}
@@ -338,7 +338,7 @@ const ColorHealthAlerts = ({ healthAlerts }: { healthAlerts: any[] }) => {
   
   return (
     <View style={styles.healthAlertsContainer}>
-      <Text style={styles.healthAlertsTitle}>⚠️ 顏色健康提醒</Text>
+      <Text style={styles.healthAlertsTitle}>⚠️ Color Health Alerts</Text>
       {healthAlerts.map((alert, index) => (
         <View key={index} style={styles.healthAlertItem}>
           <Text style={styles.healthAlertText}>
@@ -355,13 +355,15 @@ const ColorHealthAlerts = ({ healthAlerts }: { healthAlerts: any[] }) => {
 const NonPoopDetectionDisplay = ({ result, onRetake, onSelectOther }: { result: any, onRetake: () => void, onSelectOther: () => void }) => (
   <View style={styles.nonPoopContainer}>
     <AlertCircle size={48} color={Colors.primary.warning || '#F59E0B'} />
-    <Text style={styles.nonPoopTitle}>未檢測到大便</Text>
-    <Text style={styles.nonPoopMessage}>{result.message}</Text>
+    <Text style={styles.nonPoopTitle}>No Poop Detected</Text>
+    <Text style={styles.nonPoopMessage}>
+      This photo may not be a poop image, or the photo quality needs improvement
+    </Text>
     
     {/* 🔥 新增：顯示基本顏色分析（如果有的話） */}
     {result.basic_color_info && (
       <View style={styles.basicColorAnalysisContainer}>
-        <Text style={styles.basicColorAnalysisTitle}>🎨 基本顏色分析</Text>
+        <Text style={styles.basicColorAnalysisTitle}>🎨 Basic Color Analysis</Text>
         <View style={styles.colorInfoRow}>
           <View 
             style={[
@@ -377,27 +379,16 @@ const NonPoopDetectionDisplay = ({ result, onRetake, onSelectOther }: { result: 
       </View>
     )}
     
-    {result.detected_objects && result.detected_objects.length > 0 && (
-      <View style={styles.detectedObjectsContainer}>
-        <Text style={styles.detectedObjectsTitle}>實際檢測到的物件：</Text>
-        {result.detected_objects.slice(0, 3).map((obj: any, index: number) => (
-          <Text key={index} style={styles.detectedObjectItem}>
-            • {obj.class} (信心度: {(obj.confidence * 100).toFixed(1)}%)
-          </Text>
-        ))}
-      </View>
-    )}
-    
     <Text style={styles.suggestionText}>{result.suggestion}</Text>
     
     <View style={styles.actionButtonsContainer}>
       <Button
-        title="重新拍照"
+        title="Retake Photo"
         onPress={onRetake}
         style={styles.retakeButton}
       />
       <Button
-        title="選擇其他照片"
+        title="Choose Another Photo"
         onPress={onSelectOther}
         variant="outline"
         style={styles.selectOtherButton}
@@ -410,36 +401,29 @@ const NonPoopDetectionDisplay = ({ result, onRetake, onSelectOther }: { result: 
 const LowConfidenceDisplay = ({ result, onRetry, onContinueAnyway }: { result: any, onRetry: () => void, onContinueAnyway: () => void }) => (
   <View style={styles.lowConfidenceContainer}>
     <AlertCircle size={48} color={Colors.primary.accent} />
-    <Text style={styles.lowConfidenceTitle}>檢測信心度不足</Text>
-    <Text style={styles.lowConfidenceMessage}>{result.message}</Text>
-    
-    {result.detected_results && result.detected_results.length > 0 && (
-      <View style={styles.detectedResultsContainer}>
-        <Text style={styles.detectedResultsTitle}>檢測結果：</Text>
-        <Text style={styles.detectedResultItem}>
-          {result.detected_results[0].class} (信心度: {(result.detected_results[0].confidence * 100).toFixed(1)}%)
-        </Text>
-      </View>
-    )}
+    <Text style={styles.lowConfidenceTitle}>Photo Needs Improvement</Text>
+    <Text style={styles.lowConfidenceMessage}>
+      Photo quality is not clear enough. We recommend retaking for more accurate analysis results
+    </Text>
     
     <Text style={styles.suggestionText}>{result.suggestion}</Text>
     
     <View style={styles.improvementTips}>
-      <Text style={styles.improvementTitle}>改善建議：</Text>
-      <Text style={styles.improvementTip}>• 確保照片清晰對焦</Text>
-      <Text style={styles.improvementTip}>• 提供充足的光線</Text>
-      <Text style={styles.improvementTip}>• 避免陰影遮擋</Text>
-      <Text style={styles.improvementTip}>• 保持適當的拍攝距離</Text>
+      <Text style={styles.improvementTitle}>Improvement Tips：</Text>
+      <Text style={styles.improvementTip}>• Ensure photo is clear and focused</Text>
+      <Text style={styles.improvementTip}>• Provide sufficient lighting</Text>
+      <Text style={styles.improvementTip}>• Avoid shadows covering the subject</Text>
+      <Text style={styles.improvementTip}>• Maintain appropriate shooting distance</Text>
     </View>
     
     <View style={styles.actionButtonsContainer}>
       <Button
-        title="重新分析"
+        title="Retry Analysis"
         onPress={onRetry}
         style={styles.retryButton}
       />
       <Button
-        title="繼續使用結果"
+        title="Use Current Result"
         onPress={onContinueAnyway}
         variant="outline"
         style={styles.continueAnywayButton}
@@ -452,30 +436,21 @@ const LowConfidenceDisplay = ({ result, onRetry, onContinueAnyway }: { result: a
 const PartialAnalysisDisplay = ({ result, onContinueWithPartial, onRetake }: { result: any, onContinueWithPartial: () => void, onRetake: () => void }) => (
   <View style={styles.partialAnalysisContainer}>
     <Check size={48} color={Colors.primary.success || '#10B981'} />
-    <Text style={styles.partialAnalysisTitle}>檢測成功，但分析不完整</Text>
-    <Text style={styles.partialAnalysisMessage}>{result.message}</Text>
-    
-    {result.detected_objects && result.detected_objects.length > 0 && (
-      <View style={styles.detectedObjectsContainer}>
-        <Text style={styles.detectedObjectsTitle}>檢測結果：</Text>
-        {result.detected_objects.map((obj: any, index: number) => (
-          <Text key={index} style={styles.detectedObjectItem}>
-            • {obj.class} (信心度: {(obj.confidence * 100).toFixed(1)}%)
-          </Text>
-        ))}
-      </View>
-    )}
+    <Text style={styles.partialAnalysisTitle}>Analysis Complete</Text>
+    <Text style={styles.partialAnalysisMessage}>
+      Basic analysis completed. You can continue recording or retake for a clearer photo
+    </Text>
     
     <Text style={styles.suggestionText}>{result.suggestion}</Text>
     
     <View style={styles.actionButtonsContainer}>
       <Button
-        title="使用基本結果繼續"
+        title="Use This Result"
         onPress={onContinueWithPartial}
         style={styles.continueBasicButton}
       />
       <Button
-        title="重新拍照"
+        title="Retake Photo"
         onPress={onRetake}
         variant="outline"
         style={styles.retakeButton}
@@ -490,7 +465,7 @@ export default function AnalyzeImageScreen() {
   
   const [isAnalyzing, setIsAnalyzing] = useState(true);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
-  const [analysisProgress, setAnalysisProgress] = useState('正在準備分析...');
+  const [analysisProgress, setAnalysisProgress] = useState('Preparing analysis...');
   
   const [predictedType, setPredictedType] = useState<number>(4);
   const [predictedVolume, setPredictedVolume] = useState<number>(2);
@@ -528,7 +503,7 @@ const analyzeImage = async (uri: string) => {
     setNonPoopDetectionResult(null);
     setLowConfidenceResult(null);
     setPartialAnalysisResult(null);
-    setAnalysisProgress('正在準備分析...');
+    setAnalysisProgress('Preparing analysis...');
     
     try {
       if (Platform.OS === 'web') {
@@ -576,7 +551,7 @@ const analyzeWithPoopAPI = async (imageUri: string) => {
     console.log('API URL: https://poop-api.onrender.com/analyze');
     console.log('Image URI:', imageUri);
     
-    setAnalysisProgress('正在連接AI服務器...');
+    setAnalysisProgress('Connecting to AI server...');
     
     // 圖片格式處理
     const getImageType = (uri: string) => {
@@ -614,12 +589,12 @@ const analyzeWithPoopAPI = async (imageUri: string) => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => {
       controller.abort();
-      setAnalysisProgress('請求超時，使用備用分析...');
+      setAnalysisProgress('Request timeout, using backup analysis...');
     }, 300000); // 5分鐘
 
     // 🔥 健康檢查（可選，不強制）
     try {
-      setAnalysisProgress('正在檢查服務器狀態...');
+      setAnalysisProgress('Checking server status...');
       
       const healthController = new AbortController();
       const healthTimeoutId = setTimeout(() => {
@@ -637,14 +612,14 @@ const analyzeWithPoopAPI = async (imageUri: string) => {
       if (healthCheck.ok) {
         const healthData = await healthCheck.json();
         console.log('Health check response:', healthData);
-        setAnalysisProgress('服務器已就緒，開始分析...');
+        setAnalysisProgress('Server ready, starting analysis...');
       } else {
         console.log('Health check failed but continuing anyway');
-        setAnalysisProgress('服務器響應異常，嘗試直接分析...');
+        setAnalysisProgress('Server response unusual, trying direct analysis...');
       }
     } catch (healthError) {
       console.log('Health check error (continuing anyway):', healthError);
-      setAnalysisProgress('跳過狀態檢查，直接開始分析...');
+      setAnalysisProgress('Skipping status check, starting analysis directly...');
     }
 
     
@@ -779,7 +754,7 @@ if (!response.ok) {
     if (__DEV__) {
       console.log('🔄 Service unavailable (503), using fallback');
     }
-    setAnalysisProgress('服務暫時不可用，使用備用分析...');
+    setAnalysisProgress('Service temporarily unavailable, using backup analysis...');
     throw new Error('Service temporarily unavailable');
   }
   
@@ -791,7 +766,7 @@ if (!response.ok) {
       const result = await response.json();
       console.log('✅ SUCCESS! API response:', result);
       
-      setAnalysisProgress('分析完成！正在處理結果...');
+      setAnalysisProgress('Analysis complete! Processing results...');
       processEnhancedPoopAPIResponse(result);
       
     } catch (fetchError: unknown) {
@@ -799,9 +774,9 @@ if (!response.ok) {
       console.error('❌ API請求失敗:', fetchError);
       
       if (fetchError instanceof Error && fetchError.name === 'AbortError') {
-        setAnalysisProgress('請求超時，使用備用分析...');
+        setAnalysisProgress('Request timeout, using general AI...');
       } else {
-        setAnalysisProgress('API請求失敗，使用備用分析...');
+        setAnalysisProgress('Request timeout, using general AI...');
       }
       
       throw fetchError;
@@ -811,7 +786,7 @@ if (!response.ok) {
     console.error('❌ Enhanced Poop API analysis error:', error);
   const enhancedMockAnalysis = async () => {
   try {
-    setAnalysisProgress('正在使用本地AI模型分析...');
+    setAnalysisProgress('Using local AI model for analysis...');
     
     // 模擬分析時間
     await new Promise(resolve => setTimeout(resolve, 2000));
@@ -908,18 +883,18 @@ if (!response.ok) {
     console.log('🔄 檢測到Render免費版資源限制，使用智能備用分析');
     
     // 🎯 使用更智能的備用分析，模擬真實的AI分析結果
-    setAnalysisProgress('資源限制，使用本地AI進行分析...');
+    setAnalysisProgress('Resource limit, using local AI for analysis...');
     await enhancedMockAnalysis();
     return;
   }
   
   // 其他錯誤處理...
   if (error instanceof TypeError && error.message.includes('fetch')) {
-    setAnalysisProgress('網絡連接失敗，正在使用離線AI...');
+    setAnalysisProgress('Switching to backup AI for analysis...');
   } else if (error instanceof Error && error.name === 'AbortError') {
-    setAnalysisProgress('請求超時，正在使用通用AI...');
+    setAnalysisProgress('Request timeout, using general AI...');
   } else {
-    setAnalysisProgress('切換到備用AI進行分析...');
+    setAnalysisProgress('Switching to backup AI for analysis...');
   }
     
     await mockAnalysisWithRealData();
@@ -1038,11 +1013,11 @@ function processEnhancedPoopAPIResponse(result: any) {
     setFoodInfluenceData(foodInfluenceInfo);
 
     // 生成分析詳情 - 增加安全檢查
-    let analysisText = `🎯 主要檢測類型: ${mainType}\n`;
+    let analysisText = `🎯 Main Detection Type: ${mainType}\n`;
 
     // 顏色分析結果
     if (colorAnalysis && colorAnalysis.summary && Object.keys(colorAnalysis.summary).length > 0) {
-      analysisText += `\n🎨 顏色分析結果:\n`;
+      analysisText += `\n🎨 Color Analysis Results:\n`;
       Object.entries(colorAnalysis.summary).forEach(([type, info]: [string, any]) => {
         if (info && info.color_name && info.health_status) {
           analysisText += `  • ${type}: ${info.color_name} (${info.health_status})\n`;
@@ -1052,15 +1027,15 @@ function processEnhancedPoopAPIResponse(result: any) {
 
     // 體積分析結果
     if (volumeAnalysis && volumeAnalysis.overall_volume_class) {
-      analysisText += `\n📏 體積分析: ${volumeAnalysis.overall_volume_class}\n`;
+      analysisText += `\n📏 Volume Analysis: ${volumeAnalysis.overall_volume_class}\n`;
     }
 
     // 食物影響提示
     if (foodInfluenceInfo && foodInfluenceInfo.likely_influenced) {
-      analysisText += `\n🍎 檢測到可能的食物影響:\n`;
-      analysisText += `  • 影響可能性: ${foodInfluenceInfo.likelihood || 'Unknown'}\n`;
+      analysisText += `\n🍎 Detected Possible Food Influence:\n`;
+      analysisText += `  • Influence Likelihood: ${foodInfluenceInfo.likelihood || 'Unknown'}\n`;
       if (foodInfluenceInfo.possible_foods && Array.isArray(foodInfluenceInfo.possible_foods)) {
-        analysisText += `  • 可能食物: ${foodInfluenceInfo.possible_foods.slice(0, 3).join('、')}等\n`;
+        analysisText += `  • Possible Foods: ${foodInfluenceInfo.possible_foods.slice(0, 3).join('、')}等\n`;
       }
     }
 
@@ -1280,11 +1255,11 @@ const getEnhancedVolumeAdvice = (volumeClass: string, volumeAnalysis: any): stri
   
   const mockAnalysis = () => {
     const steps = [
-      '正在準備分析...',
-      '正在載入AI模型...',
-      '正在處理圖片...',
-      '正在生成建議...',
-      '分析完成！'
+      'Preparing analysis...',
+      'Connecting to AI server...',
+      'Processing image...',
+      'Generating recommendations...',
+      'Analysis Complete！'
     ];
     
     let step = 0;
@@ -1344,7 +1319,7 @@ const handleRetake = async () => {
     // 請求相機權限
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('需要相機權限', '請在設置中允許使用相機');
+      Alert.alert('Camera Permission Required', 'Please allow camera access in settings');
       return;
     }
 
@@ -1366,7 +1341,7 @@ const handleRetake = async () => {
     }
   } catch (error) {
     console.error('重新拍照失敗:', error);
-    Alert.alert('錯誤', '無法啟動相機，請稍後重試');
+    Alert.alert('Error', 'Cannot launch camera, please try again later');
   }
 };
 
@@ -1375,7 +1350,7 @@ const handleSelectOther = async () => {
     // 請求相簿權限
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('需要相簿權限', '請在設置中允許訪問相簿');
+      Alert.alert('Photo Library Permission Required', 'Please allow photo library access in settings');
       return;
     }
 
@@ -1397,7 +1372,7 @@ const handleSelectOther = async () => {
     }
   } catch (error) {
     console.error('選擇照片失敗:', error);
-    Alert.alert('錯誤', '無法打開相簿，請稍後重試');
+    Alert.alert('Error', 'Cannot open photo library, please try again later');
   }
 };
 
@@ -1408,7 +1383,7 @@ const handleContinueWithLowConfidence = (result: any) => {
     // 增加安全檢查
     if (!result) {
       console.error('沒有提供結果給 handleContinueWithLowConfidence');
-      setAnalysisError('無法處理檢測結果');
+      setAnalysisError('Cannot process detection results');
       return;
     }
 
@@ -1419,7 +1394,7 @@ const handleContinueWithLowConfidence = (result: any) => {
       // 驗證檢測結果
       if (!detection) {
         console.warn('檢測結果為空');
-        setAnalysisError('檢測結果無效');
+        setAnalysisError('Detection results invalid');
         return;
       }
       
@@ -1446,7 +1421,7 @@ const handleContinueWithLowConfidence = (result: any) => {
         },
         health_alerts: [],
         food_influence_summary: {},
-        overall_color_health: '檢測信心度不足，建議重新拍攝'
+        overall_color_health: 'Photo Needs Improvement，建議重新拍攝'
       });
       setVolumeAnalysis({ overall_volume_class: 'Medium' });
       setHealthAlerts([]);
@@ -1462,7 +1437,7 @@ const handleContinueWithLowConfidence = (result: any) => {
     }
   } catch (error) {
     console.error('處理低信心度結果時出錯:', error);
-    setAnalysisError('處理檢測結果時發生錯誤');
+    setAnalysisError('Error occurred while processing detection results');
     setIsAnalyzing(false);
   }
 };
@@ -1474,7 +1449,7 @@ const handleContinueWithPartial = () => {
     // 增加安全檢查
     if (!partialAnalysisResult) {
       console.error('沒有部分分析結果可用');
-      setAnalysisError('無法處理部分分析結果');
+      setAnalysisError('Cannot process partial analysis results');
       return;
     }
 
@@ -1544,12 +1519,12 @@ const renderContent = () => {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={Colors.primary.accent} />
-        <Text style={styles.loadingText}>AI分析中...</Text>
+        <Text style={styles.loadingText}>AI Analysis in Progress...</Text>
         <Text style={styles.loadingSubtext}>{analysisProgress}</Text>
         <View style={styles.progressBar}>
           <View style={[styles.progressFill, { width: '60%' }]} />
         </View>
-        <Text style={styles.estimateText}>預計剩餘時間: 30-60秒</Text>
+        <Text style={styles.estimateText}>Estimated remaining time: 30-60 seconds</Text>
       </View>
     );
   }
@@ -1592,9 +1567,9 @@ const renderContent = () => {
     return (
       <View style={styles.errorContainer}>
         <AlertCircle size={48} color={Colors.primary.error} />
-        <Text style={styles.errorTitle}>分析失敗</Text>
+        <Text style={styles.errorTitle}>Analysis Failed</Text>
         <Text style={styles.errorText}>{analysisError}</Text>
-        <Button title="重新分析" onPress={handleRetry} style={styles.retryButton} />
+        <Button title="Retry Analysis" onPress={handleRetry} style={styles.retryButton} />
       </View>
     );
   }
@@ -1613,16 +1588,16 @@ const renderContent = () => {
       <View style={styles.resultContainer}>
         <View style={styles.resultHeader}>
           <FileText size={20} color={Colors.primary.accent} />
-          <Text style={styles.resultTitle}>AI健康分析結果</Text>
+          <Text style={styles.resultTitle}>AI Health Analysis Results</Text>
         </View>
         <Text style={styles.resultDescription}>
-          根據AI模型分析，以下為您的便便健康狀態與建議：
+          Based on AI model analysis, here is your poop health status and recommendations:
         </Text>
 
         {/* 分析詳情 */}
         {analysisDetails && (
           <View style={styles.analysisDetails}>
-            <Text style={styles.analysisTitle}>分析詳情</Text>
+            <Text style={styles.analysisTitle}>Analysis Details</Text>
             <Text style={styles.analysisText}>{analysisDetails}</Text>
           </View>
         )}
@@ -1698,8 +1673,8 @@ return (
   <View style={styles.container}>
     <Stack.Screen 
       options={{ 
-        title: 'AI健康分析',
-        headerBackTitle: '取消',
+        title:'AI Health Analysis',
+        headerBackTitle: 'Cancel',
       }} 
     />
     <ScrollView contentContainerStyle={styles.content}>
