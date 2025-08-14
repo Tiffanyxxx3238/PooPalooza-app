@@ -14,6 +14,7 @@ export default function LoginScreen() {
   
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('');
   const [isLogin, setIsLogin] = useState(true);
   const [isAppleSignInAvailable, setIsAppleSignInAvailable] = useState(false);
   
@@ -31,12 +32,90 @@ export default function LoginScreen() {
     }
   };
   
-  const handleAuth = () => {
-    // In a real app, you would authenticate with a backend
-    // For now, we'll just simulate a successful login
-    setUserInfo(username || 'Guest User', 'user@example.com');
-    router.replace('/(tabs)');
-  };
+const handleLogin = async () => {
+  if (!username || !password) {
+    alert('All fields are required');
+    return;
+  }
+
+  const url = 'http://192.168.0.196:5001/login';
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      const errorText = await response.text();
+      console.error('Non-JSON response:', errorText);
+      alert('Server error. Please try again later.');
+      return;
+    }
+
+    const data = await response.json();
+
+    if (response.ok) {
+      // ✅ 儲存 user_id、username、email
+      useUserStore.getState().setUserInfo(
+        data.user_id,
+        data.username,
+        data.email || null
+      );
+      console.log('✅ User logged in:', username);
+      alert('Login successful!');
+      router.replace('/(tabs)');
+    } else {
+      alert(data.message || 'Login failed');
+    }
+  } catch (error) {
+    console.error('Login error:', error);
+    alert('Login error');
+  }
+};
+
+const handleRegister = async () => {
+  if (!username || !password) {
+    alert('All fields are required');
+    return;
+  }
+
+  try {
+    const response = await fetch('http://192.168.0.196:5001/register', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        username,
+        password,
+        email,
+      }),
+    });
+
+    // 🚨 檢查回傳是不是 JSON 格式
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      const errorText = await response.text(); // 把錯誤的 HTML 印出來
+      console.error('Non-JSON response:', errorText);
+      alert('Server error. Please try again later.');
+      return;
+    }
+    const data = await response.json();
+
+    if (response.ok) {
+      alert('Registration successful!');
+      router.replace('/(tabs)');  // or navigate to login screen
+    } else {
+      alert(data.message || 'Registration failed');
+    }
+  } catch (error) {
+    console.error('Registration error:', error);
+    alert('Something went wrong. Please try again.');
+  }
+};
   
   const handleGoogleSignIn = () => {
     // In a real app, you would implement Google Sign In
@@ -125,15 +204,23 @@ export default function LoginScreen() {
               />
             </View>
             
-            {isLogin && (
-              <TouchableOpacity style={styles.forgotPassword}>
-                <Text style={styles.forgotPasswordText}>Forgot password?</Text>
-              </TouchableOpacity>
+            {!isLogin && (
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Email</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter your email"
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
+              </View>
             )}
             
             <Button
               title={isLogin ? 'Log In' : 'Sign Up'}
-              onPress={handleAuth}
+              onPress={isLogin ? handleLogin : handleRegister}
               style={styles.authButton}
             />
             

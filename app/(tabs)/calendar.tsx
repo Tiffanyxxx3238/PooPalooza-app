@@ -1,10 +1,10 @@
-// app/(tabs)/calendar.tsx - 改為成就徽章頁面
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, ScrollView } from 'react-native';
+// app/(tabs)/calendar.tsx - 成就徽章頁面
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, ScrollView, Alert } from 'react-native';
 import Colors from '@/constants/colors';
 import { usePoopStore } from '@/store/poopStore';
 
-interface Calendar {
+interface Achievement {
   id: string;
   title: string;
   description: string;
@@ -16,9 +16,64 @@ interface Calendar {
   color: string;
 }
 
+interface Challenge {
+  id: string;
+  title: string;
+  description: string;
+  icon: string;
+  color: string;
+  difficulty: 'Easy' | 'Medium' | 'Hard';
+  isActive: boolean;
+  startDate?: string;
+  endDate?: string;
+  progress: number;
+  maxProgress: number;
+}
+
 export default function CalendarScreen() {
   const { entries } = usePoopStore();
   const [selectedTab, setSelectedTab] = useState<'achievements' | 'challenges'>('achievements');
+  const [activeChallenges, setActiveChallenges] = useState<Challenge[]>([]);
+
+  // 初始化挑戰
+  useEffect(() => {
+    const initialChallenges: Challenge[] = [
+      {
+        id: '1',
+        title: '7-Day Hydration Challenge',
+        description: 'Drink 8 glasses of water daily for a week',
+        icon: '💧',
+        color: '#2196F3',
+        difficulty: 'Easy',
+        isActive: false,
+        progress: 0,
+        maxProgress: 7
+      },
+      {
+        id: '2',
+        title: 'Fiber Focus Week',
+        description: 'Include fiber-rich foods in every meal',
+        icon: '🥬',
+        color: '#4CAF50',
+        difficulty: 'Medium',
+        isActive: false,
+        progress: 0,
+        maxProgress: 7
+      },
+      {
+        id: '3',
+        title: 'Mindful Bathroom Breaks',
+        description: 'Practice relaxation during bathroom visits',
+        icon: '🧘',
+        color: '#9C27B0',
+        difficulty: 'Easy',
+        isActive: false,
+        progress: 0,
+        maxProgress: 5
+      }
+    ];
+    setActiveChallenges(initialChallenges);
+  }, []);
 
   // 計算成就進度
   const calculateAchievements = (): Achievement[] => {
@@ -29,6 +84,39 @@ export default function CalendarScreen() {
       const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
       return entryDate >= weekAgo;
     }).length;
+
+    // 計算連續天數
+    const calculateStreak = (): number => {
+      if (entries.length === 0) return 0;
+      
+      const sortedEntries = entries
+        .map(entry => new Date(entry.date).toDateString())
+        .filter((date, index, array) => array.indexOf(date) === index) // 去重複
+        .sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+
+      let streak = 1;
+      const today = new Date().toDateString();
+      
+      if (sortedEntries[0] !== today && 
+          sortedEntries[0] !== new Date(Date.now() - 24 * 60 * 60 * 1000).toDateString()) {
+        return 0; // 如果最新記錄不是今天或昨天，連續天數為0
+      }
+
+      for (let i = 1; i < sortedEntries.length; i++) {
+        const currentDate = new Date(sortedEntries[i]);
+        const previousDate = new Date(sortedEntries[i - 1]);
+        const diffInDays = (previousDate.getTime() - currentDate.getTime()) / (24 * 60 * 60 * 1000);
+        
+        if (diffInDays === 1) {
+          streak++;
+        } else {
+          break;
+        }
+      }
+      return streak;
+    };
+
+    const currentStreak = calculateStreak();
 
     return [
       {
@@ -42,7 +130,7 @@ export default function CalendarScreen() {
       },
       {
         id: '2',
-        title: 'Healthy Week',
+        title: 'Week Warrior',
         description: 'Track your bathroom visits for 7 days',
         icon: '📅',
         isUnlocked: thisWeek >= 7,
@@ -53,6 +141,17 @@ export default function CalendarScreen() {
       },
       {
         id: '3',
+        title: 'Consistency Champion',
+        description: 'Maintain a 3-day streak',
+        icon: '🔥',
+        isUnlocked: currentStreak >= 3,
+        progress: Math.min(currentStreak, 3),
+        maxProgress: 3,
+        category: 'streak',
+        color: '#FF5722'
+      },
+      {
+        id: '4',
         title: 'Poop Tracker Pro',
         description: 'Record 10 entries in total',
         icon: '🏆',
@@ -63,9 +162,9 @@ export default function CalendarScreen() {
         color: '#FF9800'
       },
       {
-        id: '4',
+        id: '5',
         title: 'Consistency King',
-        description: 'Maintain regular bathroom habits',
+        description: 'Maintain regular bathroom habits (20 entries)',
         icon: '👑',
         isUnlocked: totalEntries >= 20,
         progress: Math.min(totalEntries, 20),
@@ -74,26 +173,37 @@ export default function CalendarScreen() {
         color: '#9C27B0'
       },
       {
-        id: '5',
+        id: '6',
         title: 'Health Guardian',
-        description: 'Track for 30 days',
+        description: 'Track for 30 entries',
         icon: '🛡️',
-        isUnlocked: false,
+        isUnlocked: totalEntries >= 30,
         progress: Math.min(totalEntries, 30),
         maxProgress: 30,
         category: 'special',
         color: '#607D8B'
       },
       {
-        id: '6',
+        id: '7',
         title: 'Bathroom Master',
         description: 'Complete 50 entries',
         icon: '🎯',
-        isUnlocked: false,
+        isUnlocked: totalEntries >= 50,
         progress: Math.min(totalEntries, 50),
         maxProgress: 50,
         category: 'milestone',
         color: '#795548'
+      },
+      {
+        id: '8',
+        title: 'Week Streak Master',
+        description: 'Maintain a 7-day streak',
+        icon: '⚡',
+        isUnlocked: currentStreak >= 7,
+        progress: Math.min(currentStreak, 7),
+        maxProgress: 7,
+        category: 'streak',
+        color: '#FFC107'
       }
     ];
   };
@@ -101,32 +211,85 @@ export default function CalendarScreen() {
   const achievements = calculateAchievements();
   const unlockedCount = achievements.filter(a => a.isUnlocked).length;
 
-  const challenges = [
-    {
-      id: '1',
-      title: '7-Day Hydration Challenge',
-      description: 'Drink 8 glasses of water daily for a week',
-      icon: '💧',
-      color: '#2196F3',
-      difficulty: 'Easy'
-    },
-    {
-      id: '2',
-      title: 'Fiber Focus Week',
-      description: 'Include fiber-rich foods in every meal',
-      icon: '🥬',
-      color: '#4CAF50',
-      difficulty: 'Medium'
-    },
-    {
-      id: '3',
-      title: 'Mindful Bathroom Breaks',
-      description: 'Practice relaxation during bathroom visits',
-      icon: '🧘',
-      color: '#9C27B0',
-      difficulty: 'Easy'
-    }
-  ];
+  // 開始挑戰
+  const startChallenge = (challengeId: string) => {
+    Alert.alert(
+      'Start Challenge',
+      'Are you ready to begin this challenge?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Start',
+          onPress: () => {
+            setActiveChallenges(prev => 
+              prev.map(challenge => 
+                challenge.id === challengeId 
+                  ? { 
+                      ...challenge, 
+                      isActive: true, 
+                      startDate: new Date().toISOString(),
+                      endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // 7天後
+                    }
+                  : challenge
+              )
+            );
+            Alert.alert('Challenge Started!', 'Good luck with your challenge!');
+          },
+        },
+      ]
+    );
+  };
+
+  // 更新挑戰進度
+  const updateChallengeProgress = (challengeId: string) => {
+    setActiveChallenges(prev => 
+      prev.map(challenge => 
+        challenge.id === challengeId && challenge.isActive
+          ? { 
+              ...challenge, 
+              progress: Math.min(challenge.progress + 1, challenge.maxProgress)
+            }
+          : challenge
+      )
+    );
+    Alert.alert('Progress Updated!', 'Keep going! 💪');
+  };
+
+  // 重置挑戰
+  const resetChallenge = (challengeId: string) => {
+    Alert.alert(
+      'Reset Challenge',
+      'Are you sure you want to reset this challenge?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Reset',
+          style: 'destructive',
+          onPress: () => {
+            setActiveChallenges(prev => 
+              prev.map(challenge => 
+                challenge.id === challengeId 
+                  ? { 
+                      ...challenge, 
+                      isActive: false, 
+                      progress: 0,
+                      startDate: undefined,
+                      endDate: undefined
+                    }
+                  : challenge
+              )
+            );
+          },
+        },
+      ]
+    );
+  };
 
   const renderAchievement = ({ item }: { item: Achievement }) => (
     <View style={[
@@ -178,7 +341,7 @@ export default function CalendarScreen() {
     </View>
   );
 
-  const renderChallenge = ({ item }: { item: any }) => (
+  const renderChallenge = ({ item }: { item: Challenge }) => (
     <View style={[styles.challengeCard, { backgroundColor: item.color + '20' }]}>
       <View style={[styles.challengeIcon, { backgroundColor: item.color }]}>
         <Text style={styles.challengeEmoji}>{item.icon}</Text>
@@ -193,9 +356,54 @@ export default function CalendarScreen() {
         </View>
         <Text style={styles.challengeDescription}>{item.description}</Text>
         
-        <TouchableOpacity style={[styles.startButton, { backgroundColor: item.color }]}>
-          <Text style={styles.startButtonText}>Start Challenge</Text>
-        </TouchableOpacity>
+        {item.isActive && (
+          <View style={styles.challengeProgressContainer}>
+            <View style={styles.challengeProgressBar}>
+              <View 
+                style={[
+                  styles.challengeProgressFill,
+                  { 
+                    width: `${(item.progress / item.maxProgress) * 100}%`,
+                    backgroundColor: item.color
+                  }
+                ]} 
+              />
+            </View>
+            <Text style={styles.challengeProgressText}>
+              {item.progress}/{item.maxProgress} days
+            </Text>
+          </View>
+        )}
+        
+        <View style={styles.challengeButtons}>
+          {!item.isActive ? (
+            <TouchableOpacity 
+              style={[styles.startButton, { backgroundColor: item.color }]}
+              onPress={() => startChallenge(item.id)}
+            >
+              <Text style={styles.startButtonText}>Start Challenge</Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.activeButtons}>
+              <TouchableOpacity 
+                style={[styles.updateButton, { backgroundColor: item.color }]}
+                onPress={() => updateChallengeProgress(item.id)}
+                disabled={item.progress >= item.maxProgress}
+              >
+                <Text style={styles.updateButtonText}>
+                  {item.progress >= item.maxProgress ? 'Complete!' : '+1 Day'}
+                </Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.resetButton}
+                onPress={() => resetChallenge(item.id)}
+              >
+                <Text style={styles.resetButtonText}>Reset</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
       </View>
     </View>
   );
@@ -287,10 +495,19 @@ export default function CalendarScreen() {
               </Text>
             </View>
 
+            {/* Active Challenges Count */}
+            {activeChallenges.filter(c => c.isActive).length > 0 && (
+              <View style={styles.activeChallengesInfo}>
+                <Text style={styles.activeChallengesText}>
+                  🔥 {activeChallenges.filter(c => c.isActive).length} active challenge(s)
+                </Text>
+              </View>
+            )}
+
             {/* Challenges List */}
             <View style={styles.section}>
               <FlatList
-                data={challenges}
+                data={activeChallenges}
                 keyExtractor={(item) => item.id}
                 renderItem={renderChallenge}
                 scrollEnabled={false}
@@ -499,6 +716,18 @@ const styles = StyleSheet.create({
     color: Colors.primary.lightText,
     textAlign: 'center',
   },
+  activeChallengesInfo: {
+    backgroundColor: Colors.primary.accent + '20',
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 16,
+    alignItems: 'center',
+  },
+  activeChallengesText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: Colors.primary.accent,
+  },
   challengesList: {
     gap: 16,
   },
@@ -555,6 +784,31 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 16,
   },
+  challengeProgressContainer: {
+    width: '100%',
+    marginBottom: 16,
+  },
+  challengeProgressBar: {
+    width: '100%',
+    height: 8,
+    backgroundColor: Colors.primary.lightBackground,
+    borderRadius: 4,
+    marginBottom: 8,
+  },
+  challengeProgressFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  challengeProgressText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: Colors.primary.text,
+    textAlign: 'center',
+  },
+  challengeButtons: {
+    width: '100%',
+    alignItems: 'center',
+  },
   startButton: {
     paddingHorizontal: 24,
     paddingVertical: 12,
@@ -564,5 +818,38 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     color: '#FFFFFF',
+  },
+  activeButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+    justifyContent: 'center',
+  },
+  updateButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    flex: 1,
+    maxWidth: 120,
+  },
+  updateButtonText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    textAlign: 'center',
+  },
+  resetButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: '#FF5722',
+    flex: 1,
+    maxWidth: 80,
+  },
+  resetButtonText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    textAlign: 'center',
   },
 });

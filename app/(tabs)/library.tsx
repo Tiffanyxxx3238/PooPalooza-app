@@ -172,7 +172,10 @@ export default function LibraryScreen() {
   };
   
   const handleAddNew = () => {
-    router.push('/add-entry');
+    router.push({
+      pathname: '/add-entry',
+      params: { date: selectedDate.toISOString() },
+    });
   };
   
   const toggleShowImages = () => {

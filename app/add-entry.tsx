@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, Platform } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { usePoopStore } from '@/store/poopStore';
+import { useUserStore } from '@/store/userStore'; 
 import Colors from '@/constants/colors';
 import Button from '@/components/Button';
 import PoopTypeSelector from '@/components/PoopTypeSelector';
@@ -21,8 +22,10 @@ export default function AddEntryScreen() {
     analysisDetails?: string,
     recommendations?: string
   }>();
+  const { user_id } = useUserStore.getState();
+  console.log('🧠 DEBUG user:', user_id); // 加上這行確認 user 是不是 undefined
   const { addEntry, stopTimer, currentTimer, resetTimer } = usePoopStore();
-  
+  const entryDate = params.date ? new Date(params.date) : new Date();
   const [name, setName] = useState(`${getTimeOfDay()} Poop`);
   const [type, setType] = useState(params.type ? parseInt(params.type) : 4);
   const [volume, setVolume] = useState(params.volume ? parseInt(params.volume) : 2);
@@ -87,26 +90,101 @@ export default function AddEntryScreen() {
     saveEntry();
   };
   
-  const saveEntry = () => {
-    const newEntry = {
-      id: Date.now().toString(),
-      date: new Date().toISOString(),
-      name: name,
-      type,
-      volume,
-      feeling,
-      color,
-      duration,
-      notes,
-      imageUri: params.imageUri,
-      analysisDetails: analysisDetails,
-      recommendations: recommendations
+const saveEntry = async () => {
+  if (!user_id) {
+    alert('You must be logged in to save.');
+    return;
+  }
+
+  try {
+    const payload = {
+      user_id: user_id, // ← ✅ 確保有傳
+      record_time: entryDate.toISOString(),
+      color: color.toString(),
+      consistency: feeling.toString(),
+      volume: volume.toString(),
+      odor: '',
+      has_blood: false,
+      has_mucus: false,
+      image_url: params.imageUri || '',
+      ai_poop_type: type.toString(),
+      ai_poop_color: color.toString(),
+      ai_poop_volume: volume.toString(),
+      ai_diagnosis_summary: analysisDetails,
+      health_recommendations: recommendations,
+      health_indicators: ''
     };
-    
-    addEntry(newEntry);
-    resetTimer();
-    router.replace('/(tabs)');
-  };
+
+    console.log('🚀 Submitting payload:', payload); // debug 用
+
+    const response = await fetch('http://192.168.0.196:5001/poop-records', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      const errorText = await response.text();
+      console.error('Non-JSON response:', errorText);
+      alert('Server error. Please try again later.');
+      return;
+    }
+
+    const result = await response.json();
+    console.log('✅ Record saved:', result);
+
+    if (response.ok) {
+      console.log('✅ Record saved:', result);
+
+      // ✅ 用後端回傳的 result 更新 Zustand entries
+      addEntry({
+        ...payload,
+        ...result, // 使用後端實際回傳的資料
+        record_time: result.record_time || payload.record_time, // 保底
+      });
+      // ✅ ➕ 接著儲存分析結果
+    await saveAnalysisResult(result.id); // 假設後端有回傳 poop record 的 id
+
+  resetTimer();
+  router.replace('/(tabs)');
+}
+  } catch (error) {
+    console.error('❌ Failed to save poop record:', error);
+    alert('Failed to save poop record. Please try again later.');
+  }
+};
+
+const saveAnalysisResult = async (record_id: number) => {
+  try {
+    const response = await fetch('http://192.168.0.196:5001/analysis_results', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        user_id: user_id,
+        record_id: record_id,  // 從上面儲存 poop record 後得到的 id
+        ai_diagnosis: analysisDetails,
+        health_score: null,
+        recommendations: recommendations
+      })
+    });
+
+    const result = await response.json();
+    if (!response.ok) {
+      console.error('❌ 儲存分析失敗:', result.error);
+      return;
+    }
+
+    console.log('✅ 分析結果儲存成功:', result);
+
+  } catch (error) {
+    console.error('❌ 儲存分析結果失敗:', error);
+  }
+};
   
   const handleCancel = () => {
     router.back();
@@ -125,6 +203,11 @@ export default function AddEntryScreen() {
         }}
       />
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+        <View style={{ marginBottom: 12 }}>
+        <Text style={{ fontSize: 16, fontWeight: '600' }}>
+          Adding record for: {entryDate.toDateString()}
+        </Text>
+      </View>
         {params.imageUri && (
           <View style={styles.imageContainer}>
             <Image

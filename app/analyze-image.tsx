@@ -11,6 +11,7 @@ import { FileText, Check, AlertCircle, Globe } from 'lucide-react-native';
 import * as FileSystem from 'expo-file-system';
 import { Platform } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+
 // Component to display structured recommendations
 const RecommendationDisplay = ({ recommendations, bristolType, isEnglish }: { recommendations: string, bristolType: number, isEnglish: boolean }) => {
   // Get color scheme based on Bristol type
