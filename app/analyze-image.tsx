@@ -218,6 +218,7 @@ const EnhancedColorAnalysisDisplay = ({ colorAnalysis }: { colorAnalysis: any })
     </View>
   );
 };
+
 // 🎨 增強版顏色選擇器
 const EnhancedPoopColorSelector = ({ 
   selectedColor, 
@@ -353,50 +354,104 @@ const ColorHealthAlerts = ({ healthAlerts }: { healthAlerts: any[] }) => {
     </View>
   );
 };
-const NonPoopDetectionDisplay = ({ result, onRetake, onSelectOther }: { result: any, onRetake: () => void, onSelectOther: () => void }) => (
-  <View style={styles.nonPoopContainer}>
-    <AlertCircle size={48} color={Colors.primary.warning || '#F59E0B'} />
-    <Text style={styles.nonPoopTitle}>No Poop Detected</Text>
-    <Text style={styles.nonPoopMessage}>
-      This photo may not be a poop image, or the photo quality needs improvement
-    </Text>
-    
-    {/* 🔥 新增：顯示基本顏色分析（如果有的話） */}
-    {result.basic_color_info && (
-      <View style={styles.basicColorAnalysisContainer}>
-        <Text style={styles.basicColorAnalysisTitle}>🎨 Basic Color Analysis</Text>
-        <View style={styles.colorInfoRow}>
-          <View 
-            style={[
-              styles.colorPreview,
-              { backgroundColor: result.basic_color_info.hex_color }
-            ]} 
-          />
-          <View style={styles.colorInfoText}>
-            <Text style={styles.basicColorName}>{result.basic_color_info.color_name}</Text>
-            <Text style={styles.basicColorNote}>{result.basic_color_info.note}</Text>
+
+const SmartNonPoopDetectionDisplay = ({ result, onRetake, onSelectOther }: { 
+  result: any, 
+  onRetake: () => void, 
+  onSelectOther: () => void 
+}) => {
+  const getDisplayContent = () => {
+    switch (result.type) {
+      case 'no_objects':
+        return {
+          icon: '🔍',
+          title: '未檢測到物體',
+          message: result.message,
+          suggestion: result.suggestion,
+          color: '#F59E0B'
+        };
+        
+      case 'wrong_objects':
+        return {
+          icon: '🚫',
+          title: '檢測到其他物體',
+          message: result.message,
+          suggestion: result.suggestion,
+          color: '#EF4444'
+        };
+        
+      default:
+        return {
+          icon: '❓',
+          title: '無法識別',
+          message: result.message,
+          suggestion: result.suggestion,
+          color: '#6B7280'
+        };
+    }
+  };
+  
+  const displayContent = getDisplayContent();
+  
+  return (
+    <View style={[styles.nonPoopContainer, { borderColor: displayContent.color }]}>
+      <Text style={{ fontSize: 48 }}>{displayContent.icon}</Text>
+      <Text style={[styles.nonPoopTitle, { color: displayContent.color }]}>
+        {displayContent.title}
+      </Text>
+      <Text style={styles.nonPoopMessage}>
+        {displayContent.message}
+      </Text>
+      
+      {/* 顯示檢測到的物體 */}
+      {result.detected_objects && result.detected_objects.length > 0 && (
+        <View style={styles.detectedObjectsContainer}>
+          <Text style={styles.detectedObjectsTitle}>檢測到的物體：</Text>
+          {result.detected_objects.slice(0, 3).map((obj: any, index: number) => (
+            <Text key={index} style={styles.detectedObjectItem}>
+              • {obj.class} ({(obj.confidence * 100).toFixed(1)}%)
+            </Text>
+          ))}
+        </View>
+      )}
+      
+      {/* 基本顏色分析 */}
+      {result.basic_color_info && (
+        <View style={styles.basicColorAnalysisContainer}>
+          <Text style={styles.basicColorAnalysisTitle}>🎨 基本顏色分析</Text>
+          <View style={styles.colorInfoRow}>
+            <View 
+              style={[
+                styles.colorPreview,
+                { backgroundColor: result.basic_color_info.hex_color }
+              ]} 
+            />
+            <View style={styles.colorInfoText}>
+              <Text style={styles.basicColorName}>{result.basic_color_info.color_name}</Text>
+              <Text style={styles.basicColorNote}>{result.basic_color_info.note}</Text>
+            </View>
           </View>
         </View>
+      )}
+      
+      <Text style={styles.suggestionText}>{displayContent.suggestion}</Text>
+      
+      <View style={styles.actionButtonsContainer}>
+        <Button
+          title="重新拍照"
+          onPress={onRetake}
+          style={styles.retakeButton}
+        />
+        <Button
+          title="選擇其他照片"
+          onPress={onSelectOther}
+          variant="outline"
+          style={styles.selectOtherButton}
+        />
       </View>
-    )}
-    
-    <Text style={styles.suggestionText}>{result.suggestion}</Text>
-    
-    <View style={styles.actionButtonsContainer}>
-      <Button
-        title="Retake Photo"
-        onPress={onRetake}
-        style={styles.retakeButton}
-      />
-      <Button
-        title="Choose Another Photo"
-        onPress={onSelectOther}
-        variant="outline"
-        style={styles.selectOtherButton}
-      />
     </View>
-  </View>
-);
+  );
+};
 
 // 🔥 新增：低信心度結果顯示組件
 const LowConfidenceDisplay = ({ result, onRetry, onContinueAnyway }: { result: any, onRetry: () => void, onContinueAnyway: () => void }) => (
@@ -459,333 +514,26 @@ const PartialAnalysisDisplay = ({ result, onContinueWithPartial, onRetake }: { r
     </View>
   </View>
 );
-export default function AnalyzeImageScreen() {
-  const router = useRouter();
-  const params = useLocalSearchParams<{ imageUri: string }>();
-  const [imageUri, setImageUri] = useState<string | null>(null);
-  
-  const [isAnalyzing, setIsAnalyzing] = useState(true);
-  const [analysisError, setAnalysisError] = useState<string | null>(null);
-  const [analysisProgress, setAnalysisProgress] = useState('Preparing analysis...');
-  
-  const [predictedType, setPredictedType] = useState<number>(4);
-  const [predictedVolume, setPredictedVolume] = useState<number>(2);
-  const [predictedColor, setPredictedColor] = useState<number>(1);
-  
-  const [selectedType, setSelectedType] = useState<number>(4);
-  const [selectedVolume, setSelectedVolume] = useState<number>(2);
-  const [selectedColor, setSelectedColor] = useState<number>(1);
-  
-  const [analysisDetails, setAnalysisDetails] = useState<string>('');
-  const [recommendations, setRecommendations] = useState<string>('');
-  const [isEnglish, setIsEnglish] = useState<boolean>(false);
-  
-  // 新增狀態：增強分析數據
-  const [colorAnalysis, setColorAnalysis] = useState<any>(null);
-  const [volumeAnalysis, setVolumeAnalysis] = useState<any>(null);
-  const [healthAlerts, setHealthAlerts] = useState<any[]>([]);
-  const [foodInfluenceData, setFoodInfluenceData] = useState<any>(null);
-
-  // 🔥 新增：錯誤處理相關狀態
-  const [nonPoopDetectionResult, setNonPoopDetectionResult] = useState<any>(null);
-  const [lowConfidenceResult, setLowConfidenceResult] = useState<any>(null);
-  const [partialAnalysisResult, setPartialAnalysisResult] = useState<any>(null);
-
-  useEffect(() => {
-    if (params.imageUri) {
-      setImageUri(params.imageUri);
-      analyzeImage(params.imageUri);
-    }
-  }, [params.imageUri]);
-const analyzeImage = async (uri: string) => {
-    setIsAnalyzing(true);
-    setAnalysisError(null);
-    // 🔥 修復：確保清除所有錯誤狀態
-    setNonPoopDetectionResult(null);
-    setLowConfidenceResult(null);
-    setPartialAnalysisResult(null);
-    setAnalysisProgress('Preparing analysis...');
-    
-    try {
-      if (Platform.OS === 'web') {
-        mockAnalysis();
-        return;
-      }
-      
-      await analyzeWithPoopAPI(uri);
-      
-    } catch (error) {
-      console.error('Analysis error:', error);
-      setAnalysisError('Failed to analyze the image');
-      setIsAnalyzing(false);
-    }
-  };
-
-  // 🔥 新增：處理結構化錯誤的函數
-  const handleStructuredError = (errorResponse: any) => {
-    console.log('📋 Handling structured error:', errorResponse);
-    
-    // 設置分析完成狀態（錯誤也算是一種"完成"）
-    setIsAnalyzing(false);
-    
-    // 根據錯誤類型顯示不同的UI
-    if (errorResponse.error === "No poop detected") {
-      // 顯示檢測到的其他物件
-      setAnalysisError(null); // 清除通用錯誤
-      setNonPoopDetectionResult(errorResponse); // 新的狀態
-    } else if (errorResponse.error === "Low confidence detection") {
-      // 顯示信心度問題
-      setAnalysisError(null);
-      setLowConfidenceResult(errorResponse);
-    } else if (errorResponse.error === "Cannot perform detailed analysis") {
-      // 顯示部分分析結果
-      setAnalysisError(null);
-      setPartialAnalysisResult(errorResponse);
-    } else {
-      // 其他錯誤使用通用處理
-      setAnalysisError(errorResponse.message || errorResponse.error);
-    }
-  };
-const analyzeWithPoopAPI = async (imageUri: string) => {
-  try {
-    console.log('Calling enhanced poop-api for analysis...');
-    console.log('API URL: https://poop-api.onrender.com/analyze');
-    console.log('Image URI:', imageUri);
-    
-    setAnalysisProgress('Connecting to AI server...');
-    
-    // 圖片格式處理
-    const getImageType = (uri: string) => {
-      if (uri.toLowerCase().includes('.png')) {
-        return 'image/png';
-      } else if (uri.toLowerCase().includes('.jpg') || uri.toLowerCase().includes('.jpeg')) {
-        return 'image/jpeg';
-      } else {
-        return 'image/jpeg';
-      }
-    };
-
-    const getFileName = (uri: string) => {
-      if (uri.toLowerCase().includes('.png')) {
-        return 'poop_image.png';
-      } else {
-        return 'poop_image.jpg';
-      }
-    };
-
-    const imageType = getImageType(imageUri);
-    const fileName = getFileName(imageUri);
-    
-    console.log(`🔍 Detected image type: ${imageType}, filename: ${fileName}`);
-    
-    const formData = new FormData();
-    formData.append('image', {
-      uri: imageUri,
-      type: imageType,
-      name: fileName
-    } as any);
-    
-    console.log('📤 準備上傳圖片到API...');
-    
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => {
-      controller.abort();
-      setAnalysisProgress('Request timeout, using backup analysis...');
-    }, 300000); // 5分鐘
-
-    // 🔥 健康檢查（可選，不強制）
-    try {
-      setAnalysisProgress('Checking server status...');
-      
-      const healthController = new AbortController();
-      const healthTimeoutId = setTimeout(() => {
-        healthController.abort();
-      }, 30000); // 30秒
-      
-      const healthCheck = await fetch('https://poop-api.onrender.com/', {
-        method: 'GET',
-        signal: healthController.signal
-      });
-      
-      clearTimeout(healthTimeoutId);
-      
-      console.log('Health check status:', healthCheck.status);
-      if (healthCheck.ok) {
-        const healthData = await healthCheck.json();
-        console.log('Health check response:', healthData);
-        setAnalysisProgress('Server ready, starting analysis...');
-      } else {
-        console.log('Health check failed but continuing anyway');
-        setAnalysisProgress('Server response unusual, trying direct analysis...');
-      }
-    } catch (healthError) {
-      console.log('Health check error (continuing anyway):', healthError);
-      setAnalysisProgress('Skipping status check, starting analysis directly...');
-    }
-
-    
-    try {
-      console.log('🔍 開始上傳圖片進行分析...');
-      
-      const response = await fetch('https://poop-api.onrender.com/analyze', {
-        method: 'POST',
-        body: formData,
-        signal: controller.signal
-      });
-      
-      clearTimeout(timeoutId);
-      
-      console.log('Response status:', response.status);
-      console.log('Response headers:', response.headers);
-      
-      
-
-if (!response.ok) {
-  const errorText = await response.text();
-  
-  // 🧹 修改：只在開發模式下顯示技術訊息
-  if (__DEV__) {
-    console.log('📋 API Response Details:', {
-      status: response.status,
-      errorText: errorText
-    });
-  }
-  
-  // 🔥 修復：502錯誤也可能是Cloudflare代理的400錯誤
-  if (response.status === 400 || response.status === 502) {
-    try {
-      // 🔥 502錯誤時，errorText可能是空的，需要特殊處理
-      if (response.status === 502 && (!errorText || errorText.trim() === '')) {
-        if (__DEV__) {
-          console.log('🔄 502錯誤且無錯誤內容，可能是Cloudflare代理問題');
-        }
-        // 這可能是非大便檢測的502代理錯誤，使用備用分析
-        throw new Error('Server temporarily unavailable');
-      }
-      
-      const errorJson = JSON.parse(errorText);
-      if (__DEV__) {
-        console.log('✅ 解析到400/502回應:', errorJson);
-      }
-      
-      // 🔥 非大便檢測 - 不是錯誤，是正常的檢測結果
-      if (errorJson.error === "No objects detected" || errorJson.error === "No poop detected") {
-        if (__DEV__) {
-          console.log('🎯 檢測到非大便圖片，顯示友好界面');
-        }
-        setIsAnalyzing(false);
-        
-        setNonPoopDetectionResult({
-          error: errorJson.error,
-          message: errorJson.message,
-          suggestion: errorJson.suggestion,
-          detected_objects: errorJson.detected_objects || [],
-          basic_color_info: errorJson.basic_color_info
-        });
-        
-        setAnalysisError(null);
-        return;
-      }
-      
-      // 🔥 低信心度檢測 - 也不是錯誤，是分析結果
-      if (errorJson.error === "Low confidence detection") {
-        if (__DEV__) {
-          console.log('🎯 檢測到低信心度結果，顯示友好界面');
-        }
-        setIsAnalyzing(false);
-        
-        setLowConfidenceResult({
-          error: errorJson.error,
-          message: errorJson.message,
-          suggestion: errorJson.suggestion,
-          detected_results: errorJson.detected_results || [],
-          basic_color_info: errorJson.basic_color_info
-        });
-        
-        setAnalysisError(null);
-        return;
-      }
-      
-      // 🔥 部分分析 - 也不是錯誤，是分析結果
-      if (errorJson.error === "Cannot perform detailed analysis") {
-        if (__DEV__) {
-          console.log('🎯 檢測到部分分析結果，顯示友好界面');
-        }
-        setIsAnalyzing(false);
-        
-        setPartialAnalysisResult({
-          error: errorJson.error,
-          message: errorJson.message,
-          suggestion: errorJson.suggestion,
-          detected_objects: errorJson.detected_objects || [],
-          basic_color_info: errorJson.basic_color_info
-        });
-        
-        setAnalysisError(null);
-        return;
-      }
-      
-      // 🔥 其他400/502錯誤才是真的客戶端錯誤
-      setIsAnalyzing(false);
-      setAnalysisError(`Upload issue: ${errorJson.message || errorJson.error}`);
-      return;
-      
-    } catch (parseError) {
-      if (__DEV__) {
-        console.warn('無法解析400/502錯誤JSON:', parseError);
-        console.log('Raw error text:', errorText);
-      }
-      
-      // 🔥 如果是502且無法解析JSON，很可能是Cloudflare代理的非大便檢測
-      if (response.status === 502) {
-        if (__DEV__) {
-          console.log('🔄 502錯誤無法解析JSON，可能是Cloudflare代理問題，使用備用分析');
-        }
-        throw new Error('Cloudflare proxy error - likely non-poop detection');
-      }
-      
-      setIsAnalyzing(false);
-      setAnalysisError('Image processing failed, please check image format');
-      return;
-    }
-  }
-  
-  // 503錯誤處理（服務器問題）
-  if (response.status === 503) {
-    if (__DEV__) {
-      console.log('🔄 Service unavailable (503), using fallback');
-    }
-    setAnalysisProgress('Service temporarily unavailable, using backup analysis...');
-    throw new Error('Service temporarily unavailable');
-  }
-  
-  // 其他錯誤
-  throw new Error(`API error: ${response.status} - ${response.statusText}\nDetails: ${errorText}`);
-}
-      
-      
-      const result = await response.json();
-      console.log('✅ SUCCESS! API response:', result);
-      
-      setAnalysisProgress('Analysis complete! Processing results...');
-      processEnhancedPoopAPIResponse(result);
-      
-    } catch (fetchError: unknown) {
-      clearTimeout(timeoutId);
-      console.error('❌ API請求失敗:', fetchError);
-      
-      if (fetchError instanceof Error && fetchError.name === 'AbortError') {
-        setAnalysisProgress('Request timeout, using general AI...');
-      } else {
-        setAnalysisProgress('Request timeout, using general AI...');
-      }
-      
-      throw fetchError;
-    }
-    
-  } catch (error: unknown) {
-    console.error('❌ Enhanced Poop API analysis error:', error);
-  const enhancedMockAnalysis = async () => {
+// 🔥 移到外部的增強版備用分析函數
+const enhancedMockAnalysis = async (
+  imageUri: string,
+  setAnalysisProgress: (progress: string) => void,
+  setIsAnalyzing: (analyzing: boolean) => void,
+  setNonPoopDetectionResult: (result: any) => void,
+  setAnalysisError: (error: string | null) => void,
+  setPredictedType: (type: number) => void,
+  setSelectedType: (type: number) => void,
+  setPredictedVolume: (volume: number) => void,
+  setSelectedVolume: (volume: number) => void,
+  setPredictedColor: (color: number) => void,
+  setSelectedColor: (color: number) => void,
+  setAnalysisDetails: (details: string) => void,
+  setRecommendations: (recommendations: string) => void,
+  setColorAnalysis: (analysis: any) => void,
+  setVolumeAnalysis: (analysis: any) => void,
+  setHealthAlerts: (alerts: any[]) => void,
+  setFoodInfluenceData: (data: any) => void
+) => {
   try {
     setAnalysisProgress('Using local AI model for analysis...');
     
@@ -794,12 +542,12 @@ if (!response.ok) {
     
     // 🎯 基於圖片類型進行智能判斷
     const imageType = imageUri?.toLowerCase();
-    let mockResult;
     
     if (imageType?.includes('.png') || imageType?.includes('png')) {
       // PNG圖片通常是截圖或非真實照片，模擬非大便檢測
       setIsAnalyzing(false);
       setNonPoopDetectionResult({
+        type: 'wrong_objects',
         error: "No poop detected",
         message: "No poop detected, please upload a real poop photo",
         suggestion: "Please ensure the photo is clear, well-lit, and shows real poop",
@@ -811,7 +559,7 @@ if (!response.ok) {
           color_name: "Mixed Colors",
           detected_color_type: "Unclear",
           hex_color: "#A0A0A0",
-          nnote: "Complex image content, unable to perform color analysis",
+          note: "Complex image content, unable to perform color analysis",
           rgb_color: [160, 160, 160]
         }
       });
@@ -876,284 +624,587 @@ if (!response.ok) {
     setAnalysisError('Local analysis failed');
     setIsAnalyzing(false);
   }
-};  
-  if (error instanceof Error && 
-      (error.message.includes('Server temporarily unavailable') || 
-       error.message.includes('Cloudflare proxy error'))) {
-    
-    console.log('🔄 檢測到Render免費版資源限制，使用智能備用分析');
-    
-    // 🎯 使用更智能的備用分析，模擬真實的AI分析結果
-    setAnalysisProgress('Resource limit, using local AI for analysis...');
-    await enhancedMockAnalysis();
-    return;
-  }
-  
-  // 其他錯誤處理...
-  if (error instanceof TypeError && error.message.includes('fetch')) {
-    setAnalysisProgress('Switching to backup AI for analysis...');
-  } else if (error instanceof Error && error.name === 'AbortError') {
-    setAnalysisProgress('Request timeout, using general AI...');
-  } else {
-    setAnalysisProgress('Switching to backup AI for analysis...');
-  }
-    
-    await mockAnalysisWithRealData();
-  }
-  
 };
+export default function AnalyzeImageScreen() {
+  const router = useRouter();
+  const params = useLocalSearchParams<{ imageUri: string }>();
+  const [imageUri, setImageUri] = useState<string | null>(null);
+  
+  const [isAnalyzing, setIsAnalyzing] = useState(true);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [analysisProgress, setAnalysisProgress] = useState('Preparing analysis...');
+  
+  const [predictedType, setPredictedType] = useState<number>(4);
+  const [predictedVolume, setPredictedVolume] = useState<number>(2);
+  const [predictedColor, setPredictedColor] = useState<number>(1);
+  
+  const [selectedType, setSelectedType] = useState<number>(4);
+  const [selectedVolume, setSelectedVolume] = useState<number>(2);
+  const [selectedColor, setSelectedColor] = useState<number>(1);
+  
+  const [analysisDetails, setAnalysisDetails] = useState<string>('');
+  const [recommendations, setRecommendations] = useState<string>('');
+  const [isEnglish, setIsEnglish] = useState<boolean>(false);
+  
+  // 新增狀態：增強分析數據
+  const [colorAnalysis, setColorAnalysis] = useState<any>(null);
+  const [volumeAnalysis, setVolumeAnalysis] = useState<any>(null);
+  const [healthAlerts, setHealthAlerts] = useState<any[]>([]);
+  const [foodInfluenceData, setFoodInfluenceData] = useState<any>(null);
 
-function processEnhancedPoopAPIResponse(result: any) {
-  try {
-    console.log('Processing enhanced poop API response:', result);
+  // 🔥 新增：錯誤處理相關狀態
+  const [nonPoopDetectionResult, setNonPoopDetectionResult] = useState<any>(null);
+  const [lowConfidenceResult, setLowConfidenceResult] = useState<any>(null);
+  const [partialAnalysisResult, setPartialAnalysisResult] = useState<any>(null);
+
+  useEffect(() => {
+    if (params.imageUri) {
+      setImageUri(params.imageUri);
+      analyzeImage(params.imageUri);
+    }
+  }, [params.imageUri]);
+
+  const analyzeImage = async (uri: string) => {
+    setIsAnalyzing(true);
+    setAnalysisError(null);
+    // 🔥 確保清除所有錯誤狀態
+    setNonPoopDetectionResult(null);
+    setLowConfidenceResult(null);
+    setPartialAnalysisResult(null);
+    setAnalysisProgress('Preparing analysis...');
     
-    if (!result) {
-      throw new Error('API response is null or undefined');
-    }
+    // 重置分析結果
+    setColorAnalysis(null);
+    setVolumeAnalysis(null);
+    setHealthAlerts([]);
+    setFoodInfluenceData(null);
     
-    const mainType = result.main_type || result.type || 'Normal';
-    const mainAdvice = result.main_advice || result.advice || '';
-    const otherTypes = result.other_types || {};
-    const rawStats = result.raw_stats || {};
-    const volumeAnalysis = result.volume_analysis || {};
-    const colorAnalysis = result.color_analysis || {};
-    
-    console.log('Main type from API:', mainType);
-    console.log('Volume analysis:', volumeAnalysis);
-    console.log('Color analysis:', colorAnalysis);
-
-    // 🎯 Bristol type 映射 - 根據 API 的分類映射到選擇器的 1-7
-    const bristolTypeMap: { [key: string]: number } = {
-      'Constipated': 2,  // API 便秘類型 -> 選擇器 Type 2
-      'Normal': 4,       // API 正常類型 -> 選擇器 Type 4 (理想)
-      'Loose': 6,        // API 腹瀉類型 -> 選擇器 Type 6
-      // 備用映射
-      'type1': 1, 'type2': 2, 'type3': 3, 'type4': 4,
-      'type5': 5, 'type6': 6, 'type7': 7,
-      'hard': 1, 'lumpy': 2, 'cracked': 3, 'smooth': 4, 
-      'soft': 5, 'mushy': 6, 'liquid': 7,
-      // 🔥 新增：處理更多可能的 API 回應
-      'constipation': 2, 'normal': 4, 'diarrhea': 6, 'loose': 6
-    };
-
-    // 🎯 體積映射 - API 的體積等級映射到選擇器的 1-3
-    const volumeMap: { [key: string]: number } = {
-      'Small': 1, 'small': 1,
-      'Medium': 2, 'medium': 2, 'normal': 2,
-      'Large': 3, 'large': 3, 'big': 3
-    };
-
-    // 🎯 顏色映射 - API 的顏色類型映射到選擇器的 1-7
-    const colorMap: { [key: string]: number } = {
-      'Normal_Brown': 1, 'normal_brown': 1, 'brown': 1,
-      'Dark_Tone': 2, 'dark_tone': 2, 'dark': 2,
-      'Light_Tone': 3, 'light_tone': 3, 'light': 3,
-      'Yellowish': 4, 'yellowish': 4, 'yellow': 4,
-      'Greenish': 5, 'greenish': 5, 'green': 5,
-      'Reddish': 6, 'reddish': 6, 'red': 6,
-      'Very_Dark': 7, 'very_dark': 7, 'black': 7,
-      'Unclear': 1, 'unclear': 1
-    };
-
-    // 計算 Bristol 類型 - 增加安全檢查
-    const bristolType = bristolTypeMap[mainType] || bristolTypeMap[mainType.toLowerCase()] || 4;
-    console.log('Mapped Bristol type:', bristolType, 'from:', mainType);
-
-    // 計算體積等級 - 增加安全檢查
-    let volume = 2; // 預設 Medium
-    if (volumeAnalysis && volumeAnalysis.overall_volume_class) {
-      const volumeClass = volumeAnalysis.overall_volume_class;
-      volume = volumeMap[volumeClass] || volumeMap[volumeClass.toLowerCase()] || 2;
-      console.log('Mapped volume:', volume, 'from:', volumeClass);
-    }
-
-    // 計算顏色等級 - 增加安全檢查
-    let color = 1; // 預設 Brown
-    let colorAdvice = '';
-    let foodInfluenceInfo = null;
-
-    if (colorAnalysis && colorAnalysis.summary && Object.keys(colorAnalysis.summary).length > 0) {
-      // 嘗試從主要類型獲取顏色資訊
-      const mainTypeColorInfo = colorAnalysis.summary[mainType];
-      if (mainTypeColorInfo && mainTypeColorInfo.color) {
-        const colorType = mainTypeColorInfo.color;
-        color = colorMap[colorType] || colorMap[colorType.toLowerCase()] || 1;
-        console.log('Mapped color:', color, 'from main type color:', colorType);
-      } else {
-        // 如果主要類型沒有顏色資訊，取第一個可用的
-        const firstColorInfo = Object.values(colorAnalysis.summary)[0] as any;
-        if (firstColorInfo && firstColorInfo.color) {
-          const colorType = firstColorInfo.color;
-          color = colorMap[colorType] || colorMap[colorType.toLowerCase()] || 1;
-          console.log('Mapped color:', color, 'from first available color:', colorType);
-        }
-      }
-
-      // 獲取顏色建議 - 增加安全檢查
-      if (colorAnalysis.color_advice_by_type && colorAnalysis.color_advice_by_type[mainType]) {
-        colorAdvice = colorAnalysis.color_advice_by_type[mainType];
-      } else if (colorAnalysis.color_advice_summary) {
-        colorAdvice = colorAnalysis.color_advice_summary;
-      }
-
-      // 獲取食物影響資訊 - 增加安全檢查
-      if (colorAnalysis.food_influence_summary && colorAnalysis.food_influence_summary[mainType]) {
-        foodInfluenceInfo = colorAnalysis.food_influence_summary[mainType];
-      }
-    }
-
-    console.log('🎯 Final selector mappings:');
-    console.log('- Bristol Type:', bristolType, '(will select Type', bristolType, 'in selector)');
-    console.log('- Volume:', volume, '(will select position', volume, 'in volume selector)');
-    console.log('- Color:', color, '(will select position', color, 'in color selector)');
-
-    // 設置增強分析數據 - 增加安全檢查
-    setColorAnalysis(colorAnalysis || null);
-    setVolumeAnalysis(volumeAnalysis || null);
-    setHealthAlerts((colorAnalysis && colorAnalysis.health_alerts) || []);
-    setFoodInfluenceData(foodInfluenceInfo);
-
-    // 生成分析詳情 - 增加安全檢查
-    let analysisText = `🎯 Main Detection Type: ${mainType}\n`;
-
-    // 顏色分析結果
-    if (colorAnalysis && colorAnalysis.summary && Object.keys(colorAnalysis.summary).length > 0) {
-      analysisText += `\n🎨 Color Analysis Results:\n`;
-      Object.entries(colorAnalysis.summary).forEach(([type, info]: [string, any]) => {
-        if (info && info.color_name && info.health_status) {
-          analysisText += `  • ${type}: ${info.color_name} (${info.health_status})\n`;
-        }
-      });
-    }
-
-    // 體積分析結果
-    if (volumeAnalysis && volumeAnalysis.overall_volume_class) {
-      analysisText += `\n📏 Volume Analysis: ${volumeAnalysis.overall_volume_class}\n`;
-    }
-
-    // 食物影響提示
-    if (foodInfluenceInfo && foodInfluenceInfo.likely_influenced) {
-      analysisText += `\n🍎 Detected Possible Food Influence:\n`;
-      analysisText += `  • Influence Likelihood: ${foodInfluenceInfo.likelihood || 'Unknown'}\n`;
-      if (foodInfluenceInfo.possible_foods && Array.isArray(foodInfluenceInfo.possible_foods)) {
-        analysisText += `  • Possible Foods: ${foodInfluenceInfo.possible_foods.slice(0, 3).join(', ')} etc.\n`;
-      }
-    }
-
-    // 🔥 關鍵：設置選擇器的值，讓UI自動選中對應選項
-    console.log('🎯 Setting selector values...');
-    
-    setPredictedType(bristolType);
-    setPredictedVolume(volume);
-    setPredictedColor(color);
-    
-    // ⭐ 重要：這些設置會讓下方的選擇器自動選中對應的選項
-    setSelectedType(bristolType);      // 自動選中對應的 Bristol Type
-    setSelectedVolume(volume);         // 自動選中對應的 Volume
-    setSelectedColor(color);           // 自動選中對應的 Color
-
-    setAnalysisDetails(analysisText);
-
-    // 生成建議 - 增加錯誤處理
     try {
-      const enhancedPersonalizedAdvice = generateEnhancedPersonalizedAdvice(
-        mainType, otherTypes, rawStats, volume, colorAnalysis, volumeAnalysis
-      );
-
-      let fullRecommendations = enhancedPersonalizedAdvice;
-      if (colorAdvice) {
-        fullRecommendations += `\n\n🎨 Color-Specific Recommendations:\n${colorAdvice}`;
+      if (Platform.OS === 'web') {
+        mockAnalysis();
+        return;
       }
-      if (foodInfluenceInfo && foodInfluenceInfo.recommendation) {
-        fullRecommendations += `\n\n🍎 Food Influence Recommendations:\n${foodInfluenceInfo.recommendation}`;
-      }
-
-      setRecommendations(fullRecommendations);
-    } catch (adviceError) {
-      console.error('Error generating advice:', adviceError);
-      setRecommendations(getAdviceForType(mainType)); // 使用基本建議作為備用
+      
+      await analyzeWithPoopAPI(uri);
+      
+    } catch (error) {
+      console.error('Analysis error:', error);
+      setAnalysisError('Failed to analyze the image');
+      setIsAnalyzing(false);
     }
+  };
 
-    setIsAnalyzing(false);
-
-    console.log('✅ Successfully processed API response and updated selectors');
-
-  } catch (error: unknown) {
-    console.error('Error processing enhanced poop API response:', error);
+  // 🔥 修復版錯誤處理函數
+  const handleStructuredError = (errorResponse: any) => {
+    console.log('📋 Handling structured error:', errorResponse);
     
-    // 🔥 改進：提供更詳細的錯誤信息
-    if (error instanceof Error) {
-      setAnalysisError(`Error processing analysis results: ${error.message}`);
-    } else {
-      setAnalysisError('Unable to process analysis results, please try again');
+    // 清除所有錯誤狀態
+    setAnalysisError(null);
+    setNonPoopDetectionResult(null);
+    setLowConfidenceResult(null);
+    setPartialAnalysisResult(null);
+    
+    // 設置分析完成狀態
+    setIsAnalyzing(false);
+    
+    // 根據錯誤類型顯示不同的UI
+    switch (errorResponse.error) {
+      case "No objects detected":
+      case "No poop detected":
+        setNonPoopDetectionResult({
+          type: errorResponse.error === "No objects detected" ? 'no_objects' : 'wrong_objects',
+          error: errorResponse.error,
+          message: errorResponse.message,
+          suggestion: errorResponse.suggestion,
+          detected_objects: errorResponse.detected_objects || [],
+          basic_color_info: errorResponse.basic_color_info
+        });
+        break;
+        
+      case "Low confidence detection":
+        setLowConfidenceResult({
+          type: 'low_confidence',
+          error: errorResponse.error,
+          message: errorResponse.message,
+          suggestion: errorResponse.suggestion,
+          detected_results: errorResponse.detected_results || [],
+          basic_color_info: errorResponse.basic_color_info
+        });
+        break;
+        
+      case "Unclear image content":
+        setPartialAnalysisResult({
+          type: 'unclear_content',
+          error: errorResponse.error,
+          message: errorResponse.message,
+          suggestion: errorResponse.suggestion,
+          basic_color_info: errorResponse.basic_color_info
+        });
+        break;
+        
+      default:
+        setAnalysisError(`Analysis issue: ${errorResponse.message || errorResponse.error}`);
+        break;
     }
-    
-    setIsAnalyzing(false);
-  }
-}
-
-// 增強版個人化建議生成
-// 🔥 修復版：增強版個人化建議生成
-const generateEnhancedPersonalizedAdvice = (
-  mainType: string, 
-  otherTypes: any, 
-  rawStats: any, 
-  volume: number,
-  colorAnalysis: any,
-  volumeAnalysis: any
-): string => {
-  try {
-    // 基礎建議 - 增加安全檢查
-    const mainTypeAdvice = getAdviceForType(mainType || 'Normal');
-    
-    let personalizedAdvice = mainTypeAdvice;
-    
-    // 體積特定建議 - 增加安全檢查
-    if (volumeAnalysis && volumeAnalysis.overall_volume_class) {
-      try {
-        const volumeAdviceText = getEnhancedVolumeAdvice(volumeAnalysis.overall_volume_class, volumeAnalysis);
-        if (volumeAdviceText) {
-          personalizedAdvice += `\n\n${volumeAdviceText}`;
+  };
+// 🔥 修復版 API 調用函數
+  const analyzeWithPoopAPI = async (imageUri: string) => {
+    try {
+      console.log('Calling enhanced poop-api for analysis...');
+      console.log('API URL: https://poop-api.onrender.com/analyze');
+      console.log('Image URI:', imageUri);
+      
+      setAnalysisProgress('Connecting to AI server...');
+      
+      // 圖片格式處理
+      const getImageType = (uri: string) => {
+        if (uri.toLowerCase().includes('.png')) {
+          return 'image/png';
+        } else if (uri.toLowerCase().includes('.jpg') || uri.toLowerCase().includes('.jpeg')) {
+          return 'image/jpeg';
+        } else {
+          return 'image/jpeg';
         }
-      } catch (volumeError) {
-        console.warn('Error generating volume advice:', volumeError);
-      }
-    }
-    
-    // 顏色特定建議 - 增加安全檢查
-    if (colorAnalysis && colorAnalysis.summary && Object.keys(colorAnalysis.summary).length > 0) {
+      };
+
+      const getFileName = (uri: string) => {
+        if (uri.toLowerCase().includes('.png')) {
+          return 'poop_image.png';
+        } else {
+          return 'poop_image.jpg';
+        }
+      };
+
+      const imageType = getImageType(imageUri);
+      const fileName = getFileName(imageUri);
+      
+      console.log(`🔍 Detected image type: ${imageType}, filename: ${fileName}`);
+      
+      const formData = new FormData();
+      formData.append('image', {
+        uri: imageUri,
+        type: imageType,
+        name: fileName
+      } as any);
+      
+      console.log('📤 準備上傳圖片到API...');
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => {
+        controller.abort();
+        setAnalysisProgress('Request timeout, using backup analysis...');
+      }, 300000); // 5分鐘
+
+      // 🔥 健康檢查（可選，不強制）
       try {
-        const hasAbnormalColors = Object.values(colorAnalysis.summary).some((info: any) => {
-          if (!info || !info.health_status) return false;
-          return info.health_status !== 'Normal' && info.health_status !== 'Healthy';
+        setAnalysisProgress('Checking server status...');
+        
+        const healthController = new AbortController();
+        const healthTimeoutId = setTimeout(() => {
+          healthController.abort();
+        }, 30000); // 30秒
+        
+        const healthCheck = await fetch('https://poop-api.onrender.com/', {
+          method: 'GET',
+          signal: healthController.signal
         });
         
-        if (hasAbnormalColors) {
-          personalizedAdvice += `\n\n🎨 Color Health Assessment:`;
-          
-          Object.entries(colorAnalysis.summary).forEach(([type, info]: [string, any]) => {
-            if (info && info.health_status && info.color_name && 
-                info.health_status !== 'Normal' && info.health_status !== 'Healthy') {
-              personalizedAdvice += `\n• ${type}: ${info.color_name} - ${info.health_status}`;
-            }
-          });
+        clearTimeout(healthTimeoutId);
+        
+        console.log('Health check status:', healthCheck.status);
+        if (healthCheck.ok) {
+          const healthData = await healthCheck.json();
+          console.log('Health check response:', healthData);
+          setAnalysisProgress('Server ready, starting analysis...');
+        } else {
+          console.log('Health check failed but continuing anyway');
+          setAnalysisProgress('Server response unusual, trying direct analysis...');
         }
-      } catch (colorError) {
-        console.warn('Error generating color advice:', colorError);
+      } catch (healthError) {
+        console.log('Health check error (continuing anyway):', healthError);
+        setAnalysisProgress('Skipping status check, starting analysis directly...');
+      }
+
+      try {
+        console.log('🔍 開始上傳圖片進行分析...');
+        
+        const response = await fetch('https://poop-api.onrender.com/analyze', {
+          method: 'POST',
+          body: formData,
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        
+        console.log('Response status:', response.status);
+        console.log('Response headers:', response.headers);
+        
+        // 🔥 修復的錯誤處理邏輯
+        if (!response.ok) {
+          const errorText = await response.text();
+          
+          console.log('📋 API Response Details:', {
+            status: response.status,
+            errorText: errorText
+          });
+          
+          if (response.status === 400) {
+            try {
+              const errorJson = JSON.parse(errorText);
+              console.log('✅ 解析到400回應:', errorJson);
+              
+              // 🔥 修復：確保這些是真正的錯誤情況
+              if (errorJson.error && (
+                  errorJson.error === "No objects detected" ||
+                  errorJson.error === "No poop detected" ||
+                  errorJson.error === "Low confidence detection" ||
+                  errorJson.error === "Unclear image content"
+              )) {
+                // 處理結構化錯誤
+                handleStructuredError(errorJson);
+                return; // 重要：這裡要 return，不要繼續執行
+              } else {
+                // 其他 400 錯誤
+                throw new Error(`API error: ${response.status} - ${errorJson.message || errorJson.error}`);
+              }
+              
+            } catch (parseError) {
+              console.warn('無法解析400錯誤JSON:', parseError);
+              throw new Error(`Server response format error: ${errorText}`);
+            }
+          }
+          
+          // 503錯誤處理（服務器問題）
+          if (response.status === 503) {
+            console.log('🔄 Service unavailable (503), using fallback');
+            setAnalysisProgress('Service temporarily unavailable, using backup analysis...');
+            throw new Error('Service temporarily unavailable');
+          }
+          
+          // 其他 HTTP 錯誤
+          throw new Error(`API error: ${response.status} - ${response.statusText}`);
+        }
+        
+        const result = await response.json();
+        console.log('✅ SUCCESS! API response:', result);
+        
+        setAnalysisProgress('Analysis complete! Processing results...');
+        processEnhancedPoopAPIResponse(result);
+        
+      } catch (fetchError: unknown) {
+        clearTimeout(timeoutId);
+        console.error('❌ API請求失敗:', fetchError);
+        
+        if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+          setAnalysisProgress('Request timeout, using general AI...');
+        } else {
+          setAnalysisProgress('API request failed, using backup analysis...');
+        }
+        
+        throw fetchError;
+      }
+      
+    } catch (error: unknown) {
+      console.error('❌ Enhanced Poop API analysis error:', error);
+      
+      // 🔥 修復的錯誤處理邏輯
+      if (error instanceof Error && 
+          (error.message.includes('Server temporarily unavailable') || 
+           error.message.includes('Cloudflare proxy error') ||
+           error.message.includes('503') ||
+           error.message.includes('timeout'))) {
+        
+        console.log('🔄 檢測到服務器問題，使用智能備用分析');
+        setAnalysisProgress('Server issue detected, using backup analysis...');
+        
+        try {
+          await enhancedMockAnalysis(
+            imageUri,
+            setAnalysisProgress,
+            setIsAnalyzing,
+            setNonPoopDetectionResult,
+            setAnalysisError,
+            setPredictedType,
+            setSelectedType,
+            setPredictedVolume,
+            setSelectedVolume,
+            setPredictedColor,
+            setSelectedColor,
+            setAnalysisDetails,
+            setRecommendations,
+            setColorAnalysis,
+            setVolumeAnalysis,
+            setHealthAlerts,
+            setFoodInfluenceData
+          );
+          return;
+        } catch (mockError) {
+          console.error('備用分析也失敗:', mockError);
+          setAnalysisError('Analysis failed, please try again');
+          setIsAnalyzing(false);
+          return;
+        }
+      }
+      
+      // 其他錯誤使用基本mock分析
+      setAnalysisProgress('Using fallback analysis...');
+      try {
+        await mockAnalysisWithRealData();
+      } catch (fallbackError) {
+        setAnalysisError('All analysis methods failed, please try again');
+        setIsAnalyzing(false);
       }
     }
-    
-    // 追蹤建議
-    personalizedAdvice += `\n\n📊 Tracking Recommendations: We recommend recording poop changes over the next 3-7 days, paying special attention to improvements in color and shape`;
-    
-    return personalizedAdvice;
-    
-  } catch (error) {
-    console.error('Error in generateEnhancedPersonalizedAdvice:', error);
-    // 返回基本建議作為備用
-    return getAdviceForType(mainType || 'Normal');
+  };
+  function processEnhancedPoopAPIResponse(result: any) {
+    try {
+      console.log('Processing enhanced poop API response:', result);
+      
+      if (!result) {
+        throw new Error('API response is null or undefined');
+      }
+      
+      const mainType = result.main_type || result.type || 'Normal';
+      const mainAdvice = result.main_advice || result.advice || '';
+      const otherTypes = result.other_types || {};
+      const rawStats = result.raw_stats || {};
+      const volumeAnalysis = result.volume_analysis || {};
+      const colorAnalysis = result.color_analysis || {};
+      
+      console.log('Main type from API:', mainType);
+      console.log('Volume analysis:', volumeAnalysis);
+      console.log('Color analysis:', colorAnalysis);
+
+      // 🎯 Bristol type 映射 - 根據 API 的分類映射到選擇器的 1-7
+      const bristolTypeMap: { [key: string]: number } = {
+        'Constipated': 2,  // API 便秘類型 -> 選擇器 Type 2
+        'Normal': 4,       // API 正常類型 -> 選擇器 Type 4 (理想)
+        'Loose': 6,        // API 腹瀉類型 -> 選擇器 Type 6
+        // 備用映射
+        'type1': 1, 'type2': 2, 'type3': 3, 'type4': 4,
+        'type5': 5, 'type6': 6, 'type7': 7,
+        'hard': 1, 'lumpy': 2, 'cracked': 3, 'smooth': 4, 
+        'soft': 5, 'mushy': 6, 'liquid': 7,
+        // 🔥 新增：處理更多可能的 API 回應
+        'constipation': 2, 'normal': 4, 'diarrhea': 6, 'loose': 6
+      };
+
+      // 🎯 體積映射 - API 的體積等級映射到選擇器的 1-3
+      const volumeMap: { [key: string]: number } = {
+        'Small': 1, 'small': 1,
+        'Medium': 2, 'medium': 2, 'normal': 2,
+        'Large': 3, 'large': 3, 'big': 3
+      };
+
+      // 🎯 顏色映射 - API 的顏色類型映射到選擇器的 1-7
+      const colorMap: { [key: string]: number } = {
+        'Normal_Brown': 1, 'normal_brown': 1, 'brown': 1,
+        'Dark_Tone': 2, 'dark_tone': 2, 'dark': 2,
+        'Light_Tone': 3, 'light_tone': 3, 'light': 3,
+        'Yellowish': 4, 'yellowish': 4, 'yellow': 4,
+        'Greenish': 5, 'greenish': 5, 'green': 5,
+        'Reddish': 6, 'reddish': 6, 'red': 6,
+        'Very_Dark': 7, 'very_dark': 7, 'black': 7,
+        'Unclear': 1, 'unclear': 1
+      };
+
+      // 計算 Bristol 類型 - 增加安全檢查
+      const bristolType = bristolTypeMap[mainType] || bristolTypeMap[mainType.toLowerCase()] || 4;
+      console.log('Mapped Bristol type:', bristolType, 'from:', mainType);
+
+      // 計算體積等級 - 增加安全檢查
+      let volume = 2; // 預設 Medium
+      if (volumeAnalysis && volumeAnalysis.overall_volume_class) {
+        const volumeClass = volumeAnalysis.overall_volume_class;
+        volume = volumeMap[volumeClass] || volumeMap[volumeClass.toLowerCase()] || 2;
+        console.log('Mapped volume:', volume, 'from:', volumeClass);
+      }
+
+      // 計算顏色等級 - 增加安全檢查
+      let color = 1; // 預設 Brown
+      let colorAdvice = '';
+      let foodInfluenceInfo = null;
+
+      if (colorAnalysis && colorAnalysis.summary && Object.keys(colorAnalysis.summary).length > 0) {
+        // 嘗試從主要類型獲取顏色資訊
+        const mainTypeColorInfo = colorAnalysis.summary[mainType];
+        if (mainTypeColorInfo && mainTypeColorInfo.color) {
+          const colorType = mainTypeColorInfo.color;
+          color = colorMap[colorType] || colorMap[colorType.toLowerCase()] || 1;
+          console.log('Mapped color:', color, 'from main type color:', colorType);
+        } else {
+          // 如果主要類型沒有顏色資訊，取第一個可用的
+          const firstColorInfo = Object.values(colorAnalysis.summary)[0] as any;
+          if (firstColorInfo && firstColorInfo.color) {
+            const colorType = firstColorInfo.color;
+            color = colorMap[colorType] || colorMap[colorType.toLowerCase()] || 1;
+            console.log('Mapped color:', color, 'from first available color:', colorType);
+          }
+        }
+
+        // 獲取顏色建議 - 增加安全檢查
+        if (colorAnalysis.color_advice_by_type && colorAnalysis.color_advice_by_type[mainType]) {
+          colorAdvice = colorAnalysis.color_advice_by_type[mainType];
+        } else if (colorAnalysis.color_advice_summary) {
+          colorAdvice = colorAnalysis.color_advice_summary;
+        }
+
+        // 獲取食物影響資訊 - 增加安全檢查
+        if (colorAnalysis.food_influence_summary && colorAnalysis.food_influence_summary[mainType]) {
+          foodInfluenceInfo = colorAnalysis.food_influence_summary[mainType];
+        }
+      }
+
+      console.log('🎯 Final selector mappings:');
+      console.log('- Bristol Type:', bristolType, '(will select Type', bristolType, 'in selector)');
+      console.log('- Volume:', volume, '(will select position', volume, 'in volume selector)');
+      console.log('- Color:', color, '(will select position', color, 'in color selector)');
+
+      // 設置增強分析數據 - 增加安全檢查
+      setColorAnalysis(colorAnalysis || null);
+      setVolumeAnalysis(volumeAnalysis || null);
+      setHealthAlerts((colorAnalysis && colorAnalysis.health_alerts) || []);
+      setFoodInfluenceData(foodInfluenceInfo);
+
+      // 生成分析詳情 - 增加安全檢查
+      let analysisText = `🎯 Main Detection Type: ${mainType}\n`;
+
+      // 顏色分析結果
+      if (colorAnalysis && colorAnalysis.summary && Object.keys(colorAnalysis.summary).length > 0) {
+        analysisText += `\n🎨 Color Analysis Results:\n`;
+        Object.entries(colorAnalysis.summary).forEach(([type, info]: [string, any]) => {
+          if (info && info.color_name && info.health_status) {
+            analysisText += `  • ${type}: ${info.color_name} (${info.health_status})\n`;
+          }
+        });
+      }
+
+      // 體積分析結果
+      if (volumeAnalysis && volumeAnalysis.overall_volume_class) {
+        analysisText += `\n📏 Volume Analysis: ${volumeAnalysis.overall_volume_class}\n`;
+      }
+
+      // 食物影響提示
+      if (foodInfluenceInfo && foodInfluenceInfo.likely_influenced) {
+        analysisText += `\n🍎 Detected Possible Food Influence:\n`;
+        analysisText += `  • Influence Likelihood: ${foodInfluenceInfo.likelihood || 'Unknown'}\n`;
+        if (foodInfluenceInfo.possible_foods && Array.isArray(foodInfluenceInfo.possible_foods)) {
+          analysisText += `  • Possible Foods: ${foodInfluenceInfo.possible_foods.slice(0, 3).join(', ')} etc.\n`;
+        }
+      }
+
+      // 🔥 關鍵：設置選擇器的值，讓UI自動選中對應選項
+      console.log('🎯 Setting selector values...');
+      
+      setPredictedType(bristolType);
+      setPredictedVolume(volume);
+      setPredictedColor(color);
+      
+      // ⭐ 重要：這些設置會讓下方的選擇器自動選中對應的選項
+      setSelectedType(bristolType);      // 自動選中對應的 Bristol Type
+      setSelectedVolume(volume);         // 自動選中對應的 Volume
+      setSelectedColor(color);           // 自動選中對應的 Color
+
+      setAnalysisDetails(analysisText);
+
+      // 生成建議 - 增加錯誤處理
+      try {
+        const enhancedPersonalizedAdvice = generateEnhancedPersonalizedAdvice(
+          mainType, otherTypes, rawStats, volume, colorAnalysis, volumeAnalysis
+        );
+
+        let fullRecommendations = enhancedPersonalizedAdvice;
+        if (colorAdvice) {
+          fullRecommendations += `\n\n🎨 Color-Specific Recommendations:\n${colorAdvice}`;
+        }
+        if (foodInfluenceInfo && foodInfluenceInfo.recommendation) {
+          fullRecommendations += `\n\n🍎 Food Influence Recommendations:\n${foodInfluenceInfo.recommendation}`;
+        }
+
+        setRecommendations(fullRecommendations);
+      } catch (adviceError) {
+        console.error('Error generating advice:', adviceError);
+        setRecommendations(getAdviceForType(mainType)); // 使用基本建議作為備用
+      }
+
+      setIsAnalyzing(false);
+
+      console.log('✅ Successfully processed API response and updated selectors');
+
+    } catch (error: unknown) {
+      console.error('Error processing enhanced poop API response:', error);
+      
+      // 🔥 改進：提供更詳細的錯誤信息
+      if (error instanceof Error) {
+        setAnalysisError(`Error processing analysis results: ${error.message}`);
+      } else {
+        setAnalysisError('Unable to process analysis results, please try again');
+      }
+      
+      setIsAnalyzing(false);
+    }
   }
-};
+  // 增強版個人化建議生成
+  const generateEnhancedPersonalizedAdvice = (
+    mainType: string, 
+    otherTypes: any, 
+    rawStats: any, 
+    volume: number,
+    colorAnalysis: any,
+    volumeAnalysis: any
+  ): string => {
+    try {
+      // 基礎建議 - 增加安全檢查
+      const mainTypeAdvice = getAdviceForType(mainType || 'Normal');
+      
+      let personalizedAdvice = mainTypeAdvice;
+      
+      // 體積特定建議 - 增加安全檢查
+      if (volumeAnalysis && volumeAnalysis.overall_volume_class) {
+        try {
+          const volumeAdviceText = getEnhancedVolumeAdvice(volumeAnalysis.overall_volume_class, volumeAnalysis);
+          if (volumeAdviceText) {
+            personalizedAdvice += `\n\n${volumeAdviceText}`;
+          }
+        } catch (volumeError) {
+          console.warn('Error generating volume advice:', volumeError);
+        }
+      }
+      
+      // 顏色特定建議 - 增加安全檢查
+      if (colorAnalysis && colorAnalysis.summary && Object.keys(colorAnalysis.summary).length > 0) {
+        try {
+          const hasAbnormalColors = Object.values(colorAnalysis.summary).some((info: any) => {
+            if (!info || !info.health_status) return false;
+            return info.health_status !== 'Normal' && info.health_status !== 'Healthy';
+          });
+          
+          if (hasAbnormalColors) {
+            personalizedAdvice += `\n\n🎨 Color Health Assessment:`;
+            
+            Object.entries(colorAnalysis.summary).forEach(([type, info]: [string, any]) => {
+              if (info && info.health_status && info.color_name && 
+                  info.health_status !== 'Normal' && info.health_status !== 'Healthy') {
+                personalizedAdvice += `\n• ${type}: ${info.color_name} - ${info.health_status}`;
+              }
+            });
+          }
+        } catch (colorError) {
+          console.warn('Error generating color advice:', colorError);
+        }
+      }
+      
+      // 追蹤建議
+      personalizedAdvice += `\n\n📊 Tracking Recommendations: We recommend recording poop changes over the next 3-7 days, paying special attention to improvements in color and shape`;
+      
+      return personalizedAdvice;
+      
+    } catch (error) {
+      console.error('Error in generateEnhancedPersonalizedAdvice:', error);
+      // 返回基本建議作為備用
+      return getAdviceForType(mainType || 'Normal');
+    }
+  };
 
   // Get advice for specific type
   const getAdviceForType = (type: string): string => {
@@ -1174,61 +1225,60 @@ const generateEnhancedPersonalizedAdvice = (
   };
 
   // 增強版體積建議
-// 🔥 修復版：增強版體積建議
-const getEnhancedVolumeAdvice = (volumeClass: string, volumeAnalysis: any): string => {
-  try {
-    // 輸入驗證
-    if (!volumeClass) {
-      return '';
-    }
-    
-    const baseAdvice: { [key: string]: string } = {
-      'Small': '📏 Small Volume Advice: Possible insufficient intake or digestion issues',
-      'small': '📏 Small Volume Advice: Possible insufficient intake or digestion issues',
-      'Medium': '📏 Normal Volume: Maintain current eating habits',
-      'medium': '📏 Normal Volume: Maintain current eating habits',
-      'normal': '📏 Normal Volume: Maintain current eating habits',
-      'Large': '📏 Large Volume Advice: Possible excessive intake or prolonged digestion',
-      'large': '📏 Large Volume Advice: Possible excessive intake or prolonged digestion',
-      'big': '📏 Large Volume Advice: Possible excessive intake or prolonged digestion'
-    };
-    
-    let advice = baseAdvice[volumeClass] || baseAdvice[volumeClass.toLowerCase()] || '';
-    
-    // 安全檢查 volumeAnalysis
-    if (volumeAnalysis && volumeAnalysis.detailed_data) {
-      advice += '\n• Detailed Advice: ';
-      const volumeClassLower = volumeClass.toLowerCase();
-      
-      if (volumeClassLower.includes('small')) {
-        advice += 'Increase healthy fats like nuts, avocado, ensure adequate nutrition';
-      } else if (volumeClassLower.includes('large') || volumeClassLower.includes('big')) {
-        advice += 'Consider eating smaller portions, increase digestion time, avoid large meals';
-      } else {
-        advice += 'Continue balanced diet';
+  const getEnhancedVolumeAdvice = (volumeClass: string, volumeAnalysis: any): string => {
+    try {
+      // 輸入驗證
+      if (!volumeClass) {
+        return '';
       }
+      
+      const baseAdvice: { [key: string]: string } = {
+        'Small': '📏 Small Volume Advice: Possible insufficient intake or digestion issues',
+        'small': '📏 Small Volume Advice: Possible insufficient intake or digestion issues',
+        'Medium': '📏 Normal Volume: Maintain current eating habits',
+        'medium': '📏 Normal Volume: Maintain current eating habits',
+        'normal': '📏 Normal Volume: Maintain current eating habits',
+        'Large': '📏 Large Volume Advice: Possible excessive intake or prolonged digestion',
+        'large': '📏 Large Volume Advice: Possible excessive intake or prolonged digestion',
+        'big': '📏 Large Volume Advice: Possible excessive intake or prolonged digestion'
+      };
+      
+      let advice = baseAdvice[volumeClass] || baseAdvice[volumeClass.toLowerCase()] || '';
+      
+      // 安全檢查 volumeAnalysis
+      if (volumeAnalysis && volumeAnalysis.detailed_data) {
+        advice += '\n• Detailed Advice: ';
+        const volumeClassLower = volumeClass.toLowerCase();
+        
+        if (volumeClassLower.includes('small')) {
+          advice += 'Increase healthy fats like nuts, avocado, ensure adequate nutrition';
+        } else if (volumeClassLower.includes('large') || volumeClassLower.includes('big')) {
+          advice += 'Consider eating smaller portions, increase digestion time, avoid large meals';
+        } else {
+          advice += 'Continue balanced diet';
+        }
+      }
+      
+      return advice;
+      
+    } catch (error) {
+      console.warn('Error in getEnhancedVolumeAdvice:', error);
+      return '📏 Volume Analysis: Maintain balanced eating habits'; // 備用建議
     }
-    
-    return advice;
-    
-  } catch (error) {
-    console.warn('Error in getEnhancedVolumeAdvice:', error);
-    return '📏 Volume Analysis: Maintain balanced eating habits'; // 備用建議
-  }
-};
+  };
 
   // Enhanced mock analysis with realistic data
   const mockAnalysisWithRealData = async () => {
-  setAnalysisProgress('Using general AI for analysis...');
-  
-  await new Promise(resolve => setTimeout(resolve, 3000));
-  
-  const mockType = 4;
-  const mockVolume = 2;
-  const mockColor = 1;
-  
-  const mockAdvice = `🟢 Near Normal State | 💧 Diet Advice: Maintain current fiber and water intake, moderately increase fruits and vegetables | 🚶‍♀️ Lifestyle Advice: Keep exercising and regular living | ✅ Status Description: Recommend continuing good lifestyle habits`;
+    setAnalysisProgress('Using general AI for analysis...');
     
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    
+    const mockType = 4;
+    const mockVolume = 2;
+    const mockColor = 1;
+    
+    const mockAdvice = `🟢 Near Normal State | 💧 Diet Advice: Maintain current fiber and water intake, moderately increase fruits and vegetables | 🚶‍♀️ Lifestyle Advice: Keep exercising and regular living | ✅ Status Description: Recommend continuing good lifestyle habits`;
+      
     setPredictedType(mockType);
     setSelectedType(mockType);
     
@@ -1291,7 +1341,7 @@ const getEnhancedVolumeAdvice = (volumeClass: string, volumeAnalysis: any): stri
       }
     }, 1500);
   };
-const handleContinue = () => {
+  const handleContinue = () => {
     router.push({
       pathname: '/add-entry',
       params: {
@@ -1315,374 +1365,372 @@ const handleContinue = () => {
     router.back();
   };
 
-const handleRetake = async () => {
-  try {
-    // 請求相機權限
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Camera Permission Required', 'Please allow camera access in settings');
-      return;
-    }
-
-    // 啟動相機
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
-
-    if (!result.canceled && result.assets && result.assets.length > 0) {
-      const newImageUri = result.assets[0].uri;
-      console.log('重新拍攝的圖片:', newImageUri);
-      
-      // 更新圖片並重新分析
-      setImageUri(newImageUri);
-      analyzeImage(newImageUri);
-    }
-  } catch (error) {
-    console.error('重新拍照失敗:', error);
-    Alert.alert('Error', 'Cannot launch camera, please try again later');
-  }
-};
-
-const handleSelectOther = async () => {
-  try {
-    // 請求相簿權限
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Photo Library Permission Required', 'Please allow photo library access in settings');
-      return;
-    }
-
-    // 啟動相簿選擇
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
-
-    if (!result.canceled && result.assets && result.assets.length > 0) {
-      const newImageUri = result.assets[0].uri;
-      console.log('從相簿選擇的圖片:', newImageUri);
-      
-      // 更新圖片並重新分析
-      setImageUri(newImageUri);
-      analyzeImage(newImageUri);
-    }
-  } catch (error) {
-    console.error('選擇照片失敗:', error);
-    Alert.alert('Error', 'Cannot open photo library, please try again later');
-  }
-};
-
-const handleContinueWithLowConfidence = (result: any) => {
-  try {
-    console.log('處理低信心度結果:', result);
-    
-    // 增加安全檢查
-    if (!result) {
-      console.error('沒有提供結果給 handleContinueWithLowConfidence');
-      setAnalysisError('Cannot process detection results');
-      return;
-    }
-
-    // 使用低信心度結果繼續
-    if (result.detected_results && Array.isArray(result.detected_results) && result.detected_results.length > 0) {
-      const detection = result.detected_results[0];
-      
-      // 驗證檢測結果
-      if (!detection) {
-        console.warn('檢測結果為空');
-        setAnalysisError('Detection results invalid');
+  const handleRetake = async () => {
+    try {
+      // 請求相機權限
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Camera Permission Required', 'Please allow camera access in settings');
         return;
       }
-      
-      // 設置基本的選擇器值
-      setSelectedType(4); // 預設正常
-      setSelectedVolume(2); // 預設中等
-      setSelectedColor(1); // 預設棕色
-      
-      // 安全地獲取檢測信息
-      const detectionClass = detection.class || 'Unknown Object';
-      const confidence = detection.confidence ? (detection.confidence * 100).toFixed(1) : 'Unknown';
 
-      setAnalysisDetails(`⚠️ Low Confidence Analysis Result\nDetected: ${detectionClass}\nConfidence: ${confidence}%\nNote: Recommend improving shooting conditions for more accurate analysis`);
-      setRecommendations('🎯 Basic Advice | 💧 Diet: Maintain balanced diet | 🏃‍♂️ Exercise: Regular exercise | 📸 Suggestion: Please shoot under better lighting conditions next time');
-      
-      setColorAnalysis({
-        summary: { 
-          LowConfidence: { 
-            color: 'Normal_Brown', 
-            color_name: 'Basic Detection', 
-            health_status: 'Needs Better Image',
-            confidence: detection.confidence || 0.3
-          } 
-        },
-        health_alerts: [],
-        food_influence_summary: {},
-        overall_color_health: 'Photo Needs Improvement，建議重新拍攝'
+      // 啟動相機
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
       });
-      setVolumeAnalysis({ overall_volume_class: 'Medium' });
-      setHealthAlerts([]);
-      setFoodInfluenceData(null);
-      
-      // 清除低信心度結果，顯示正常的選擇器界面
-      setLowConfidenceResult(null);
-      setIsAnalyzing(false);
-      console.log('✅ 低信心度結果處理完成');
-    } else {
-      console.warn('沒有有效的檢測結果');
-      setAnalysisError('No useful information in detection results, please retake photo');
-    }
-  } catch (error) {
-    console.error('處理低信心度結果時出錯:', error);
-    setAnalysisError('Error occurred while processing detection results');
-    setIsAnalyzing(false);
-  }
-};
 
-const handleContinueWithPartial = () => {
-  try {
-    console.log('處理部分分析結果:', partialAnalysisResult);
-    
-    // 增加安全檢查
-    if (!partialAnalysisResult) {
-      console.error('沒有部分分析結果可用');
-      setAnalysisError('Cannot process partial analysis results');
-      return;
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const newImageUri = result.assets[0].uri;
+        console.log('重新拍攝的圖片:', newImageUri);
+        
+        // 更新圖片並重新分析
+        setImageUri(newImageUri);
+        analyzeImage(newImageUri);
+      }
+    } catch (error) {
+      console.error('重新拍照失敗:', error);
+      Alert.alert('Error', 'Cannot launch camera, please try again later');
     }
+  };
 
-    // 使用部分結果繼續
-    if (partialAnalysisResult.detected_objects && 
-        Array.isArray(partialAnalysisResult.detected_objects) && 
-        partialAnalysisResult.detected_objects.length > 0) {
-      
-      const bestDetection = partialAnalysisResult.detected_objects[0];
-      
-      // 驗證檢測結果
-      if (!bestDetection) {
-        console.warn('最佳檢測結果為空');
-        setAnalysisError('Partial analysis results invalid');
+  const handleSelectOther = async () => {
+    try {
+      // 請求相簿權限
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Photo Library Permission Required', 'Please allow photo library access in settings');
         return;
       }
-      
-      // 設置基本的選擇器值
-      setSelectedType(4); // 預設正常
-      setSelectedVolume(2); // 預設中等
-      setSelectedColor(1); // 預設棕色
-      
-      // 安全地獲取檢測信息
-      const detectionClass = bestDetection.class || 'Unknown Object';
-      const confidence = bestDetection.confidence ? (bestDetection.confidence * 100).toFixed(1) : 'Unknown';
 
-      setAnalysisDetails(`🎯 Partial Analysis Result\nDetected: ${detectionClass}\nConfidence: ${confidence}%\nNote: Cannot perform complete analysis due to image quality limitations`);
-      setRecommendations('🎯 Basic Advice | 💧 Diet: Maintain balanced diet | 🏃‍♂️ Exercise: Regular exercise | 📸 Suggestion: Take clearer photos next time for complete analysis');
-      
-      // 🔥 新增：設置基本的增強分析數據
-      setColorAnalysis({
-        summary: { 
-          Partial: { 
-            color: 'Normal_Brown', 
-            color_name: 'Partial Detection', 
-            health_status: 'Needs Clearer Image',
-            confidence: bestDetection.confidence || 0.5
-          } 
-        },
-        health_alerts: [],
-        food_influence_summary: {},
-        overall_color_health: 'Partial analysis completed, recommend taking clearer photos'
+      // 啟動相簿選擇
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
       });
-      setVolumeAnalysis({ overall_volume_class: 'Medium' });
-      setHealthAlerts([]);
-      setFoodInfluenceData(null);
-      
-      // 清除部分分析結果，顯示正常的選擇器界面
-      setPartialAnalysisResult(null);
-      setIsAnalyzing(false);
-      console.log('✅ 部分分析結果處理完成');
-    } else {
-      console.warn('部分分析結果中沒有有效的檢測物件');
-      setAnalysisError('No available information in partial analysis results, please retake photo');
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const newImageUri = result.assets[0].uri;
+        console.log('從相簿選擇的圖片:', newImageUri);
+        
+        // 更新圖片並重新分析
+        setImageUri(newImageUri);
+        analyzeImage(newImageUri);
+      }
+    } catch (error) {
+      console.error('選擇照片失敗:', error);
+      Alert.alert('Error', 'Cannot open photo library, please try again later');
     }
-  } catch (error) {
-    console.error('處理部分分析結果時出錯:', error);
-    setAnalysisError('Error occurred while processing partial analysis results');
-    setIsAnalyzing(false);
-  }
-};
+  };
 
+  const handleContinueWithLowConfidence = (result: any) => {
+    try {
+      console.log('處理低信心度結果:', result);
+      
+      // 增加安全檢查
+      if (!result) {
+        console.error('沒有提供結果給 handleContinueWithLowConfidence');
+        setAnalysisError('Cannot process detection results');
+        return;
+      }
 
-const renderContent = () => {
-  // 載入中狀態
-  if (isAnalyzing) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Colors.primary.accent} />
-        <Text style={styles.loadingText}>AI Analysis in Progress...</Text>
-        <Text style={styles.loadingSubtext}>{analysisProgress}</Text>
-        <View style={styles.progressBar}>
-          <View style={[styles.progressFill, { width: '60%' }]} />
+      // 使用低信心度結果繼續
+      if (result.detected_results && Array.isArray(result.detected_results) && result.detected_results.length > 0) {
+        const detection = result.detected_results[0];
+        
+        // 驗證檢測結果
+        if (!detection) {
+          console.warn('檢測結果為空');
+          setAnalysisError('Detection results invalid');
+          return;
+        }
+        
+        // 設置基本的選擇器值
+        setSelectedType(4); // 預設正常
+        setSelectedVolume(2); // 預設中等
+        setSelectedColor(1); // 預設棕色
+        
+        // 安全地獲取檢測信息
+        const detectionClass = detection.class || 'Unknown Object';
+        const confidence = detection.confidence ? (detection.confidence * 100).toFixed(1) : 'Unknown';
+
+        setAnalysisDetails(`⚠️ Low Confidence Analysis Result\nDetected: ${detectionClass}\nConfidence: ${confidence}%\nNote: Recommend improving shooting conditions for more accurate analysis`);
+        setRecommendations('🎯 Basic Advice | 💧 Diet: Maintain balanced diet | 🏃‍♂️ Exercise: Regular exercise | 📸 Suggestion: Please shoot under better lighting conditions next time');
+        
+        setColorAnalysis({
+          summary: { 
+            LowConfidence: { 
+              color: 'Normal_Brown', 
+              color_name: 'Basic Detection', 
+              health_status: 'Needs Better Image',
+              confidence: detection.confidence || 0.3
+            } 
+          },
+          health_alerts: [],
+          food_influence_summary: {},
+          overall_color_health: 'Photo Needs Improvement，建議重新拍攝'
+        });
+        setVolumeAnalysis({ overall_volume_class: 'Medium' });
+        setHealthAlerts([]);
+        setFoodInfluenceData(null);
+        
+        // 清除低信心度結果，顯示正常的選擇器界面
+        setLowConfidenceResult(null);
+        setIsAnalyzing(false);
+        console.log('✅ 低信心度結果處理完成');
+      } else {
+        console.warn('沒有有效的檢測結果');
+        setAnalysisError('No useful information in detection results, please retake photo');
+      }
+    } catch (error) {
+      console.error('處理低信心度結果時出錯:', error);
+      setAnalysisError('Error occurred while processing detection results');
+      setIsAnalyzing(false);
+    }
+  };
+
+  const handleContinueWithPartial = () => {
+    try {
+      console.log('處理部分分析結果:', partialAnalysisResult);
+      
+      // 增加安全檢查
+      if (!partialAnalysisResult) {
+        console.error('沒有部分分析結果可用');
+        setAnalysisError('Cannot process partial analysis results');
+        return;
+      }
+
+      // 使用部分結果繼續
+      if (partialAnalysisResult.detected_objects && 
+          Array.isArray(partialAnalysisResult.detected_objects) && 
+          partialAnalysisResult.detected_objects.length > 0) {
+        
+        const bestDetection = partialAnalysisResult.detected_objects[0];
+        
+        // 驗證檢測結果
+        if (!bestDetection) {
+          console.warn('最佳檢測結果為空');
+          setAnalysisError('Partial analysis results invalid');
+          return;
+        }
+        
+        // 設置基本的選擇器值
+        setSelectedType(4); // 預設正常
+        setSelectedVolume(2); // 預設中等
+        setSelectedColor(1); // 預設棕色
+        
+        // 安全地獲取檢測信息
+        const detectionClass = bestDetection.class || 'Unknown Object';
+        const confidence = bestDetection.confidence ? (bestDetection.confidence * 100).toFixed(1) : 'Unknown';
+
+        setAnalysisDetails(`🎯 Partial Analysis Result\nDetected: ${detectionClass}\nConfidence: ${confidence}%\nNote: Cannot perform complete analysis due to image quality limitations`);
+        setRecommendations('🎯 Basic Advice | 💧 Diet: Maintain balanced diet | 🏃‍♂️ Exercise: Regular exercise | 📸 Suggestion: Take clearer photos next time for complete analysis');
+        
+        // 🔥 新增：設置基本的增強分析數據
+        setColorAnalysis({
+          summary: { 
+            Partial: { 
+              color: 'Normal_Brown', 
+              color_name: 'Partial Detection', 
+              health_status: 'Needs Clearer Image',
+              confidence: bestDetection.confidence || 0.5
+            } 
+          },
+          health_alerts: [],
+          food_influence_summary: {},
+          overall_color_health: 'Partial analysis completed, recommend taking clearer photos'
+        });
+        setVolumeAnalysis({ overall_volume_class: 'Medium' });
+        setHealthAlerts([]);
+        setFoodInfluenceData(null);
+        
+        // 清除部分分析結果，顯示正常的選擇器界面
+        setPartialAnalysisResult(null);
+        setIsAnalyzing(false);
+        console.log('✅ 部分分析結果處理完成');
+      } else {
+        console.warn('部分分析結果中沒有有效的檢測物件');
+        setAnalysisError('No available information in partial analysis results, please retake photo');
+      }
+    } catch (error) {
+      console.error('處理部分分析結果時出錯:', error);
+      setAnalysisError('Error occurred while processing partial analysis results');
+      setIsAnalyzing(false);
+    }
+  };
+  const renderContent = () => {
+    // 載入中狀態
+    if (isAnalyzing) {
+      return (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={Colors.primary.accent} />
+          <Text style={styles.loadingText}>AI Analysis in Progress...</Text>
+          <Text style={styles.loadingSubtext}>{analysisProgress}</Text>
+          <View style={styles.progressBar}>
+            <View style={[styles.progressFill, { width: '60%' }]} />
+          </View>
+          <Text style={styles.estimateText}>Estimated remaining time: 30-60 seconds</Text>
         </View>
-        <Text style={styles.estimateText}>Estimated remaining time: 30-60 seconds</Text>
-      </View>
-    );
-  }
+      );
+    }
 
-  // 非大便檢測結果
-  if (nonPoopDetectionResult) {
-    return (
-      <NonPoopDetectionDisplay
-        result={nonPoopDetectionResult}
-        onRetake={handleRetake} // 🔥 使用新的 handleRetake
-        onSelectOther={handleSelectOther} // 🔥 使用新的 handleSelectOther
-      />
-    );
-  }
+    // 非大便檢測結果
+    if (nonPoopDetectionResult) {
+      return (
+        <SmartNonPoopDetectionDisplay
+          result={nonPoopDetectionResult}
+          onRetake={handleRetake}
+          onSelectOther={handleSelectOther}
+        />
+      );
+    }
 
-  // 低信心度結果
-  if (lowConfidenceResult) {
-    return (
-      <LowConfidenceDisplay
-        result={lowConfidenceResult}
-        onRetry={handleRetry}
-        onContinueAnyway={() => handleContinueWithLowConfidence(lowConfidenceResult)}
-      />
-    );
-  }
+    // 低信心度結果
+    if (lowConfidenceResult) {
+      return (
+        <LowConfidenceDisplay
+          result={lowConfidenceResult}
+          onRetry={handleRetry}
+          onContinueAnyway={() => handleContinueWithLowConfidence(lowConfidenceResult)}
+        />
+      );
+    }
 
-  // 部分分析結果
-  if (partialAnalysisResult) {
-    return (
-      <PartialAnalysisDisplay
-        result={partialAnalysisResult}
-        onContinueWithPartial={handleContinueWithPartial}
-        onRetake={handleRetake} // 🔥 使用新的 handleRetake
-      />
-    );
-  }
+    // 部分分析結果
+    if (partialAnalysisResult) {
+      return (
+        <PartialAnalysisDisplay
+          result={partialAnalysisResult}
+          onContinueWithPartial={handleContinueWithPartial}
+          onRetake={handleRetake}
+        />
+      );
+    }
 
-  // 一般錯誤
-  if (analysisError) {
-    return (
-      <View style={styles.errorContainer}>
-        <AlertCircle size={48} color={Colors.primary.error} />
-        <Text style={styles.errorTitle}>Analysis Failed</Text>
-        <Text style={styles.errorText}>{analysisError}</Text>
-        <Button title="Retry Analysis" onPress={handleRetry} style={styles.retryButton} />
-      </View>
-    );
-  }
-
-  // 正常分析結果
-  return (
-    <>
-      {/* 圖片顯示 */}
-      {imageUri && (
-        <View style={styles.imageContainer}>
-          <Image source={{ uri: imageUri }} style={styles.image} contentFit="cover" />
+    // 一般錯誤
+    if (analysisError) {
+      return (
+        <View style={styles.errorContainer}>
+          <AlertCircle size={48} color={Colors.primary.error} />
+          <Text style={styles.errorTitle}>Analysis Failed</Text>
+          <Text style={styles.errorText}>{analysisError}</Text>
+          <Button title="Retry Analysis" onPress={handleRetry} style={styles.retryButton} />
         </View>
-      )}
+      );
+    }
 
-      {/* 詳細分析 */}
-      <View style={styles.resultContainer}>
-        <View style={styles.resultHeader}>
-          <FileText size={20} color={Colors.primary.accent} />
-          <Text style={styles.resultTitle}>AI Health Analysis Results</Text>
-        </View>
-        <Text style={styles.resultDescription}>
-          Based on AI model analysis, here is your poop health status and recommendations:
-        </Text>
-
-        {/* 分析詳情 */}
-        {analysisDetails && (
-          <View style={styles.analysisDetails}>
-            <Text style={styles.analysisTitle}>Analysis Details</Text>
-            <Text style={styles.analysisText}>{analysisDetails}</Text>
+    // 正常分析結果
+    return (
+      <>
+        {/* 圖片顯示 */}
+        {imageUri && (
+          <View style={styles.imageContainer}>
+            <Image source={{ uri: imageUri }} style={styles.image} contentFit="cover" />
           </View>
         )}
 
-        {/* 增強分析組件 */}
-        <EnhancedColorAnalysisDisplay colorAnalysis={colorAnalysis} />
-        <ColorHealthAlerts healthAlerts={healthAlerts} />
-        <FoodInfluenceDisplay foodInfluence={foodInfluenceData} />
+        {/* 詳細分析 */}
+        <View style={styles.resultContainer}>
+          <View style={styles.resultHeader}>
+            <FileText size={20} color={Colors.primary.accent} />
+            <Text style={styles.resultTitle}>AI Health Analysis Results</Text>
+          </View>
+          <Text style={styles.resultDescription}>
+            Based on AI model analysis, here is your poop health status and recommendations:
+          </Text>
 
-        {/* 建議區塊 */}
-        {recommendations && (
-          <View style={styles.recommendationsContainer}>
-            <View style={styles.recommendationsHeader}>
-              <Text style={styles.recommendationsTitle}>
-                {isEnglish ? '🏥 Health Recommendations & Improvement Plan' : '🏥 健康建議與改善方案'}
-              </Text>
-              <TouchableOpacity 
-                style={styles.languageToggle}
-                onPress={() => setIsEnglish(!isEnglish)}
-              >
-                <Globe size={16} color={Colors.primary.accent} />
-                <Text style={styles.languageToggleText}>
-                  {isEnglish ? '中文' : 'EN'}
-                </Text>
-              </TouchableOpacity>
+          {/* 分析詳情 */}
+          {analysisDetails && (
+            <View style={styles.analysisDetails}>
+              <Text style={styles.analysisTitle}>Analysis Details</Text>
+              <Text style={styles.analysisText}>{analysisDetails}</Text>
             </View>
-            <RecommendationDisplay 
-              recommendations={recommendations} 
-              bristolType={selectedType}
-              isEnglish={isEnglish}
-            />
-          </View>
-        )}
-      </View>
+          )}
 
-      {/* 選擇器區塊 */}
-      <View style={styles.selectorsContainer}>
-        <PoopTypeSelector
-          selectedType={selectedType}
-          onSelectType={setSelectedType}
-        />
-        <PoopVolumeSelector
-          selectedVolume={selectedVolume}
-          onSelectVolume={setSelectedVolume}
-        />
-        <EnhancedPoopColorSelector
-          selectedColor={selectedColor}
-          onSelectColor={setSelectedColor}
-          detectedColor={predictedColor}
-          colorAnalysis={colorAnalysis}
-        />
-      </View>
+          {/* 增強分析組件 */}
+          <EnhancedColorAnalysisDisplay colorAnalysis={colorAnalysis} />
+          <ColorHealthAlerts healthAlerts={healthAlerts} />
+          <FoodInfluenceDisplay foodInfluence={foodInfluenceData} />
 
-      {/* 按鈕區塊 */}
-      <View style={styles.buttonContainer}>
-        <Button
-          title="Continue"
-          onPress={handleContinue}
-          style={styles.continueButton}
-        />
-        <Button
-          title="Cancel"
-          onPress={handleCancel}
-          variant="outline"
-          style={styles.cancelButton}
-        />
-      </View>
-    </>
-  );
-};
+          {/* 建議區塊 */}
+          {recommendations && (
+            <View style={styles.recommendationsContainer}>
+              <View style={styles.recommendationsHeader}>
+                <Text style={styles.recommendationsTitle}>
+                  {isEnglish ? '🏥 Health Recommendations & Improvement Plan' : '🏥 健康建議與改善方案'}
+                </Text>
+                <TouchableOpacity 
+                  style={styles.languageToggle}
+                  onPress={() => setIsEnglish(!isEnglish)}
+                >
+                  <Globe size={16} color={Colors.primary.accent} />
+                  <Text style={styles.languageToggleText}>
+                    {isEnglish ? '中文' : 'EN'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              <RecommendationDisplay 
+                recommendations={recommendations} 
+                bristolType={selectedType}
+                isEnglish={isEnglish}
+              />
+            </View>
+          )}
+        </View>
 
-return (
-  <View style={styles.container}>
-    <Stack.Screen 
-      options={{ 
-        title:'AI Health Analysis',
-        headerBackTitle: 'Cancel',
-      }} 
-    />
-    <ScrollView contentContainerStyle={styles.content}>
-      {renderContent()}
-    </ScrollView>
-  </View>
-); 
+        {/* 選擇器區塊 */}
+        <View style={styles.selectorsContainer}>
+          <PoopTypeSelector
+            selectedType={selectedType}
+            onSelectType={setSelectedType}
+          />
+          <PoopVolumeSelector
+            selectedVolume={selectedVolume}
+            onSelectVolume={setSelectedVolume}
+          />
+          <EnhancedPoopColorSelector
+            selectedColor={selectedColor}
+            onSelectColor={setSelectedColor}
+            detectedColor={predictedColor}
+            colorAnalysis={colorAnalysis}
+          />
+        </View>
+
+        {/* 按鈕區塊 */}
+        <View style={styles.buttonContainer}>
+          <Button
+            title="Continue"
+            onPress={handleContinue}
+            style={styles.continueButton}
+          />
+          <Button
+            title="Cancel"
+            onPress={handleCancel}
+            variant="outline"
+            style={styles.cancelButton}
+          />
+        </View>
+      </>
+    );
+  };
+
+  return (
+    <View style={styles.container}>
+      <Stack.Screen 
+        options={{ 
+          title:'AI Health Analysis',
+          headerBackTitle: 'Cancel',
+        }} 
+      />
+      <ScrollView contentContainerStyle={styles.content}>
+        {renderContent()}
+      </ScrollView>
+    </View>
+  ); 
 }
 const styles = StyleSheet.create({
   container: {
