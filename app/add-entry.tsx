@@ -145,8 +145,7 @@ const saveEntry = async () => {
         ...result, // 使用後端實際回傳的資料
         record_time: result.record_time || payload.record_time, // 保底
       });
-      // ✅ ➕ 接著儲存分析結果
-    await saveAnalysisResult(result.id); // 假設後端有回傳 poop record 的 id
+      
 
   resetTimer();
   router.replace('/(tabs)');
@@ -154,35 +153,6 @@ const saveEntry = async () => {
   } catch (error) {
     console.error('❌ Failed to save poop record:', error);
     alert('Failed to save poop record. Please try again later.');
-  }
-};
-
-const saveAnalysisResult = async (record_id: number) => {
-  try {
-    const response = await fetch('http://192.168.0.196:5001/analysis_results', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        user_id: user_id,
-        record_id: record_id,  // 從上面儲存 poop record 後得到的 id
-        ai_diagnosis: analysisDetails,
-        health_score: null,
-        recommendations: recommendations
-      })
-    });
-
-    const result = await response.json();
-    if (!response.ok) {
-      console.error('❌ 儲存分析失敗:', result.error);
-      return;
-    }
-
-    console.log('✅ 分析結果儲存成功:', result);
-
-  } catch (error) {
-    console.error('❌ 儲存分析結果失敗:', error);
   }
 };
   
