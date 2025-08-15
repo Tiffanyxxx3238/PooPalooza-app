@@ -1429,7 +1429,7 @@ const handleContinue = () => {
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [1, 1],
-        quality: 1.0
+        quality: 1.0,
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
