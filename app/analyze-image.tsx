@@ -14,8 +14,8 @@ import * as ImagePicker from 'expo-image-picker';
 
 // Configuration for detection
 const DETECTION_CONFIG = {
-  test_owl_first: true,  // 是否先進行 OWL-ViT 預檢測
-  show_owl_confidence: true,  // 是否顯示 OWL-ViT 信心度
+  test_owl_first: false,  // 是否先進行 OWL-ViT 預檢測
+  show_owl_confidence: false,  // 是否顯示 OWL-ViT 信心度
 };
 
 // Helper functions
@@ -1383,6 +1383,10 @@ const handleContinue = () => {
 
   const handleRetake = async () => {
     try {
+        setAnalysisError(null);
+        setNonPoopDetectionResult(null);
+        setLowConfidenceResult(null);
+        setPartialAnalysisResult(null);
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert('Camera Permission Required', 'Please allow camera access in settings');
@@ -1393,7 +1397,7 @@ const handleContinue = () => {
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [1, 1],
-        quality: 0.8,
+        quality: 1.0,
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
@@ -1411,6 +1415,10 @@ const handleContinue = () => {
 
   const handleSelectOther = async () => {
     try {
+        setAnalysisError(null);
+        setNonPoopDetectionResult(null);
+        setLowConfidenceResult(null);
+        setPartialAnalysisResult(null);
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert('Photo Library Permission Required', 'Please allow photo library access in settings');
