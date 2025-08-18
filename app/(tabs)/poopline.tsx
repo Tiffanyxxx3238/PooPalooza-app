@@ -1,58 +1,73 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { View, StyleSheet, Dimensions, Platform, TouchableOpacity, Text, Animated } from 'react-native';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import { View, StyleSheet, Dimensions, Platform, Text, Animated } from 'react-native';
+import MapView, { Marker, PROVIDER_GOOGLE, Region } from 'react-native-maps';
 import Svg, { Defs, Pattern, Path, Circle, Rect, G } from 'react-native-svg';
-import { MaterialIcons, Ionicons } from '@expo/vector-icons';
+import { MaterialIcons } from '@expo/vector-icons';
 
 const { width, height } = Dimensions.get('window');
 
-// 假資料生成
-const generateMockData = () => {
-  const locations = [
-    { lat: 25.0478, lng: 121.5170, name: '台北車站B1' },
-    { lat: 25.0360, lng: 121.5687, name: '信義誠品4樓' },
-    { lat: 25.0263, lng: 121.5345, name: '大安森林公園樹下' },
-    { lat: 25.0338, lng: 121.5645, name: '101觀景台89樓' },
-    { lat: 25.0416, lng: 121.5071, name: '西門町巷弄角落' },
-    { lat: 25.0440, lng: 121.5292, name: '華山草地' },
-    { lat: 25.0580, lng: 121.5444, name: '朋友家客廳' },
-    { lat: 25.0530, lng: 121.5160, name: '便利商店外面' }
-  ];
+const API_BASE_URL = Platform.select({
+  ios: 'http://127.0.0.1:5001',     // iOS 模擬器 → 你的 Flask http://localhost:5001
+  android: 'http://10.0.2.2:5001',  // Android 模擬器
+  default: 'http://<你的電腦LAN_IP>:5001', // 真機請改成電腦區網 IP
+});
 
-  const moods = ['😊', '😌', '😅', '🤗', '😋', '🥳', '😇', '🤤'];
-  const customMessages = [
-    '差點憋不住了！',
-    '在這裡拉屎居然很有詩意',
-    '第一次在戶外解決，挺刺激的',
-    '便便很順暢，心情大好！',
-    '希望沒有人看到我...',
-    '突然肚子痛，只能在這裡了',
-    '意外發現這個秘密基地',
-    '野外大便初體驗！'
-  ];
+/** -------------------- API -------------------- **/
 
-  return locations.map((loc, i) => ({
-    id: `record-${i + 1}`,
-    timestamp: Date.now() - (i * 24 * 60 * 60 * 1000),
-    location: loc,
-    mood: moods[i % moods.length],
-    customMessage: customMessages[i % customMessages.length],
-    note: `大便冒險記錄 #${i + 1}`,
-    bristolType: Math.floor(Math.random() * 7) + 1,
-    rating: Math.floor(Math.random() * 5) + 1
-  }));
-};
+async function fetchCheckinsNear({
+  lat,
+  lng,
+  radius_m = 1500,
+  limit = 200,
+  userId,
+}: {
+  lat: number;
+  lng: number;
+  radius_m?: number;
+  limit?: number;
+  userId?: string;
+}) {
+  const qs =
+    `lat=${encodeURIComponent(String(lat))}` +
+    `&lng=${encodeURIComponent(String(lng))}` +
+    `&radius_m=${encodeURIComponent(String(radius_m))}` +
+    `&limit=${encodeURIComponent(String(limit))}` +
+    (userId ? `&user_id=${encodeURIComponent(userId)}` : '');
+
+  const res = await fetch(`${API_BASE_URL}/toilet_checkins/near?${qs}`);
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`fetchCheckinsNear failed: ${res.status} ${text}`);
+  }
+  // 後端回傳: [{ id, user_id, lat, lng, note, created_at, distance_m }]
+  return res.json();
+}
+
+/** 把後端資料轉成前端使用的結構 */
+function mapServerToRecord(c: any) {
+  if (c.lat == null || c.lng == null) return null;
+  return {
+    id: String(c.id),
+    timestamp: new Date(c.created_at ?? Date.now()).getTime(),
+    location: { lat: Number(c.lat), lng: Number(c.lng) },
+    mood: '💩',
+    customMessage: c.note ?? '',
+    note: c.user_id ? `by ${c.user_id}` : '',
+    bristolType: null,
+    rating: 3,
+    distance_m: c.distance_m ?? null,
+  };
+}
+
+/** -------------------- 幾何工具 -------------------- **/
 
 // 貝茲曲線生成函數
-const generateSmoothPath = (points) => {
+const generateSmoothPath = (points: Array<{ x: number; y: number }>) => {
   if (points.length < 2) return '';
-  
   let path = `M ${points[0].x} ${points[0].y}`;
-  
   for (let i = 1; i < points.length; i++) {
     const prev = points[i - 1];
     const current = points[i];
-    
     if (i === 1) {
       const cp1x = prev.x + (current.x - prev.x) * 0.5;
       const cp1y = prev.y + (current.y - prev.y) * 0.3;
@@ -66,47 +81,81 @@ const generateSmoothPath = (points) => {
       path += ` C ${cp1x} ${cp1y} ${cp2x} ${cp2y} ${current.x} ${current.y}`;
     }
   }
-  
   return path;
 };
 
-export default function GestureEnabledPoopMap() {
-  const mapRef = useRef(null);
-  const [mapReady, setMapReady] = useState(false);
-  const [mapRegion, setMapRegion] = useState(null);
-  const [selectedMarker, setSelectedMarker] = useState(null);
-  const [animatedMarkers, setAnimatedMarkers] = useState({});
-  
-  const checkInRecords = generateMockData().slice(0, 8).sort((a, b) => a.timestamp - b.timestamp);
+/** -------------------- 主元件 -------------------- **/
 
-  const initialRegion = {
+export default function GestureEnabledPoopMap() {
+  const mapRef = useRef<MapView | null>(null);
+  const [mapReady, setMapReady] = useState(false);
+  const [mapRegion, setMapRegion] = useState<Region | null>(null);
+
+  const [checkInRecords, setCheckInRecords] = useState<any[]>([]);
+  const [selectedMarker, setSelectedMarker] = useState<any | null>(null);
+  const [animatedMarkers, setAnimatedMarkers] = useState<Record<string, Animated.Value>>({});
+  const fetchTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const initialRegion: Region = {
     latitude: 25.0478,
     longitude: 121.5170,
     latitudeDelta: 0.08,
-    longitudeDelta: 0.08
+    longitudeDelta: 0.08,
   };
 
-  // 初始化動畫值
+  /** 依地圖區域抓附近打卡 */
+  const loadNearBy = async (region: Region | null) => {
+    if (!region) return;
+    try {
+      const raw = await fetchCheckinsNear({
+        lat: region.latitude,
+        lng: region.longitude,
+        radius_m: 1500,
+        limit: 200,
+      });
+      const mapped = raw.map(mapServerToRecord).filter(Boolean as any);
+      // 依時間排序
+      mapped.sort((a: any, b: any) => a.timestamp - b.timestamp);
+      setCheckInRecords(mapped);
+    } catch (e) {
+      console.warn('loadNearBy error', e);
+    }
+  };
+
+  /** 初始化 & 地圖就緒時載入 */
   useEffect(() => {
-    const animations = {};
-    checkInRecords.forEach(record => {
-      animations[record.id] = new Animated.Value(0);
+    if (mapReady && mapRegion) {
+      loadNearBy(mapRegion);
+    }
+  }, [mapReady]);
+
+  /** 地圖移動後節流抓資料 */
+  const handleRegionChangeComplete = (region: Region) => {
+    setMapRegion(region);
+    if (fetchTimerRef.current) clearTimeout(fetchTimerRef.current);
+    fetchTimerRef.current = setTimeout(() => {
+      loadNearBy(region);
+    }, 350);
+  };
+
+  /** 當資料更新時，為每個 marker 準備動畫值 */
+  useEffect(() => {
+    const animations: Record<string, Animated.Value> = {};
+    checkInRecords.forEach((r) => {
+      animations[r.id] = animations[r.id] || new Animated.Value(0);
     });
     setAnimatedMarkers(animations);
-  }, []);
+  }, [checkInRecords.length]);
 
-  // 將經緯度轉換為螢幕座標
-  const convertGpsToPoints = (records, region) => {
+  /** 將經緯度轉成螢幕座標（給 SVG 路徑用） */
+  const convertGpsToPoints = (records: any[], region: Region | null) => {
     if (!region) return [];
-    
     const { latitude, longitude, latitudeDelta, longitudeDelta } = region;
-    
     return records.map((record) => {
       const latOffset = (record.location.lat - latitude) / latitudeDelta;
       const lngOffset = (record.location.lng - longitude) / longitudeDelta;
       const x = width / 2 + (lngOffset * width);
       const y = height / 2 - (latOffset * height);
-      
       return { x, y, record };
     });
   };
@@ -114,145 +163,64 @@ export default function GestureEnabledPoopMap() {
   const pathPoints = convertGpsToPoints(checkInRecords, mapRegion);
   const smoothPath = generateSmoothPath(pathPoints);
 
-  // 地圖區域變化處理
-  const handleRegionChange = (region) => {
-    setMapRegion(region);
-  };
-
-  // 強制啟用地圖手勢
-  const handleMapPress = () => {
-    console.log('地圖被點擊，檢查手勢狀態');
-    if (mapRef.current) {
-      // 強制重新啟用所有手勢
-      mapRef.current.setNativeProps({
-        scrollEnabled: true,
-        zoomEnabled: true,
-        pitchEnabled: true,
-        rotateEnabled: true,
-      });
-      console.log('手勢已重新啟用');
-    }
-  };
-
-  // 標記點擊處理
-  const handleMarkerPress = (record) => {
+  /** 點 marker 動畫 */
+  const handleMarkerPress = (record: any) => {
     setSelectedMarker(record);
-    
-    if (animatedMarkers[record.id]) {
+    const anim = animatedMarkers[record.id];
+    if (anim) {
       Animated.sequence([
-        Animated.timing(animatedMarkers[record.id], {
-          toValue: 1,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-        Animated.timing(animatedMarkers[record.id], {
-          toValue: 0,
-          duration: 200,
-          useNativeDriver: true,
-        }),
+        Animated.timing(anim, { toValue: 1, duration: 200, useNativeDriver: true }),
+        Animated.timing(anim, { toValue: 0, duration: 200, useNativeDriver: true }),
       ]).start();
     }
   };
 
-  // 手動縮放控制
-  const handleZoomIn = () => {
-    if (mapRef.current && mapRegion) {
-      const newRegion = {
-        ...mapRegion,
-        latitudeDelta: mapRegion.latitudeDelta * 0.6,
-        longitudeDelta: mapRegion.longitudeDelta * 0.6
-      };
-      mapRef.current.animateToRegion(newRegion, 400);
-    }
-  };
-
-  const handleZoomOut = () => {
-    if (mapRef.current && mapRegion) {
-      const newRegion = {
-        ...mapRegion,
-        latitudeDelta: mapRegion.latitudeDelta * 1.6,
-        longitudeDelta: mapRegion.longitudeDelta * 1.6
-      };
-      mapRef.current.animateToRegion(newRegion, 400);
-    }
-  };
-
-  const handleResetView = () => {
-    if (mapRef.current) {
-      mapRef.current.animateToRegion(initialRegion, 800);
-    }
-  };
-
-  // 屎紋理定義
+  /** 屎紋理定義 */
   const EnhancedPoopTexture = () => (
     <Defs>
       <Pattern id="densePoopPattern" patternUnits="userSpaceOnUse" width="12" height="6">
-        <Rect width="12" height="6" fill="#8B4513"/>
-        <Circle cx="3" cy="3" r="1.5" fill="#A0522D"/>
-        <Circle cx="7" cy="2" r="1" fill="#654321"/>
-        <Circle cx="9" cy="4" r="0.8" fill="#5D4037"/>
-        <Rect x="1" y="1" width="4" height="1.5" rx="0.75" fill="#A0522D"/>
-        <Rect x="6" y="4" width="3" height="1" rx="0.5" fill="#654321"/>
+        <Rect width="12" height="6" fill="#8B4513" />
+        <Circle cx="3" cy="3" r="1.5" fill="#A0522D" />
+        <Circle cx="7" cy="2" r="1" fill="#654321" />
+        <Circle cx="9" cy="4" r="0.8" fill="#5D4037" />
+        <Rect x="1" y="1" width="4" height="1.5" rx="0.75" fill="#A0522D" />
+        <Rect x="6" y="4" width="3" height="1" rx="0.5" fill="#654321" />
       </Pattern>
-      
       <Pattern id="flowPoopPattern" patternUnits="userSpaceOnUse" width="16" height="8">
-        <Rect width="16" height="8" fill="#8B4513"/>
-        <Circle cx="3" cy="4" r="2" fill="#A0522D"/>
-        <Circle cx="9" cy="3" r="1.5" fill="#654321"/>
-        <Circle cx="13" cy="5" r="1" fill="#5D4037"/>
-        <Rect x="1" y="2" width="6" height="2" rx="1" fill="#A0522D"/>
-        <Rect x="8" y="5" width="4" height="1.5" rx="0.75" fill="#654321"/>
+        <Rect width="16" height="8" fill="#8B4513" />
+        <Circle cx="3" cy="4" r="2" fill="#A0522D" />
+        <Circle cx="9" cy="3" r="1.5" fill="#654321" />
+        <Circle cx="13" cy="5" r="1" fill="#5D4037" />
+        <Rect x="1" y="2" width="6" height="2" rx="1" fill="#A0522D" />
+        <Rect x="8" y="5" width="4" height="1.5" rx="0.75" fill="#654321" />
       </Pattern>
-
       <Pattern id="roughPoopPattern" patternUnits="userSpaceOnUse" width="10" height="5">
-        <Rect width="10" height="5" fill="#8B4513"/>
-        <Circle cx="2" cy="2.5" r="0.8" fill="#A0522D"/>
-        <Circle cx="5" cy="1.5" r="0.6" fill="#654321"/>
-        <Circle cx="7.5" cy="3" r="0.5" fill="#5D4037"/>
-        <Rect x="3" y="0.5" width="2.5" height="0.8" rx="0.4" fill="#A0522D"/>
-        <Rect x="6" y="3.5" width="1.5" height="0.6" rx="0.3" fill="#654321"/>
+        <Rect width="10" height="5" fill="#8B4513" />
+        <Circle cx="2" cy="2.5" r="0.8" fill="#A0522D" />
+        <Circle cx="5" cy="1.5" r="0.6" fill="#654321" />
+        <Circle cx="7.5" cy="3" r="0.5" fill="#5D4037" />
+        <Rect x="3" y="0.5" width="2.5" height="0.8" rx="0.4" fill="#A0522D" />
+        <Rect x="6" y="3.5" width="1.5" height="0.6" rx="0.3" fill="#654321" />
       </Pattern>
     </Defs>
   );
 
-  // 氣泡組件
-  const AnimatedPoopBubbles = ({ x, y, show }) => {
+  /** 動畫氣泡 */
+  const AnimatedPoopBubbles = ({ x, y, show }: { x: number; y: number; show: boolean }) => {
     const bubbleAnim = useRef(new Animated.Value(0)).current;
-    
     useEffect(() => {
       if (show) {
         Animated.sequence([
-          Animated.timing(bubbleAnim, {
-            toValue: 1,
-            duration: 300,
-            useNativeDriver: true,
-          }),
+          Animated.timing(bubbleAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
           Animated.delay(2000),
-          Animated.timing(bubbleAnim, {
-            toValue: 0,
-            duration: 200,
-            useNativeDriver: true,
-          }),
+          Animated.timing(bubbleAnim, { toValue: 0, duration: 200, useNativeDriver: true }),
         ]).start();
       }
     }, [show]);
-
-    const translateY = bubbleAnim.interpolate({
-      inputRange: [0, 1],
-      outputRange: [0, -30],
-    });
-
+    const translateY = bubbleAnim.interpolate({ inputRange: [0, 1], outputRange: [0, -30] });
     return (
       <Animated.View
-        style={[
-          styles.poopBubble,
-          {
-            left: x - 40,
-            top: y - 60,
-            opacity: bubbleAnim,
-            transform: [{ translateY }],
-          },
-        ]}
+        style={[styles.poopBubble, { left: x - 40, top: y - 60, opacity: bubbleAnim, transform: [{ translateY }] }]}
         pointerEvents="none"
       >
         <View style={styles.bubbleContainer}>
@@ -277,7 +245,6 @@ export default function GestureEnabledPoopMap() {
 
   return (
     <View style={styles.container}>
-      {/* 地圖 - 簡化手勢設定但保持功能 */}
       <MapView
         ref={mapRef}
         style={styles.map}
@@ -286,70 +253,41 @@ export default function GestureEnabledPoopMap() {
         onMapReady={() => {
           setMapReady(true);
           setMapRegion(initialRegion);
-          console.log('🗺️ 地圖已準備就緒');
-          console.log('👌 雙指縮放應該可以使用');
-          console.log('👆 單指拖拽應該可以使用');
-          
-          // 確保手勢在地圖準備好後立即啟用
           setTimeout(() => {
-            if (mapRef.current) {
-              mapRef.current.setNativeProps({
-                scrollEnabled: true,
-                zoomEnabled: true,
-                pitchEnabled: true,
-                rotateEnabled: true,
-              });
-              console.log('✅ 手勢已確認啟用');
-            }
+            mapRef.current?.setNativeProps({
+              scrollEnabled: true,
+              zoomEnabled: true,
+              pitchEnabled: true,
+              rotateEnabled: true,
+            });
           }, 100);
         }}
-        onRegionChangeComplete={handleRegionChange}
-        onPress={handleMapPress}
-        
-        // 確保手勢完全啟用
-        scrollEnabled={true}
-        zoomEnabled={true}
-        pitchEnabled={true}    // 重新啟用3D
-        rotateEnabled={true}   // 重新啟用旋轉
-        
-        // 手勢靈敏度設定
-        minZoomLevel={8}       // 最小縮放級別
-        maxZoomLevel={20}      // 最大縮放級別
-        
-        // 額外手勢設定
-        showsUserLocation={true}
+        onRegionChangeComplete={handleRegionChangeComplete}
+        scrollEnabled
+        zoomEnabled
+        pitchEnabled
+        rotateEnabled
+        minZoomLevel={8}
+        maxZoomLevel={20}
+        showsUserLocation
         showsMyLocationButton={false}
         toolbarEnabled={false}
-        
-        // 確保觸控響應
         moveOnMarkerPress={false}
         pointerEvents="auto"
       >
-        {/* 地點標記 */}
         {checkInRecords.map((record, index) => {
-          const animScale = animatedMarkers[record.id]?.interpolate({
-            inputRange: [0, 1],
-            outputRange: [1, 1.3],
-          }) || 1;
-
-          return (
+          const animScale =
+            animatedMarkers[record.id]?.interpolate({ inputRange: [0, 1], outputRange: [1, 1.3] }) ?? 1;
+        return (
             <Marker
               key={record.id}
-              coordinate={{ 
-                latitude: record.location.lat, 
-                longitude: record.location.lng 
-              }}
+              coordinate={{ latitude: record.location.lat, longitude: record.location.lng }}
               title={`💩 第 ${index + 1} 站`}
               description={record.customMessage || record.note}
               onPress={() => handleMarkerPress(record)}
               stopPropagation={false}
             >
-              <Animated.View 
-                style={[
-                  styles.enhancedMarker,
-                  { transform: [{ scale: animScale }] }
-                ]}
-              >
+              <Animated.View style={[styles.enhancedMarker, { transform: [{ scale: animScale }] }]}>
                 <Text style={styles.markerEmoji}>{record.mood}</Text>
                 <Text style={styles.markerNumber}>{index + 1}</Text>
               </Animated.View>
@@ -358,86 +296,29 @@ export default function GestureEnabledPoopMap() {
         })}
       </MapView>
 
-      {/* 屎線 SVG 疊加層 */}
-      {mapReady && mapRegion && smoothPath && (
+      {mapReady && mapRegion && smoothPath ? (
         <Svg style={styles.svgOverlay} pointerEvents="none">
           <EnhancedPoopTexture />
-          
-          <Path
-            d={smoothPath}
-            fill="none"
-            stroke="#654321"
-            strokeWidth={20}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            opacity={0.2}
-          />
-          
-          <Path
-            d={smoothPath}
-            fill="none"
-            stroke="url(#densePoopPattern)"
-            strokeWidth={16}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          
-          <Path
-            d={smoothPath}
-            fill="none"
-            stroke="url(#flowPoopPattern)"
-            strokeWidth={12}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          
-          <Path
-            d={smoothPath}
-            fill="none"
-            stroke="url(#roughPoopPattern)"
-            strokeWidth={8}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-
-          {pathPoints.map((point, index) => (
-            <G key={`poop-pile-${index}`}>
-              <Circle
-                cx={point.x}
-                cy={point.y}
-                r="10"
-                fill="#8B4513"
-                stroke="#654321"
-                strokeWidth="2"
-                opacity={0.7}
-              />
-              <Circle
-                cx={point.x}
-                cy={point.y}
-                r="6"
-                fill="#A0522D"
-                opacity={0.5}
-              />
+          <Path d={smoothPath} fill="none" stroke="#654321" strokeWidth={20} strokeLinecap="round" strokeLinejoin="round" opacity={0.2}/>
+          <Path d={smoothPath} fill="none" stroke="url(#densePoopPattern)" strokeWidth={16} strokeLinecap="round" strokeLinejoin="round"/>
+          <Path d={smoothPath} fill="none" stroke="url(#flowPoopPattern)" strokeWidth={12} strokeLinecap="round" strokeLinejoin="round"/>
+          <Path d={smoothPath} fill="none" stroke="url(#roughPoopPattern)" strokeWidth={8} strokeLinecap="round" strokeLinejoin="round"/>
+          {pathPoints.map((p, idx) => (
+            <G key={`pile-${idx}`}>
+              <Circle cx={p.x} cy={p.y} r="10" fill="#8B4513" stroke="#654321" strokeWidth="2" opacity={0.7}/>
+              <Circle cx={p.x} cy={p.y} r="6" fill="#A0522D" opacity={0.5}/>
             </G>
           ))}
         </Svg>
-      )}
+      ) : null}
 
-      {/* 移除縮放控制按鈕 - 純手勢操作 */}
+      {selectedMarker &&
+        pathPoints.map((pt, i) =>
+          pt.record.id === selectedMarker.id ? (
+            <AnimatedPoopBubbles key={`bubble-${selectedMarker.id}`} x={pt.x} y={pt.y} show />
+          ) : null
+        )}
 
-      {/* 動畫氣泡 */}
-      {selectedMarker && pathPoints.map((point, index) => 
-        point.record.id === selectedMarker.id ? (
-          <AnimatedPoopBubbles
-            key={`bubble-${selectedMarker.id}`}
-            x={point.x}
-            y={point.y}
-            show={true}
-          />
-        ) : null
-      )}
-
-      {/* 資訊面板 */}
       <View style={styles.enhancedInfo}>
         <View style={styles.infoHeader}>
           <Text style={styles.infoTitle}>💩 Poop Line Adventure</Text>
@@ -446,12 +327,9 @@ export default function GestureEnabledPoopMap() {
         <Text style={styles.infoText}>
           {checkInRecords.length} stops • Following the brown trail
         </Text>
-        <Text style={styles.infoHint}>
-          👆 點擊標記查看詳情 • 👌 雙指縮放地圖 • 📱 單指拖拽移動
-        </Text>
+        <Text style={styles.infoHint}>👆 點擊標記查看詳情 • 👌 雙指縮放地圖 • 📱 單指拖拽移動</Text>
       </View>
 
-      {/* 圖例 */}
       <View style={styles.enhancedLegend}>
         <Text style={styles.legendTitle}>🎨 圖例</Text>
         <View style={styles.legendItem}>
@@ -467,193 +345,47 @@ export default function GestureEnabledPoopMap() {
   );
 }
 
+/** -------------------- 樣式 -------------------- **/
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F5E6D3',
-  },
-  
-  map: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  
-  svgOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 1,
-  },
-  
-  webMapContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F0F8FF',
-  },
-  webMapTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#8B4513',
-    marginTop: 16,
-  },
-  webMapText: {
-    fontSize: 16,
-    color: '#666',
-    marginTop: 8,
-  },
-
+  container: { flex: 1, backgroundColor: '#F5E6D3' },
+  map: { ...StyleSheet.absoluteFillObject },
+  svgOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 1 },
+  webMapContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F0F8FF' },
+  webMapTitle: { fontSize: 24, fontWeight: 'bold', color: '#8B4513', marginTop: 16 },
+  webMapText: { fontSize: 16, color: '#666', marginTop: 8 },
   enhancedMarker: {
-    backgroundColor: 'white',
-    borderRadius: 22,
-    padding: 8,
-    alignItems: 'center',
-    borderWidth: 3,
-    borderColor: '#8B4513',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 6,
+    backgroundColor: 'white', borderRadius: 22, padding: 8, alignItems: 'center',
+    borderWidth: 3, borderColor: '#8B4513', shadowColor: '#000', shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3, shadowRadius: 4, elevation: 6,
   },
-  markerEmoji: {
-    fontSize: 20,
-  },
-  markerNumber: {
-    fontSize: 10,
-    fontWeight: 'bold',
-    color: '#8B4513',
-    marginTop: 2,
-  },
-
-  mapControls: {
-    position: 'absolute',
-    top: 60,
-    right: 16,
-    zIndex: 1000,
-    gap: 12,
-  },
-  controlButton: {
-    width: 50,
-    height: 50,
-    backgroundColor: 'white',
-    borderRadius: 25,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 6,
-    borderWidth: 2,
-    borderColor: '#E8D5B7',
-  },
-
-  poopBubble: {
-    position: 'absolute',
-    zIndex: 2000,
-  },
+  markerEmoji: { fontSize: 20 },
+  markerNumber: { fontSize: 10, fontWeight: 'bold', color: '#8B4513', marginTop: 2 },
+  poopBubble: { position: 'absolute', zIndex: 2000 },
   bubbleContainer: {
-    backgroundColor: 'white',
-    borderRadius: 15,
-    padding: 12,
-    borderWidth: 2,
-    borderColor: '#8B4513',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
-    alignItems: 'center',
+    backgroundColor: 'white', borderRadius: 15, padding: 12, borderWidth: 2, borderColor: '#8B4513',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 4, elevation: 5, alignItems: 'center',
   },
-  bubbleText: {
-    fontSize: 12,
-    color: '#8B4513',
-    fontWeight: 'bold',
-    marginBottom: 4,
-  },
-  bubbleEmoji: {
-    fontSize: 16,
-  },
-
+  bubbleText: { fontSize: 12, color: '#8B4513', fontWeight: 'bold', marginBottom: 4 },
+  bubbleEmoji: { fontSize: 16 },
   enhancedInfo: {
-    position: 'absolute',
-    bottom: 120,
-    left: 16,
-    right: 16,
-    backgroundColor: 'white',
-    padding: 16,
-    borderRadius: 15,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 8,
-    borderWidth: 2,
-    borderColor: '#E8D5B7',
-    zIndex: 100,
+    position: 'absolute', bottom: 120, left: 16, right: 16, backgroundColor: 'white', padding: 16,
+    borderRadius: 15, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 6,
+    elevation: 8, borderWidth: 2, borderColor: '#E8D5B7', zIndex: 100,
   },
-  infoHeader: {
-    marginBottom: 8,
-  },
-  infoTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#8B4513',
-  },
-  infoSubtitle: {
-    fontSize: 12,
-    color: '#A0522D',
-    fontStyle: 'italic',
-  },
-  infoText: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 4,
-  },
-  infoHint: {
-    fontSize: 11,
-    color: '#999',
-    fontStyle: 'italic',
-  },
-
+  infoHeader: { marginBottom: 8 },
+  infoTitle: { fontSize: 18, fontWeight: 'bold', color: '#8B4513' },
+  infoSubtitle: { fontSize: 12, color: '#A0522D', fontStyle: 'italic' },
+  infoText: { fontSize: 14, color: '#666', marginBottom: 4 },
+  infoHint: { fontSize: 11, color: '#999', fontStyle: 'italic' },
   enhancedLegend: {
-    position: 'absolute',
-    bottom: 16,
-    left: 16,
-    backgroundColor: 'white',
-    padding: 12,
-    borderRadius: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-    elevation: 4,
-    borderWidth: 1,
-    borderColor: '#E8D5B7',
-    zIndex: 100,
+    position: 'absolute', bottom: 16, left: 16, backgroundColor: 'white', padding: 12, borderRadius: 10,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 3, elevation: 4,
+    borderWidth: 1, borderColor: '#E8D5B7', zIndex: 100,
   },
-  legendTitle: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: '#8B4513',
-    marginBottom: 8,
-  },
-  legendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  legendSmoothLine: {
-    width: 24,
-    height: 4,
-    backgroundColor: '#8B4513',
-    borderRadius: 2,
-    marginRight: 8,
-  },
-  legendEmoji: {
-    fontSize: 14,
-    marginRight: 8,
-  },
-  legendText: {
-    fontSize: 10,
-    color: '#666',
-  },
+  legendTitle: { fontSize: 12, fontWeight: 'bold', color: '#8B4513', marginBottom: 8 },
+  legendItem: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
+  legendSmoothLine: { width: 24, height: 4, backgroundColor: '#8B4513', borderRadius: 2, marginRight: 8 },
+  legendEmoji: { fontSize: 14, marginRight: 8 },
+  legendText: { fontSize: 10, color: '#666' },
 });
