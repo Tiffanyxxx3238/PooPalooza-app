@@ -3052,6 +3052,18 @@ const renderJourneyContent = () => {
         </View>
 
         {renderContent()}
+        {Platform.OS !== 'web' && (activeTab === 'map' || activeTab === 'journey') && (
+          <TouchableOpacity
+          style={[styles.globalFab, !location && styles.fabDisabled]}
+          onPress={handleQuickLocationCheckIn}
+          disabled={!location}
+          activeOpacity={0.85}
+          >
+            <Text style={styles.globalFabEmoji}>💩</Text>
+            <Text style={styles.globalFabLabel}>{location ? '打卡' : 'GPS...'}</Text>
+            </TouchableOpacity>
+          )}
+
       </View>
 
       {/* 🚨 重要：確保所有Modal都在這裡渲染 */}
@@ -4818,4 +4830,29 @@ const styles = StyleSheet.create({
    fontWeight: '600',
    fontSize: 12,
  },
+
+ globalFab: {
+  position: 'absolute',
+  right: 16,
+  bottom: 24,
+  width: 72,
+  height: 72,
+  borderRadius: 36,
+  backgroundColor: '#FF6B6B',
+  justifyContent: 'center',
+  alignItems: 'center',
+  borderWidth: 4,
+  borderColor: '#FFFFFF',
+  // 硬把層級拉到最上，避免被地圖/卡片蓋住
+  zIndex: 9999,
+  elevation: 12,
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 6 },
+  shadowOpacity: 0.35,
+  shadowRadius: 12,
+},
+globalFabEmoji: { fontSize: 26, marginBottom: 2 },
+globalFabLabel: { color: '#FFFFFF', fontWeight: 'bold', fontSize: 12 },
+fabDisabled: { backgroundColor: '#BDC3C7', borderColor: '#FFFFFF' },
+
 });
