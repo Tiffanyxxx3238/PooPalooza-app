@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useCallback, useMemo,memo } from 'r
 import { View, Text, StyleSheet, TouchableOpacity, Platform, Dimensions, Alert, Modal, TextInput, ScrollView, Image, Share, KeyboardAvoidingView, Linking, FlatList } from 'react-native';
 import Colors from '@/constants/colors';
 import { MapPin, Navigation, Compass, List, Heart, Camera, Calendar, Trophy, Route, MessageCircle, Star, Upload, Mic, MicOff, Share2, Eye, EyeOff, Filter, ChevronDown, ChevronUp } from 'lucide-react-native';
-import MapView, { Marker, Polyline, Callout } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -90,6 +89,17 @@ interface CheckInRecord {
   isPrivate: boolean;
   anonymous: boolean;
   customMessage?: string;
+}
+
+const SAFE_NO_MAP = false; // 臨時除錯：true = 停用地圖
+if (SAFE_NO_MAP) {
+  return (
+    <View style={styles.webMapPlaceholder}>
+      <MapPin size={48} color={Colors.primary.lightText} />
+      <Text style={styles.webMapTitle}>Map disabled (debug)</Text>
+      <Text style={styles.webMapText}>Turn SAFE_NO_MAP=false to re-enable map.</Text>
+    </View>
+  );
 }
 
 const BRISTOL_EMOJIS: Record<number, string> = {
@@ -904,14 +914,19 @@ const generateMoreMockBathrooms = (userLat: number, userLng: number): Bathroom[]
         console.log(`🎯 模擬生成 ${nearbyMockBathrooms.length} 個附近廁所`);
 
         // 🔄 簡化政府資料載入 - 減少資料量避免當機
-        console.log('🏛️ 開始處理政府廁所資料...');
-        
-        // 只載入主要城市的資料，減少記憶體使用
+        console.log('🏛️ 動態載入政府廁所（少量）...');
+        // 只在需要時載入，且每個城市取少量避免記憶體壓力
+        const [TaipeiMod, NewTaipeiMod, TaichungMod, KaohsiungMod] = await Promise.all([
+          import('@/assets/public_bathroom/Taipei.json'),
+          import('@/assets/public_bathroom/new_taipei.json'),
+          import('@/assets/public_bathroom/Taichung.json'),
+          import('@/assets/public_bathroom/Kaohsiung.json'),
+        ]);
         const govDataSets = [
-          { data: Taipei.slice(0, 80), name: '台北' }, // 減少載入量
-          { data: new_taipei.slice(0, 60), name: '新北' },
-          { data: Taichung.slice(0, 40), name: '台中' },
-          { data: Kaohsiung.slice(0, 40), name: '高雄' },
+          { data: (TaipeiMod.default || []).slice(0, 80), name: '台北' },
+          { data: (NewTaipeiMod.default || []).slice(0, 60), name: '新北' },
+          { data: (TaichungMod.default || []).slice(0, 40), name: '台中' },
+          { data: (KaohsiungMod.default || []).slice(0, 40), name: '高雄' },
         ];
 
         // 初始化基本資料
@@ -2279,15 +2294,16 @@ const RecordsDrawer = () => {
 
       return (
         <View style={styles.mapContainer}>
-          <MapView
+
+            <MapView
             ref={mapRef}
             style={styles.map}
-            provider={PROVIDER_GOOGLE}
+            provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
             initialRegion={currentRegion}
             showsUserLocation={!!location}
             showsMyLocationButton={false}
             onMapReady={() => setMapReady(true)}
-          >
+            >
           {limitedDisplayBathrooms.map((cluster) => (
   <Marker
     key={cluster.id}
@@ -2649,6 +2665,124 @@ const renderJourneyContent = () => {
           zIndex: 50, // 超高層級遮蔽原按鈕
         }} />
 
+        const renderJourneyContent = () => {
+        const todayRecords = getTodayRecords();
+        const previousRecords = getPreviousRecords();
+        
+        // 將歷史記錄依日期分組（yyyy/mm/dd）
+        const groupedHistory = previousRecords.reduce((groups, record) => {
+          const d = new Date(record.timestamp);
+          const key = `${d.getFullYear()}/${(d.getMonth()+1).toString().padStart(2,'0')}/${d.getDate().toString().padStart(2,'0')}`;
+          if (!groups[key]) groups[key] = [];
+          groups[key].push(record);
+          return groups;
+        }, {} as Record<string, CheckInRecord[]>);
+        
+        const renderRecordCard = (record: CheckInRecord) => (
+        <View key={record.id} style={styles.modernRecordCard}>
+          <View style={styles.recordCardHeader}>
+            <Text style={styles.recordMoodLarge}>{record.mood}</Text>
+            <View style={styles.recordTimeInfo}>
+              <Text style={styles.recordTimeText}>
+                {new Date(record.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                </Text>
+                {record.isPrivate && (
+                  <View style={styles.privateTag}>
+                    <Text style={styles.privateTagText}>🔒 Private</Text>
+                    </View>
+                  )}
+                  </View>
+                  
+                  </View>
+                  {record.customMessage ? (
+                    <View style={styles.recordMessageContainer}>
+                      <Text style={styles.recordMessage}>"{record.customMessage}"</Text>
+                      </View>
+                    ) : null}
+                    <View style={styles.recordFooterInfo}>
+                      <Text style={styles.recordLocationText}>📍 {record.bathroom.name}</Text>
+                      {record.bristolType && (
+                        <Text style={styles.recordBristolText}>{BRISTOL_EMOJIS[record.bristolType]} Type {record.bristolType}</Text>
+                        )}
+                        </View>
+       {/* 清單裡直接提供「導航 / 再次打卡」 */}
+       <View style={{flexDirection:'row', justifyContent:'flex-end', gap:8, marginTop:10}}>
+         <TouchableOpacity style={styles.smallSecondaryButton} onPress={() => handleNavigate(record.bathroom)}>
+           <Text style={styles.smallSecondaryText}>導航</Text>
+         </TouchableOpacity>
+         <TouchableOpacity style={styles.smallPrimaryButton} onPress={() => handleCheckIn(record.bathroom)}>
+           <Text style={styles.smallPrimaryText}>💩 再次打卡</Text>
+         </TouchableOpacity>
+       </View>
+     </View>
+   );
+
+   return (
+     <ScrollView style={styles.journeyContainer} contentContainerStyle={{paddingBottom: 32}}>
+       {/* 上方小地圖（固定高度） */}
+       <View style={styles.journeyMapContainerFixed}>
+         <MapComponent />
+         {/* 旅程頁面也保留一顆醒目的浮動打卡鈕（有 GPS 才顯示） */}
+         {location ? (
+           <TouchableOpacity
+             style={styles.floatingCheckInButton}
+             onPress={handleQuickLocationCheckIn}
+             activeOpacity={0.85}
+           >
+             <View style={styles.checkInButtonContent}>
+               <Text style={styles.checkInButtonEmoji}>💩</Text>
+               <Text style={styles.checkInButtonText}>打卡</Text>
+             </View>
+           </TouchableOpacity>
+         ) : null}
+       </View>
+
+       {/* 清單標題＋數字 */}
+       <View style={{paddingHorizontal:16, paddingTop:16}}>
+         <Text style={styles.sectionTitle}>今日打卡（{todayRecords.length}）</Text>
+       </View>
+
+       {/* 今日清單 */}
+       <View style={{paddingHorizontal:16, marginTop:8}}>
+         {todayRecords.length === 0 ? (
+           <View style={styles.emptyRecordsContainer}>
+             <Text style={styles.emptyRecordsEmoji}>🌱</Text>
+             <Text style={styles.emptyRecordsTitle}>今天還沒有打卡</Text>
+             <Text style={styles.emptyRecordsText}>點「💩 打卡」開始記錄吧！</Text>
+           </View>
+         ) : (
+           todayRecords
+             .sort((a,b) => b.timestamp - a.timestamp)
+             .map(renderRecordCard)
+         )}
+       </View>
+
+       {/* 歷史清單（依日期分組） */}
+       <View style={{paddingHorizontal:16, paddingTop:16}}>
+         <Text style={styles.sectionTitle}>歷史打卡</Text>
+       </View>
+       <View style={{paddingHorizontal:16, marginTop:8}}>
+         {Object.keys(groupedHistory).length === 0 ? (
+           <View style={styles.emptyRecordsContainer}>
+             <Text style={styles.emptyRecordsEmoji}>📚</Text>
+             <Text style={styles.emptyRecordsTitle}>尚無歷史記錄</Text>
+             <Text style={styles.emptyRecordsText}>持續打卡就會看到這裡長出清單～</Text>
+           </View>
+         ) : (
+           Object.entries(groupedHistory)
+             .sort(([a],[b]) => new Date(b).getTime() - new Date(a).getTime())
+             .map(([date, records]) => (
+               <View key={date} style={{marginBottom:12}}>
+                 <Text style={styles.dateHeader}>{date}</Text>
+                 {records.sort((a,b) => b.timestamp - a.timestamp).map(renderRecordCard)}
+               </View>
+             ))
+         )}
+       </View>
+     </ScrollView>
+   );
+ };
+
         {/* ✨ 整合統計條 + 功能按鈕在同一框 */}
         <View style={{
           position: 'absolute',
@@ -2870,6 +3004,18 @@ const renderJourneyContent = () => {
       >
         <View style={styles.header}>
           <Text style={styles.title}>PooPalooza 💩</Text>
+          {/* 只有在 Journey 分頁顯示打卡按鈕（Web、手機都可用） */}
+          {activeTab === 'journey' && (
+            <View style={styles.headerActions}>
+              <TouchableOpacity
+              style={styles.headerCheckInButton}
+              onPress={handleQuickLocationCheckIn}
+              activeOpacity={0.85}
+              >
+                <Text style={styles.headerCheckInText}>💩 打卡</Text>
+                </TouchableOpacity>
+                </View>
+              )}
           <View style={styles.tabContainer}>
             {Platform.OS !== 'web' && (
               <TouchableOpacity
@@ -2929,6 +3075,23 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
     borderBottomWidth: 1,
     borderBottomColor: Colors.primary.border,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginBottom: 8,
+  },
+  headerCheckInButton: {
+    backgroundColor: Colors.primary.accent,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    alignSelf: 'flex-end',
+  },
+  headerCheckInText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 14,
   },
   title: {
     fontSize: 24,
@@ -4625,4 +4788,34 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     paddingLeft: 4,
   },
+
+  journeyMapContainerFixed: {
+   height: 260,
+   position: 'relative',
+   backgroundColor: Colors.primary.background,
+ },
+ smallPrimaryButton: {
+   backgroundColor: Colors.primary.accent,
+   paddingHorizontal: 12,
+   paddingVertical: 8,
+   borderRadius: 12,
+ },
+ smallPrimaryText: {
+   color: '#fff',
+   fontWeight: '600',
+   fontSize: 12,
+ },
+ smallSecondaryButton: {
+   backgroundColor: Colors.primary.card,
+   paddingHorizontal: 12,
+   paddingVertical: 8,
+   borderRadius: 12,
+   borderWidth: 1,
+   borderColor: Colors.primary.border,
+ },
+ smallSecondaryText: {
+   color: Colors.primary.text,
+   fontWeight: '600',
+   fontSize: 12,
+ },
 });
