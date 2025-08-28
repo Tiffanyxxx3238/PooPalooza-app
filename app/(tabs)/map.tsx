@@ -1989,6 +1989,15 @@ const ClusterModal = () => {
                 </View>
                 <View style={styles.clusterActionButtons}>
                   <TouchableOpacity 
+                  style={[styles.checkInActionButton, { marginBottom: 8 }]} 
+                  onPress={() => {
+                    setShowClusterModal(false);
+                    handleCheckIn(bathroom);
+                  }}
+                  >
+                    <Text style={{ fontSize: 16, color: '#FFFFFF' }}>💩</Text>
+                    </TouchableOpacity>
+                  <TouchableOpacity 
                     style={styles.navigateButton} 
                     onPress={() => {
                       setShowClusterModal(false);
@@ -2467,6 +2476,13 @@ const RecordsDrawer = () => {
               </View>
 
               <View style={styles.actionButtons}>
+                <TouchableOpacity 
+                style={styles.checkInActionButton} 
+                onPress={() => handleCheckIn(selectedBathroom)}
+                >
+                  <Text style={{ fontSize: 18, color: '#FFFFFF' }}>💩</Text>
+                  <Text style={styles.actionButtonText}>打卡</Text>
+                  </TouchableOpacity>
                 <TouchableOpacity 
                 style={styles.checkInActionButton} 
                 onPress={() => handleCheckIn(bathroom)}
@@ -3296,6 +3312,7 @@ const styles = StyleSheet.create({
   actionButtons: {
     flexDirection: 'row',
     gap: 8,
+    alignItems: 'center',
   },
   checkInActionButton: {
     width: 40,
