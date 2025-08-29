@@ -2987,7 +2987,7 @@ const renderJourneyContent = () => {
       case 'nearby':
         return renderNearbyList();
       case 'visited':
-        return renderVisitedContent();
+        return renderJourneyContent();
       case 'journey':
         return renderJourneyContent();
       case 'poopline':                    
@@ -4846,6 +4846,29 @@ const styles = StyleSheet.create({
   // 硬把層級拉到最上，避免被地圖/卡片蓋住
   zIndex: 9999,
   elevation: 12,
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 6 },
+  shadowOpacity: 0.35,
+  shadowRadius: 12,
+},
+globalFabEmoji: { fontSize: 26, marginBottom: 2 },
+globalFabLabel: { color: '#FFFFFF', fontWeight: 'bold', fontSize: 12 },
+fabDisabled: { backgroundColor: '#BDC3C7', borderColor: '#FFFFFF' },
+
+globalFab: {
+  position: 'absolute',
+  right: 16,
+  bottom: 24,
+  width: 72,
+  height: 72,
+  borderRadius: 36,
+  backgroundColor: '#FF6B6B',
+  justifyContent: 'center',
+  alignItems: 'center',
+  borderWidth: 4,
+  borderColor: '#FFFFFF',
+  zIndex: 9999,        // iOS 置頂
+  elevation: 12,       // Android 置頂
   shadowColor: '#000',
   shadowOffset: { width: 0, height: 6 },
   shadowOpacity: 0.35,
