@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo,memo } from 'r
 import { View, Text, StyleSheet, TouchableOpacity, Platform, Dimensions, Alert, Modal, TextInput, ScrollView, Image, Share, KeyboardAvoidingView, Linking, FlatList } from 'react-native';
 import Colors from '@/constants/colors';
 import { MapPin, Navigation, Compass, List, Heart, Camera, Calendar, Trophy, Route, MessageCircle, Star, Upload, Mic, MicOff, Share2, Eye, EyeOff, Filter, ChevronDown, ChevronUp } from 'lucide-react-native';
+import MapView, { Marker, Polyline, Callout } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -13,7 +14,6 @@ import { ToiletAPIService } from '@/services/ToiletAPIService';
 
 // 🔄 保留你的所有原有介面和常數
 import changhua from '@/assets/public_bathroom/Changhua.json';
-import PoopLinePage from './poopline'; 
 import Chiayi from '@/assets/public_bathroom/Chiayi.json';
 import Chiayi2 from '@/assets/public_bathroom/Chiayi2.json';
 import Hsinchu from '@/assets/public_bathroom/Hsinchu.json';
@@ -90,17 +90,7 @@ interface CheckInRecord {
   anonymous: boolean;
   customMessage?: string;
 }
-
-const SAFE_NO_MAP = false; // 臨時除錯：true = 停用地圖
-if (SAFE_NO_MAP) {
-  return (
-    <View style={styles.webMapPlaceholder}>
-      <MapPin size={48} color={Colors.primary.lightText} />
-      <Text style={styles.webMapTitle}>Map disabled (debug)</Text>
-      <Text style={styles.webMapText}>Turn SAFE_NO_MAP=false to re-enable map.</Text>
-    </View>
-  );
-}
+;
 
 const BRISTOL_EMOJIS: Record<number, string> = {
   1: '🥵', 2: '😓', 3: '🧻', 4: '😊', 5: '😅', 6: '🥲', 7: '💧',
@@ -320,22 +310,6 @@ export default function MapScreen() {
   const [visitedBathroomIds, setVisitedBathroomIds] = useState<string[]>([]);
   const [mapReady, setMapReady] = useState(false);
   const [showPoopLinePage, setShowPoopLinePage] = useState(false);
-
-  // 🆕 混合資料策略：資料庫優先，備用本地資料
-  const finalAllBathrooms = useMemo(() => {
-    if (dbAllBathrooms.length > 0) {
-      return dbAllBathrooms; // 優先使用資料庫資料
-    }
-    return allBathrooms; // 備用本地資料
-  }, [dbAllBathrooms, allBathrooms]);
-
-  const finalNearbyBathrooms = useMemo(() => {
-    if (dbNearbyBathrooms.length > 0) {
-      return dbNearbyBathrooms; // 優先使用資料庫資料
-    }
-    return nearbyBathrooms; // 備用本地資料
-  }, [dbNearbyBathrooms, nearbyBathrooms]);
-
   // 🆕 狀態變化監控 - Debug用
   useEffect(() => {
     console.log('🔄 狀態變化監控:');
@@ -466,74 +440,102 @@ export default function MapScreen() {
     return true;
   };
 
-  // 🔧 修正：Perform check-in
-  const performCheckIn = async () => {
-    console.log('🚀 performCheckIn 開始執行');
-    console.log('selectedBathroom:', selectedBathroom);
-    console.log('checkInMood:', checkInMood);
+const performCheckIn = async () => {
+  if (!selectedBathroom) {
+    Alert.alert('Error', 'No bathroom selected');
+    return;
+  }
+  
+  if (!checkInMood) {
+    Alert.alert('Select mood', 'Please select a mood');
+    return;
+  }
+  
+  try {
+    const API_URL = 'http://192.168.0.171:5001';
     
-    if (!selectedBathroom) {
-      console.log('❌ selectedBathroom 為空');
-      Alert.alert('錯誤', '無法取得打卡地點資料，請稍後再試');
-      return;
+    const checkInData = {
+      user_id: 1,
+      checkin_time: new Date().toISOString().slice(0, 19).replace('T', ' '),
+      latitude: selectedBathroom.latitude,
+      longitude: selectedBathroom.longitude,
+      toilet_name: selectedBathroom.name,
+      toilet_rating_cleanliness: checkInRating,
+      toilet_rating_privacy: isPrivateCheckIn ? 5 : 3,
+      toilet_rating_amenities: checkInRating,
+      toilet_review_text: `${checkInMood} - ${customMessage || checkInNote}`,
+      public_toilet_id: selectedBathroom.id
+    };
+    
+    console.log('Sending check-in data:', JSON.stringify(checkInData, null, 2));
+    
+    const response = await fetch(`${API_URL}/toilet_checkins`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(checkInData),
+    });
+    
+    console.log('Response status:', response.status);
+    const responseText = await response.text();
+    console.log('Response body:', responseText);
+    
+    if (!response.ok) {
+      throw new Error(`Server responded with ${response.status}: ${responseText}`);
     }
     
-    if (!validateCheckInForm()) {
-      console.log('❌ 表單驗證失敗');
-      return;
-    }
+    const result = JSON.parse(responseText);
+    console.log('Check-in saved:', result);
     
-    try {
-      const newRecord: CheckInRecord = {
-        id: Date.now().toString(),
-        timestamp: Date.now(),
-        bathroom: selectedBathroom,
-        mood: checkInMood,
-        bristolType: checkInBristolType,
-        note: checkInNote,
-        quickTag: checkInQuickTag,
-        rating: checkInRating,
-        image: checkInImage || undefined,
-        audioUri: checkInAudio || undefined,
-        location: {
-          lat: selectedBathroom.latitude,
-          lng: selectedBathroom.longitude,
-          name: selectedBathroom.name,
-        },
-        isPrivate: isPrivateCheckIn,
-        anonymous: isAnonymousCheckIn,
-        customMessage: customMessage,
-      };
-      
-      console.log('📝 準備保存記錄:', newRecord);
-      
-      const updatedRecords = [...checkInRecords, newRecord];
-      setCheckInRecords(updatedRecords);
-      setVisitedBathroomIds([...visitedBathroomIds, selectedBathroom.id]);
-      
-      await localStorageUtil.setItem('checkInRecords', JSON.stringify(updatedRecords));
-      
-      // 重要：先關閉Modal再重置表單
-      setShowCheckInModal(false);
-      
-      // Reset form
-      resetCheckInForm(false); // 傳入false避免再次關閉modal
-      
-      // Show success message
-      Alert.alert('🎉 打卡成功！', `已在 ${selectedBathroom.name} 打卡完成`, [
-        {
-          text: '太棒了！',
-          onPress: () => console.log('✅ 打卡流程完全結束')
-        }
-      ]);
-      
-      console.log('✅ performCheckIn 成功完成');
-    } catch (error) {
-      console.error('❌ performCheckIn 錯誤:', error);
-      Alert.alert('錯誤', '打卡失敗，請稍後再試');
-    }
-  };
+    // Save locally...
+    const localRecord = {
+      id: Date.now().toString(),
+      timestamp: Date.now(),
+      bathroom: selectedBathroom,
+      mood: checkInMood,
+      bristolType: checkInBristolType,
+      note: checkInNote,
+      quickTag: checkInQuickTag,
+      rating: checkInRating,
+      location: {
+        lat: selectedBathroom.latitude,
+        lng: selectedBathroom.longitude,
+        name: selectedBathroom.name,
+      },
+      isPrivate: isPrivateCheckIn,
+      anonymous: isAnonymousCheckIn,
+      customMessage: customMessage,
+    };
+    
+    const updatedRecords = [...checkInRecords, localRecord];
+    setCheckInRecords(updatedRecords);
+    await localStorageUtil.setItem('checkInRecords', JSON.stringify(updatedRecords));
+    
+    setShowCheckInModal(false);
+    resetCheckInForm(false);
+    
+    Alert.alert('Success!', 'Check-in saved to database!');
+    
+  } catch (error) {
+    console.error('Full error details:', error);
+    Alert.alert('Error', `Failed to save: ${error.message}`);
+  }
+};
+  // 🆕 混合資料策略：資料庫優先，備用本地資料
+const finalAllBathrooms = useMemo(() => {
+  if (dbAllBathrooms.length > 0) {
+    return dbAllBathrooms; // 優先使用資料庫資料
+  }
+  return allBathrooms; // 備用本地資料
+}, [dbAllBathrooms, allBathrooms]);
 
+const finalNearbyBathrooms = useMemo(() => {
+  if (dbNearbyBathrooms.length > 0) {
+    return dbNearbyBathrooms; // 優先使用資料庫資料
+  }
+  return nearbyBathrooms; // 備用本地資料
+}, [dbNearbyBathrooms, nearbyBathrooms]);
   // Reset check-in form
   const resetCheckInForm = (closeModal = true) => {
     setCheckInNote('');
@@ -823,7 +825,6 @@ const generateMoreMockBathrooms = (userLat: number, userLng: number): Bathroom[]
         : '',
     };
   }, [checkInRecords]);
-
   // Filter nearby bathrooms when location is obtained
   useEffect(() => {
     if (location && finalAllBathrooms.length > 0) { // 使用混合資料
@@ -914,19 +915,14 @@ const generateMoreMockBathrooms = (userLat: number, userLng: number): Bathroom[]
         console.log(`🎯 模擬生成 ${nearbyMockBathrooms.length} 個附近廁所`);
 
         // 🔄 簡化政府資料載入 - 減少資料量避免當機
-        console.log('🏛️ 動態載入政府廁所（少量）...');
-        // 只在需要時載入，且每個城市取少量避免記憶體壓力
-        const [TaipeiMod, NewTaipeiMod, TaichungMod, KaohsiungMod] = await Promise.all([
-          import('@/assets/public_bathroom/Taipei.json'),
-          import('@/assets/public_bathroom/new_taipei.json'),
-          import('@/assets/public_bathroom/Taichung.json'),
-          import('@/assets/public_bathroom/Kaohsiung.json'),
-        ]);
+        console.log('🏛️ 開始處理政府廁所資料...');
+        
+        // 只載入主要城市的資料，減少記憶體使用
         const govDataSets = [
-          { data: (TaipeiMod.default || []).slice(0, 80), name: '台北' },
-          { data: (NewTaipeiMod.default || []).slice(0, 60), name: '新北' },
-          { data: (TaichungMod.default || []).slice(0, 40), name: '台中' },
-          { data: (KaohsiungMod.default || []).slice(0, 40), name: '高雄' },
+          { data: Taipei.slice(0, 80), name: '台北' }, // 減少載入量
+          { data: new_taipei.slice(0, 60), name: '新北' },
+          { data: Taichung.slice(0, 40), name: '台中' },
+          { data: Kaohsiung.slice(0, 40), name: '高雄' },
         ];
 
         // 初始化基本資料
@@ -1084,7 +1080,7 @@ const generateMoreMockBathrooms = (userLat: number, userLng: number): Bathroom[]
     case 'map':
       // 如果有位置，只顯示附近範圍內的
       if (location) {
-        const nearbyInRange = bathrooms.filter(b => {
+        const nearbyInRange = bathrooms.filter((b: Bathroom) => {
           const distance = calculateDistance(
             location.coords.latitude,
             location.coords.longitude,
@@ -1172,41 +1168,29 @@ const generateMoreMockBathrooms = (userLat: number, userLng: number): Bathroom[]
     setShowCheckInModal(true);
   };
 
-// 🔧 修正：位置打卡處理函數
 const handleQuickLocationCheckIn = () => {
-  console.log('🎯 Quick check-in button pressed');
-  console.log('location狀態:', location);
-  console.log('showCheckInModal當前狀態:', showCheckInModal);
-  
   if (!location) {
-    console.log('❌ 沒有位置資訊');
-    Alert.alert('⚠️ 無法打卡', '尚未取得 GPS 位置，請稍後再試');
+    Alert.alert('⚠️ Cannot check in', 'GPS location not available');
     return;
   }
 
-  // 創建虛擬廁所用於表單
+  // Create a location-based "bathroom" entry
   const currentLocationBathroom: Bathroom = {
-    id: 'quick-location-' + Date.now(),
-    name: 'My Location',
+    id: 'location-' + Date.now(),
+    name: 'Current Location',
     latitude: location.coords.latitude,
     longitude: location.coords.longitude,
-    address: 'Current Location',
+    address: `${location.coords.latitude.toFixed(4)}, ${location.coords.longitude.toFixed(4)}`,
     rating: 0,
     distance: 0,
-    type: 'Location Check-in',
+    type: 'Personal',
     source: 'commercial',
     reviews: [],
-    funnyQuote: 'I was here! 📍',
+    funnyQuote: 'I was here!',
   };
 
-  console.log('📍 創建位置廁所:', currentLocationBathroom);
-
-  // 直接打開 Modal
-  resetCheckInForm(false);
   setSelectedBathroom(currentLocationBathroom);
   setShowCheckInModal(true);
-  
-  console.log('✅ Modal應該已開啟');
 };
 
   const handleMoodSelect = (emoji: string) => {
@@ -1382,7 +1366,7 @@ const CheckInModal = memo(() => {
   // 🔧 修正：使用本地狀態避免外部狀態變化導致重新渲染
   const [localMood, setLocalMood] = useState('');
   const [localMessage, setLocalMessage] = useState('');
-  const [localBristolType, setLocalBristolType] = useState(undefined);
+  const [localBristolType, setLocalBristolType] = useState<number | undefined>(undefined);
   const [localQuickTag, setLocalQuickTag] = useState('');
   const [localRating, setLocalRating] = useState(5);
 
@@ -1404,71 +1388,67 @@ const CheckInModal = memo(() => {
     setShowCheckInModal(false);
   }, []);
 
-  // 🔧 修正：穩定的打卡處理函數
-  const handleCheckIn = useCallback(async (isPrivate) => {
-    const checkInType = isPrivate ? 'Private' : 'Public';
-    console.log(`${isPrivate ? '🔒' : '🌍'} ${checkInType} check-in started`);
+const handleCheckIn = useCallback(async (isPrivate: boolean) => {
+  console.log(`${isPrivate ? '🔒' : '🌍'} ${isPrivate ? 'Private' : 'Public'} check-in started`);
+  
+  if (!localMood) {
+    Alert.alert('Select mood', 'Please select a mood');
+    return;
+  }
+  
+  if (!selectedBathroom) {
+    Alert.alert('Error', 'No bathroom selected');
+    return;
+  }
+  
+  try {
+    const API_URL = 'http://192.168.0.171:5001';
     
-    try {
-      const newRecord = {
-        id: Date.now().toString(),
-        timestamp: Date.now(),
-        bathroom: selectedBathroom,
-        mood: localMood || '💩',
-        bristolType: localBristolType,
-        note: checkInNote,
-        quickTag: localQuickTag,
-        rating: localRating,
-        image: checkInImage || undefined,
-        audioUri: checkInAudio || undefined,
-        location: {
-          lat: selectedBathroom.latitude,
-          lng: selectedBathroom.longitude,
-          name: selectedBathroom.name,
-        },
-        isPrivate: isPrivate,
-        anonymous: isAnonymousCheckIn,
-        customMessage: localMessage || `${checkInType} check-in`,
-      };
-      
-      const updatedRecords = [...checkInRecords, newRecord];
-      setCheckInRecords(updatedRecords);
-      setVisitedBathroomIds([...visitedBathroomIds, selectedBathroom.id]);
-      
-      await localStorageUtil.setItem('checkInRecords', JSON.stringify(updatedRecords));
-      
-      // 關閉 Modal
-      setShowCheckInModal(false);
-      
-      // 重置所有狀態
-      setCheckInNote('');
-      setCheckInMood('');
-      setCheckInRating(5);
-      setCheckInBristolType(undefined);
-      setCheckInQuickTag('');
-      setCheckInImage(null);
-      setCheckInAudio(null);
-      setIsPrivateCheckIn(false);
-      setIsAnonymousCheckIn(false);
-      setCustomMessage('');
-      setSelectedBathroom(null);
-      
-      Alert.alert(
-        `✅ ${checkInType} Check-in Success!`, 
-        `Mood: ${localMood || '💩'}\n` +
-        `Description: ${localMessage || 'None'}\n` +
-        `Bristol: ${localBristolType ? `Type ${localBristolType}` : 'None'}\n` +
-        `Tag: ${localQuickTag || 'None'}\n` +
-        `Rating: ${localRating}/5 stars`,
-        [{ text: 'Awesome!' }]
-      );
-      
-    } catch (error) {
-      console.error(`❌ ${checkInType} check-in error:`, error);
-      Alert.alert('Error', `${checkInType} check-in failed, please try again`);
+    // Build the data object conditionally
+    const checkInData: any = {
+      user_id: 1,
+      checkin_time: new Date().toISOString().slice(0, 19).replace('T', ' '),
+      latitude: selectedBathroom.latitude,
+      longitude: selectedBathroom.longitude,
+      toilet_name: selectedBathroom.name,
+      toilet_rating_cleanliness: localRating,
+      toilet_rating_privacy: isPrivate ? 5 : 3,
+      toilet_rating_amenities: localRating,
+      toilet_review_text: `${localMood} - ${localMessage || ''}`,
+    };
+    
+    // Only add public_toilet_id if it's NOT a location-based check-in
+    if (!selectedBathroom.id.startsWith('location-')) {
+      checkInData.public_toilet_id = selectedBathroom.id;
     }
-  }, [localMood, localMessage, localBristolType, localQuickTag, localRating, selectedBathroom, checkInRecords, visitedBathroomIds]);
-
+    
+    console.log('Sending check-in data:', JSON.stringify(checkInData, null, 2));
+    
+    const response = await fetch(`${API_URL}/toilet_checkins`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(checkInData),
+    });
+    
+    const responseText = await response.text();
+    console.log('Response status:', response.status);
+    console.log('Response body:', responseText);
+    
+    if (!response.ok) {
+      throw new Error(`Server error: ${responseText}`);
+    }
+    
+    // Success - close modal and show alert
+    setShowCheckInModal(false);
+    Alert.alert('Success!', 'Check-in saved!');
+    
+  } catch (error: any) {
+    console.error('Check-in error:', error);
+    Alert.alert('Error', `Failed to save: ${error.message}`);
+  }
+}, [localMood, localMessage, localBristolType, localQuickTag, localRating, selectedBathroom]);
   // 🚨 如果 Modal 不顯示，直接返回 null，避免渲染
   if (!showCheckInModal || !selectedBathroom) {
     return null;
@@ -2004,15 +1984,6 @@ const ClusterModal = () => {
                 </View>
                 <View style={styles.clusterActionButtons}>
                   <TouchableOpacity 
-                  style={[styles.checkInActionButton, { marginBottom: 8 }]} 
-                  onPress={() => {
-                    setShowClusterModal(false);
-                    handleCheckIn(bathroom);
-                  }}
-                  >
-                    <Text style={{ fontSize: 16, color: '#FFFFFF' }}>💩</Text>
-                    </TouchableOpacity>
-                  <TouchableOpacity 
                     style={styles.navigateButton} 
                     onPress={() => {
                       setShowClusterModal(false);
@@ -2294,16 +2265,15 @@ const RecordsDrawer = () => {
 
       return (
         <View style={styles.mapContainer}>
-
-            <MapView
+          <MapView
             ref={mapRef}
             style={styles.map}
-            provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
+            provider={PROVIDER_GOOGLE}
             initialRegion={currentRegion}
             showsUserLocation={!!location}
             showsMyLocationButton={false}
             onMapReady={() => setMapReady(true)}
-            >
+          >
           {limitedDisplayBathrooms.map((cluster) => (
   <Marker
     key={cluster.id}
@@ -2379,7 +2349,6 @@ const RecordsDrawer = () => {
     </Callout>
   </Marker>
 ))}                  
-
             {/* Show journey route */}
             {activeTab === 'journey' && journeyCoordinates.length > 1 && (
               <Polyline
@@ -2492,14 +2461,6 @@ const RecordsDrawer = () => {
               </View>
 
               <View style={styles.actionButtons}>
-                <TouchableOpacity 
-                style={styles.checkInActionButton} 
-                onPress={() => handleCheckIn(selectedBathroom)}
-                >
-                  <Text style={{ fontSize: 18, color: '#FFFFFF' }}>💩</Text>
-                  <Text style={styles.actionButtonText}>打卡</Text>
-                  </TouchableOpacity>
-                
                 <TouchableOpacity 
                   style={styles.navigateButton} 
                   onPress={() => handleNavigate(selectedBathroom)}
@@ -2658,124 +2619,6 @@ const renderJourneyContent = () => {
           backgroundColor: 'transparent',
           zIndex: 50, // 超高層級遮蔽原按鈕
         }} />
-
-        const renderJourneyContent = () => {
-        const todayRecords = getTodayRecords();
-        const previousRecords = getPreviousRecords();
-        
-        // 將歷史記錄依日期分組（yyyy/mm/dd）
-        const groupedHistory = previousRecords.reduce((groups, record) => {
-          const d = new Date(record.timestamp);
-          const key = `${d.getFullYear()}/${(d.getMonth()+1).toString().padStart(2,'0')}/${d.getDate().toString().padStart(2,'0')}`;
-          if (!groups[key]) groups[key] = [];
-          groups[key].push(record);
-          return groups;
-        }, {} as Record<string, CheckInRecord[]>);
-        
-        const renderRecordCard = (record: CheckInRecord) => (
-        <View key={record.id} style={styles.modernRecordCard}>
-          <View style={styles.recordCardHeader}>
-            <Text style={styles.recordMoodLarge}>{record.mood}</Text>
-            <View style={styles.recordTimeInfo}>
-              <Text style={styles.recordTimeText}>
-                {new Date(record.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
-                </Text>
-                {record.isPrivate && (
-                  <View style={styles.privateTag}>
-                    <Text style={styles.privateTagText}>🔒 Private</Text>
-                    </View>
-                  )}
-                  </View>
-                  
-                  </View>
-                  {record.customMessage ? (
-                    <View style={styles.recordMessageContainer}>
-                      <Text style={styles.recordMessage}>"{record.customMessage}"</Text>
-                      </View>
-                    ) : null}
-                    <View style={styles.recordFooterInfo}>
-                      <Text style={styles.recordLocationText}>📍 {record.bathroom.name}</Text>
-                      {record.bristolType && (
-                        <Text style={styles.recordBristolText}>{BRISTOL_EMOJIS[record.bristolType]} Type {record.bristolType}</Text>
-                        )}
-                        </View>
-       {/* 清單裡直接提供「導航 / 再次打卡」 */}
-       <View style={{flexDirection:'row', justifyContent:'flex-end', gap:8, marginTop:10}}>
-         <TouchableOpacity style={styles.smallSecondaryButton} onPress={() => handleNavigate(record.bathroom)}>
-           <Text style={styles.smallSecondaryText}>導航</Text>
-         </TouchableOpacity>
-         <TouchableOpacity style={styles.smallPrimaryButton} onPress={() => handleCheckIn(record.bathroom)}>
-           <Text style={styles.smallPrimaryText}>💩 再次打卡</Text>
-         </TouchableOpacity>
-       </View>
-     </View>
-   );
-
-   return (
-     <ScrollView style={styles.journeyContainer} contentContainerStyle={{paddingBottom: 32}}>
-       {/* 上方小地圖（固定高度） */}
-       <View style={styles.journeyMapContainerFixed}>
-         <MapComponent />
-         {/* 旅程頁面也保留一顆醒目的浮動打卡鈕（有 GPS 才顯示） */}
-         {location ? (
-           <TouchableOpacity
-             style={styles.floatingCheckInButton}
-             onPress={handleQuickLocationCheckIn}
-             activeOpacity={0.85}
-           >
-             <View style={styles.checkInButtonContent}>
-               <Text style={styles.checkInButtonEmoji}>💩</Text>
-               <Text style={styles.checkInButtonText}>打卡</Text>
-             </View>
-           </TouchableOpacity>
-         ) : null}
-       </View>
-
-       {/* 清單標題＋數字 */}
-       <View style={{paddingHorizontal:16, paddingTop:16}}>
-         <Text style={styles.sectionTitle}>今日打卡（{todayRecords.length}）</Text>
-       </View>
-
-       {/* 今日清單 */}
-       <View style={{paddingHorizontal:16, marginTop:8}}>
-         {todayRecords.length === 0 ? (
-           <View style={styles.emptyRecordsContainer}>
-             <Text style={styles.emptyRecordsEmoji}>🌱</Text>
-             <Text style={styles.emptyRecordsTitle}>今天還沒有打卡</Text>
-             <Text style={styles.emptyRecordsText}>點「💩 打卡」開始記錄吧！</Text>
-           </View>
-         ) : (
-           todayRecords
-             .sort((a,b) => b.timestamp - a.timestamp)
-             .map(renderRecordCard)
-         )}
-       </View>
-
-       {/* 歷史清單（依日期分組） */}
-       <View style={{paddingHorizontal:16, paddingTop:16}}>
-         <Text style={styles.sectionTitle}>歷史打卡</Text>
-       </View>
-       <View style={{paddingHorizontal:16, marginTop:8}}>
-         {Object.keys(groupedHistory).length === 0 ? (
-           <View style={styles.emptyRecordsContainer}>
-             <Text style={styles.emptyRecordsEmoji}>📚</Text>
-             <Text style={styles.emptyRecordsTitle}>尚無歷史記錄</Text>
-             <Text style={styles.emptyRecordsText}>持續打卡就會看到這裡長出清單～</Text>
-           </View>
-         ) : (
-           Object.entries(groupedHistory)
-             .sort(([a],[b]) => new Date(b).getTime() - new Date(a).getTime())
-             .map(([date, records]) => (
-               <View key={date} style={{marginBottom:12}}>
-                 <Text style={styles.dateHeader}>{date}</Text>
-                 {records.sort((a,b) => b.timestamp - a.timestamp).map(renderRecordCard)}
-               </View>
-             ))
-         )}
-       </View>
-     </ScrollView>
-   );
- };
 
         {/* ✨ 整合統計條 + 功能按鈕在同一框 */}
         <View style={{
@@ -2980,8 +2823,6 @@ const renderJourneyContent = () => {
         return <MapComponent />;
       case 'nearby':
         return renderNearbyList();
-      case 'visited':
-        return renderJourneyContent();
       case 'journey':
         return renderJourneyContent();
       case 'poopline':                    
@@ -2998,18 +2839,6 @@ const renderJourneyContent = () => {
       >
         <View style={styles.header}>
           <Text style={styles.title}>PooPalooza 💩</Text>
-          {/* 只有在 Journey 分頁顯示打卡按鈕（Web、手機都可用） */}
-          {activeTab === 'journey' && (
-            <View style={styles.headerActions}>
-              <TouchableOpacity
-              style={styles.headerCheckInButton}
-              onPress={handleQuickLocationCheckIn}
-              activeOpacity={0.85}
-              >
-                <Text style={styles.headerCheckInText}>💩 打卡</Text>
-                </TouchableOpacity>
-                </View>
-              )}
           <View style={styles.tabContainer}>
             {Platform.OS !== 'web' && (
               <TouchableOpacity
@@ -3046,18 +2875,6 @@ const renderJourneyContent = () => {
         </View>
 
         {renderContent()}
-        {Platform.OS !== 'web' && (activeTab === 'map' || activeTab === 'journey') && (
-          <TouchableOpacity
-          style={[styles.globalFab, !location && styles.fabDisabled]}
-          onPress={handleQuickLocationCheckIn}
-          disabled={!location}
-          activeOpacity={0.85}
-          >
-            <Text style={styles.globalFabEmoji}>💩</Text>
-            <Text style={styles.globalFabLabel}>{location ? '打卡' : 'GPS...'}</Text>
-            </TouchableOpacity>
-          )}
-
       </View>
 
       {/* 🚨 重要：確保所有Modal都在這裡渲染 */}
@@ -3081,23 +2898,6 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
     borderBottomWidth: 1,
     borderBottomColor: Colors.primary.border,
-  },
-  headerActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginBottom: 8,
-  },
-  headerCheckInButton: {
-    backgroundColor: Colors.primary.accent,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    alignSelf: 'flex-end',
-  },
-  headerCheckInText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    fontSize: 14,
   },
   title: {
     fontSize: 24,
@@ -3481,7 +3281,6 @@ const styles = StyleSheet.create({
   actionButtons: {
     flexDirection: 'row',
     gap: 8,
-    alignItems: 'center',
   },
   checkInActionButton: {
     width: 40,
@@ -4794,82 +4593,54 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     paddingLeft: 4,
   },
-
-  journeyMapContainerFixed: {
-   height: 260,
-   position: 'relative',
-   backgroundColor: Colors.primary.background,
- },
- smallPrimaryButton: {
-   backgroundColor: Colors.primary.accent,
-   paddingHorizontal: 12,
-   paddingVertical: 8,
-   borderRadius: 12,
- },
- smallPrimaryText: {
-   color: '#fff',
-   fontWeight: '600',
-   fontSize: 12,
- },
- smallSecondaryButton: {
-   backgroundColor: Colors.primary.card,
-   paddingHorizontal: 12,
-   paddingVertical: 8,
-   borderRadius: 12,
-   borderWidth: 1,
-   borderColor: Colors.primary.border,
- },
- smallSecondaryText: {
-   color: Colors.primary.text,
-   fontWeight: '600',
-   fontSize: 12,
- },
-
- globalFab: {
+  publicCheckInMarker: {
+  padding: 6,
+  backgroundColor: '#E3F2FD',
+  borderRadius: 15,
+  borderWidth: 2,
+  borderColor: '#2196F3',
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.3,
+  shadowRadius: 3,
+  elevation: 5,
+},
+publicCheckInEmoji: {
+  fontSize: 18,
+},
+userCheckInMarker: {
+  padding: 6,
+  backgroundColor: '#FFFFFF',
+  borderRadius: 15,
+  borderWidth: 2,
+  borderColor: '#4CAF50',
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.3,
+  shadowRadius: 3,
+  elevation: 5,
+},
+privateMarker: {
+  borderColor: '#9C27B0',
+  backgroundColor: '#F3E5F5',
+},
+userCheckInEmoji: {
+  fontSize: 18,
+},
+anonymousBadge: {
   position: 'absolute',
-  right: 16,
-  bottom: 24,
-  width: 72,
-  height: 72,
-  borderRadius: 36,
-  backgroundColor: '#FF6B6B',
+  top: -4,
+  right: -4,
+  width: 14,
+  height: 14,
+  borderRadius: 7,
+  backgroundColor: '#FF5722',
   justifyContent: 'center',
   alignItems: 'center',
-  borderWidth: 4,
-  borderColor: '#FFFFFF',
-  // 硬把層級拉到最上，避免被地圖/卡片蓋住
-  zIndex: 9999,
-  elevation: 12,
-  shadowColor: '#000',
-  shadowOffset: { width: 0, height: 6 },
-  shadowOpacity: 0.35,
-  shadowRadius: 12,
 },
-globalFabEmoji: { fontSize: 26, marginBottom: 2 },
-globalFabLabel: { color: '#FFFFFF', fontWeight: 'bold', fontSize: 12 },
-fabDisabled: { backgroundColor: '#BDC3C7', borderColor: '#FFFFFF' },
-
-globalFab: {
-  position: 'absolute',
-  right: 16,
-  bottom: 24,
-  width: 72,
-  height: 72,
-  borderRadius: 36,
-  backgroundColor: '#FF6B6B',
-  justifyContent: 'center',
-  alignItems: 'center',
-  borderWidth: 4,
-  borderColor: '#FFFFFF',
-  zIndex: 9999,        // iOS 置頂
-  elevation: 12,       // Android 置頂
-  shadowColor: '#000',
-  shadowOffset: { width: 0, height: 6 },
-  shadowOpacity: 0.35,
-  shadowRadius: 12,
+anonymousText: {
+  fontSize: 8,
+  color: '#FFFFFF',
+  fontWeight: 'bold',
 },
-globalFabEmoji: { fontSize: 26, marginBottom: 2 },
-globalFabLabel: { color: '#FFFFFF', fontWeight: 'bold', fontSize: 12 },
-fabDisabled: { backgroundColor: '#BDC3C7', borderColor: '#FFFFFF' },
-
 });
