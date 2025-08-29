@@ -7,11 +7,13 @@ import Button from '@/components/Button';
 import PoopTypeSelector from '@/components/PoopTypeSelector';
 import PoopVolumeSelector from '@/components/PoopVolumeSelector';
 import { poopTypes, poopVolumes, poopColors } from '@/constants/poopTypes';
-import { FileText, Check, AlertCircle, Globe, Eye } from 'lucide-react-native';
+import { FileText, Check, AlertCircle, Eye } from 'lucide-react-native';
 import * as FileSystem from 'expo-file-system';
 import { Platform } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 
+// 在 import 區塊後加入
+const HEALTH_ADVISOR_API_URL = 'https://poop-analysis-recommendation-system.onrender.com'; 
 // Configuration for detection
 const DETECTION_CONFIG = {
   test_owl_first: false,  // 是否先進行 OWL-ViT 預檢測
@@ -94,7 +96,7 @@ const RecommendationDisplay = ({ recommendations, bristolType, isEnglish }: {
   };
 
   // Use translated advice if available, otherwise use original
-  const displayAdvice = bristolType >= 1 && bristolType <= 7 ? getTranslatedAdvice(bristolType, isEnglish) : recommendations;
+  const displayAdvice = recommendations; 
 
   // Parse recommendations if they're in the new structured format
   const parseRecommendations = (text: string) => {
@@ -640,7 +642,6 @@ export default function AnalyzeImageScreen() {
   // 分析結果
   const [analysisDetails, setAnalysisDetails] = useState<string>('');
   const [recommendations, setRecommendations] = useState<string>('');
-  const [isEnglish, setIsEnglish] = useState<boolean>(false);
   
   // 增強分析數據
   const [colorAnalysis, setColorAnalysis] = useState<any>(null);
@@ -663,6 +664,210 @@ export default function AnalyzeImageScreen() {
       analyzeImage(params.imageUri);
     }
   }, [params.imageUri]);
+
+  // 定義 AI 建議的類型
+interface AIHealthAdvice {
+  healthStatus?: {
+    level: 'excellent' | 'good' | 'attention' | 'warning' | 'critical';
+    summary: string;
+    score: number;
+    confidence?: number;
+    mainConcern?: string;
+    positiveAspects?: string;
+  };
+  dietaryAdvice?: {
+    immediateActions?: string[];
+    recommendations?: string[];
+    avoidFoods?: string[];
+    waterIntake?: string;
+    mealPlan?: {
+      breakfast: string;
+      lunch: string;
+      dinner: string;
+      snacks?: string;
+    };
+  };
+  lifestyleAdvice?: {
+    exercise?: {
+      type: string;
+      duration: string;
+      frequency: string;
+      bestTime?: string;
+    };
+    stress?: {
+      techniques?: string[];
+      dailyPractice?: string;
+    };
+  };
+  warningSignals?: string[];
+  followUp?: {
+    nextCheck: string;
+    frequency: string;
+  };
+  personalizedTips?: string[];
+  motivationalMessage?: string;
+  urgencyLevel?: string;
+}
+
+const fetchAIHealthAdvice = async (
+  bristolType: number,
+  colorAnalysis: any,
+  volumeAnalysis: any
+): Promise<string> => {
+  try {
+    console.log('🤖 Fetching AI health advice from:', HEALTH_ADVISOR_API_URL);
+    console.log('Sending Bristol Type:', bristolType);
+    
+    const response = await fetch(`${HEALTH_ADVISOR_API_URL}/api/health-advice`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        bristolType,
+        colorAnalysis: colorAnalysis || {},
+        volumeAnalysis: volumeAnalysis || {},
+        userProfile: null,
+        previousRecords: []
+      })
+    });
+
+    const data = await response.json();
+    
+    // DEBUG: Log the entire response structure
+    console.log('Full API Response:', JSON.stringify(data, null, 2));
+    
+    // Check different possible response structures
+    if (data.success && data.advice) {
+      console.log('Found advice in data.advice');
+      return formatComprehensiveAIAdvice(data.advice);
+    } else if (data.advice) {
+      console.log('Found advice directly');
+      return formatComprehensiveAIAdvice(data.advice);
+    } else if (data) {
+      console.log('Using entire data as advice');
+      return formatComprehensiveAIAdvice(data);
+    }
+    
+    console.error('Response structure:', Object.keys(data));
+    throw new Error('No advice in response');
+    
+  } catch (error) {
+    console.error('Failed to get AI advice:', error);
+    throw error;
+  }
+};
+
+const formatComprehensiveAIAdvice = (aiAdvice: any): string => {
+  if (!aiAdvice) return '';
+  
+  let text = '';
+  
+  // Health Status Section - Clear and prominent
+  if (aiAdvice.healthStatus) {
+    const { level, summary, score, mainConcern, positiveAspects } = aiAdvice.healthStatus;
+    const levelEmojis: Record<string, string> = {
+      'excellent': '🎉', 'good': '🟢', 'attention': '🟡', 
+      'warning': '🟠', 'critical': '🔴'
+    };
+    
+    // Score and status in one line
+    text += `${levelEmojis[level] || '📊'} Health Score: ${score}/100 (${level.toUpperCase()})\n\n`;
+    
+    // Key points with clear labels
+    if (summary) {
+      text += `📋 Current Status:\n${summary}\n\n`;
+    }
+    
+    if (positiveAspects) {
+      text += `✅ What's Good:\n${positiveAspects}\n\n`;
+    }
+    
+    if (mainConcern) {
+      text += `⚠️ Focus Area:\n${mainConcern}\n\n`;
+    }
+  }
+  
+  // Immediate Actions - High priority, easy to scan
+  if (aiAdvice.dietaryAdvice?.immediateActions?.length > 0) {
+    text += '🚨 DO NOW (Today):\n';
+    aiAdvice.dietaryAdvice.immediateActions.forEach((action: string, index: number) => {
+      text += `${index + 1}. ${action}\n`;
+    });
+    text += '\n';
+  }
+  
+  // Daily Plan - Structured and clear
+  text += '📅 DAILY PLAN:\n\n';
+  
+  // Diet in bullet points
+  if (aiAdvice.dietaryAdvice?.recommendations?.length > 0) {
+    text += '🍽️ Diet Changes:\n';
+    aiAdvice.dietaryAdvice.recommendations.slice(0, 3).forEach((rec: string, index: number) => {
+      text += `• ${rec}\n`;
+    });
+    text += '\n';
+  }
+  
+  // Water - Simple and clear
+  if (aiAdvice.dietaryAdvice?.waterIntake) {
+    text += `💧 Water: ${aiAdvice.dietaryAdvice.waterIntake}\n\n`;
+  }
+  
+  // Exercise - Formatted for clarity
+  if (aiAdvice.lifestyleAdvice?.exercise) {
+    const ex = aiAdvice.lifestyleAdvice.exercise;
+    text += '🏃 Exercise:\n';
+    text += `• Type: ${ex.type}\n`;
+    text += `• Duration: ${ex.duration}\n`;
+    text += `• Frequency: ${ex.frequency}\n`;
+    if (ex.specific) {
+      text += `• Special tip: ${ex.specific}\n`;
+    }
+    text += '\n';
+  }
+  
+  // Natural Remedies - Optional but helpful
+  if (aiAdvice.naturalRemedies?.length > 0) {
+    const remedy = aiAdvice.naturalRemedies[0];
+    text += `🌿 Natural Remedy:\n`;
+    text += `Try ${remedy.name} - ${remedy.method}\n`;
+    text += `Benefit: ${remedy.benefit}\n\n`;
+  }
+  
+  // Quick Tips - Easy to remember
+  if (aiAdvice.personalizedTips?.length > 0) {
+    text += '💡 QUICK TIPS:\n';
+    aiAdvice.personalizedTips.slice(0, 3).forEach((tip: string, index: number) => {
+      // Shorten tips if they're too long
+      const shortTip = tip.length > 80 ? tip.substring(0, 77) + '...' : tip;
+      text += `${index + 1}. ${shortTip}\n`;
+    });
+    text += '\n';
+  }
+  
+  // Follow-up - Important but brief
+  if (aiAdvice.followUp?.nextCheck) {
+    text += `📆 Next Check: ${aiAdvice.followUp.nextCheck}\n`;
+  }
+  
+  // Doctor consultation if needed - Alert style
+  if (aiAdvice.doctorConsultation?.needed) {
+    text += `\n🏥 DOCTOR VISIT RECOMMENDED\n`;
+    text += `Reason: ${aiAdvice.doctorConsultation.reason}\n`;
+  }
+  
+  // Motivational message - End on positive note
+  if (aiAdvice.motivationalMessage) {
+    // Shorten if too long
+    const shortMessage = aiAdvice.motivationalMessage.length > 150 
+      ? aiAdvice.motivationalMessage.substring(0, 147) + '...' 
+      : aiAdvice.motivationalMessage;
+    text += `\n💪 ${shortMessage}`;
+  }
+  
+  return text.trim();
+};
 
   const analyzeImage = async (uri: string) => {
     setIsAnalyzing(true);
@@ -1002,7 +1207,7 @@ export default function AnalyzeImageScreen() {
     }
   };
 // 處理增強的 API 響應
-  function processEnhancedPoopAPIResponse(result: any) {
+  async function processEnhancedPoopAPIResponse(result: any) {
     try {
       console.log('Processing enhanced poop API response:', result);
       
@@ -1137,16 +1342,23 @@ export default function AnalyzeImageScreen() {
       setSelectedVolume(volume);
       setSelectedColor(color);
 
-      // 生成建議
+      // 生成建議 - ALWAYS try AI first
       try {
-        const enhancedPersonalizedAdvice = generateEnhancedPersonalizedAdvice(
-          mainType, otherTypes, rawStats, volume, colorAnalysis, volumeAnalysis
-        );
-
-        setRecommendations(enhancedPersonalizedAdvice);
-      } catch (adviceError) {
-        console.error('Error generating advice:', adviceError);
-        setRecommendations(getAdviceForType(mainType));
+        console.log('Getting AI recommendations for Bristol Type:', bristolType);
+        const aiAdvice = await fetchAIHealthAdvice(bristolType, colorAnalysis, volumeAnalysis);
+        
+        if (aiAdvice && aiAdvice.length > 10) { // Ensure we got real advice
+          console.log('Using AI-generated advice');
+          setRecommendations(aiAdvice);
+        } else {
+          throw new Error('AI advice too short or empty');
+        }
+      } catch (error) {
+        console.error('AI advice failed:', error);
+        // Fallback to template only if AI completely fails
+        const fallback = getAdviceForType(mainType) + 
+          '\n[Note: Using template advice - AI service temporarily unavailable]';
+        setRecommendations(fallback);
       }
 
       setIsAnalyzing(false);
@@ -1705,20 +1917,11 @@ const renderContent = () => {
                 <Text style={styles.recommendationsTitle}>
                   {isEnglish ? '🏥 Health Recommendations & Improvement Plan' : '🏥 健康建議與改善方案'}
                 </Text>
-                <TouchableOpacity 
-                  style={styles.languageToggle}
-                  onPress={() => setIsEnglish(!isEnglish)}
-                >
-                  <Globe size={16} color={Colors.primary.accent} />
-                  <Text style={styles.languageToggleText}>
-                    {isEnglish ? '中文' : 'EN'}
-                  </Text>
-                </TouchableOpacity>
               </View>
               <RecommendationDisplay 
                 recommendations={recommendations} 
                 bristolType={selectedType}
-                isEnglish={isEnglish}
+                isEnglish={false}
               />
             </View>
           )}
