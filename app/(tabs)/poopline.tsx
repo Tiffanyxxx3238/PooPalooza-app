@@ -1,3 +1,4 @@
+/*
 // JourneySmokeTest.tsx（先暫時拿來取代 journey 畫面）
 import React from "react";
 import { View, StyleSheet, Platform } from "react-native";
@@ -30,4 +31,4 @@ export default function JourneySmokeTest() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   map: { ...StyleSheet.absoluteFillObject },
-});
+});*/

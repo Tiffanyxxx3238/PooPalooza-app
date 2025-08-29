@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   View, 
   Text, 
@@ -7,13 +7,15 @@ import {
   FlatList, 
   Platform, 
   TextInput,
-  ScrollView 
+  ScrollView,
+  ActivityIndicator,
+  RefreshControl
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { usePoopStore } from '@/store/poopStore';
 import Colors from '@/constants/colors';
 import PoopCard from '@/components/PoopCard';
-import Button from '@/components/Button';
+import { API_BASE_URL } from '@/config';
 
 // 簡化的圖標組件
 const ChevronLeft = () => <Text style={{fontSize: 24, color: Colors.primary.text}}>‹</Text>;
@@ -23,14 +25,22 @@ const List = () => <Text style={{fontSize: 18}}>📋</Text>;
 const Eye = () => <Text style={{fontSize: 20}}>👁️</Text>;
 const EyeOff = () => <Text style={{fontSize: 20}}>🙈</Text>;
 const FileDown = () => <Text style={{fontSize: 20}}>📤</Text>;
-const Plus = () => <Text style={{fontSize: 24, color: '#FFFFFF'}}>+</Text>;
 const Search = () => <Text style={{fontSize: 20, color: Colors.primary.lightText}}>🔍</Text>;
 
 type ViewMode = 'calendar' | 'library';
 
 export default function LibraryScreen() {
   const router = useRouter();
-  const { entries } = usePoopStore();
+  const { entries: localEntries } = usePoopStore();
+  
+  // Database state
+  const [dbPoopRecords, setDbPoopRecords] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const currentUserId = 1;
+  
+  // Use database records if available, otherwise use local
+  const entries = dbPoopRecords;
   
   // Calendar state
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -43,6 +53,50 @@ export default function LibraryScreen() {
   // Library state
   const [searchQuery, setSearchQuery] = useState('');
   const [filterBy, setFilterBy] = useState<string>('all');
+  
+  // Fetch records from database
+  const fetchPoopRecords = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/poop-records`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch records');
+      }
+      
+      const data = await response.json();
+      const userRecords = data.filter((record: any) => record.user_id === currentUserId);
+      
+      const transformedRecords = userRecords.map((record: any) => ({
+        id: record.record_id.toString(),
+        date: record.record_time,
+        type: record.bristol_scale ? `Type ${record.bristol_scale}` : 'Type 4',
+        difficulty: record.consistency || 'medium',
+        notes: record.ai_diagnosis_summary || '',
+        color: record.color || 'brown',
+        hasBlood: record.has_blood || false,
+        hasMucus: record.has_mucus || false,
+        image: record.image_url || null,
+      }));
+      
+      setDbPoopRecords(transformedRecords);
+    } catch (error) {
+      console.error('Error fetching poop records:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // Load data on mount
+  useEffect(() => {
+    fetchPoopRecords();
+  }, []);
+  
+  // Refresh handler
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchPoopRecords();
+    setRefreshing(false);
+  };
   
   // Calendar utilities
   const getDaysInMonth = (year: number, month: number) => {
@@ -165,17 +219,17 @@ export default function LibraryScreen() {
   };
   
   const handleEntryPress = (id: string) => {
-    router.push({
-      pathname: '/entry-details',
-      params: { id }
-    });
-  };
-  
-  const handleAddNew = () => {
-    router.push({
-      pathname: '/add-entry',
-      params: { date: selectedDate.toISOString() },
-    });
+    // Find the entry
+    const entry = entries.find(e => e.id === id);
+    if (entry) {
+      // Navigate to the database details page with entry data
+      router.push({
+        pathname: '/entry-details-db',
+        params: { 
+          entry: JSON.stringify(entry)
+        }
+      });
+    }
   };
   
   const toggleShowImages = () => {
@@ -214,9 +268,28 @@ export default function LibraryScreen() {
   const selectedEntries = getEntriesForDate(selectedDate);
   const monthlyStats = getMonthlyStats();
 
+  // Loading screen
+  if (isLoading) {
+    return (
+      <View style={[styles.container, styles.centerContent]}>
+        <ActivityIndicator size="large" color={Colors.primary.accent} />
+        <Text style={styles.loadingText}>Loading records...</Text>
+      </View>
+    );
+  }
+
   // Render Calendar View
   const renderCalendarView = () => (
-    <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+    <ScrollView 
+      style={styles.scrollView} 
+      showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+        />
+      }
+    >
       {/* Calendar Header with Stats */}
       <View style={styles.calendarContainer}>
         <View style={styles.monthSelector}>
@@ -305,11 +378,6 @@ export default function LibraryScreen() {
         {selectedEntries.length === 0 ? (
           <View style={styles.emptyStateContainer}>
             <Text style={styles.emptyStateText}>No entries for this date</Text>
-            <Button 
-              title="Add Entry for This Date" 
-              onPress={handleAddNew}
-              style={styles.addButton}
-            />
           </View>
         ) : (
           <View style={styles.entriesContainer}>
@@ -382,13 +450,6 @@ export default function LibraryScreen() {
               : 'Start tracking your poops to see them here'
             }
           </Text>
-          {!searchQuery && filterBy === 'all' && (
-            <Button 
-              title="Add Your First Poop" 
-              onPress={handleAddNew}
-              style={styles.addButton}
-            />
-          )}
         </View>
       ) : (
         <FlatList
@@ -466,14 +527,6 @@ export default function LibraryScreen() {
       
       {/* Dynamic Content */}
       {viewMode === 'calendar' ? renderCalendarView() : renderLibraryView()}
-      
-      {/* Floating Action Button */}
-      <TouchableOpacity 
-        style={styles.fab}
-        onPress={handleAddNew}
-      >
-        <Plus />
-      </TouchableOpacity>
     </View>
   );
 }
@@ -482,6 +535,17 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.primary.background,
+  },
+  
+  centerContent: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: Colors.primary.lightText,
   },
   
   scrollView: {
@@ -810,27 +874,5 @@ const styles = StyleSheet.create({
     color: Colors.primary.lightText,
     textAlign: 'center',
     marginBottom: 24,
-  },
-  
-  addButton: {
-    width: 200,
-  },
-  
-  // FAB
-  fab: {
-    position: 'absolute',
-    bottom: 24,
-    right: 24,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: Colors.primary.accent,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
   },
 });
