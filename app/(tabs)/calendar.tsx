@@ -4,9 +4,8 @@ import { View, Text, StyleSheet, TouchableOpacity, FlatList, ScrollView, Alert, 
 import Colors from '@/constants/colors';
 import { usePoopStore } from '@/store/poopStore';
 import { useFocusEffect } from '@react-navigation/native';
-
+import { API_BASE_URL } from '@/config';
 // API 設定 - 使用你的 IP
-const API_BASE_URL = 'http://192.168.0.196:5001';
 
 interface Achievement {
   id: string;

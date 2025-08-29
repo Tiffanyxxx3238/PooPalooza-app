@@ -4,6 +4,7 @@ from flask_cors import CORS
 from dotenv import load_dotenv
 import os
 from datetime import datetime
+from sqlalchemy import text
 
 load_dotenv()
 
