@@ -2499,13 +2499,7 @@ const RecordsDrawer = () => {
                   <Text style={{ fontSize: 18, color: '#FFFFFF' }}>💩</Text>
                   <Text style={styles.actionButtonText}>打卡</Text>
                   </TouchableOpacity>
-                <TouchableOpacity 
-                style={styles.checkInActionButton} 
-                onPress={() => handleCheckIn(bathroom)}
-                >
-                  <Text style={{ fontSize: 18, color: '#FFFFFF' }}>💩</Text>
-                  <Text style={styles.actionButtonText}>打卡</Text>
-                  </TouchableOpacity>
+                
                 <TouchableOpacity 
                   style={styles.navigateButton} 
                   onPress={() => handleNavigate(selectedBathroom)}
