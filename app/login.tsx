@@ -38,7 +38,7 @@ const handleLogin = async () => {
     return;
   }
 
-  const url = 'http://192.168.0.196:5001/login';
+  const url = 'https://poopaloozabackend.onrender.com';
 
   try {
     const response = await fetch(url, {
@@ -95,6 +95,7 @@ const handleRegister = async () => {
       }),
     });
 
+    
     // 🚨 檢查回傳是不是 JSON 格式
     const contentType = response.headers.get('content-type');
     if (!contentType || !contentType.includes('application/json')) {

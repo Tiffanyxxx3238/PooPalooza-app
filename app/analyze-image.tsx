@@ -14,8 +14,8 @@ import * as ImagePicker from 'expo-image-picker';
 
 // Configuration for detection
 const DETECTION_CONFIG = {
-  test_owl_first: false,  // 是否先進行 OWL-ViT 預檢測
-  show_owl_confidence: false,  // 是否顯示 OWL-ViT 信心度
+  test_owl_first: true,  // 是否先進行 OWL-ViT 預檢測
+  show_owl_confidence: true,  // 是否顯示 OWL-ViT 信心度
 };
 
 // Helper functions
@@ -280,6 +280,7 @@ const EnhancedColorAnalysisDisplay = ({ colorAnalysis }: { colorAnalysis: any })
     </View>
   );
 };
+
 // 🎨 增強版顏色選擇器
 const EnhancedPoopColorSelector = ({ 
   selectedColor, 
@@ -627,7 +628,7 @@ export default function AnalyzeImageScreen() {
   const [isAnalyzing, setIsAnalyzing] = useState(true);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [analysisProgress, setAnalysisProgress] = useState('Preparing analysis...');
-  const [progressPercentage, setProgressPercentage] = useState(0);
+  
   // 預測和選擇的值
   const [predictedType, setPredictedType] = useState<number>(4);
   const [predictedVolume, setPredictedVolume] = useState<number>(2);
@@ -672,7 +673,7 @@ export default function AnalyzeImageScreen() {
     setLowConfidenceResult(null);
     setPartialAnalysisResult(null);
     setAnalysisProgress('Preparing analysis...');
-    setProgressPercentage(0);
+    
     // 重置分析結果
     setColorAnalysis(null);
     setVolumeAnalysis(null);
@@ -680,15 +681,7 @@ export default function AnalyzeImageScreen() {
     setFoodInfluenceData(null);
     setOwlConfidence(0);
     setDetectionMethod('');
-    // 添加進度條動畫
-    let progress = 0;
-    const progressInterval = setInterval(() => {
-      progress += Math.random() * 15;
-      if (progress > 90) {
-        progress = 90;
-      }
-      setProgressPercentage(progress);
-    }, 500);
+    
     try {
       if (Platform.OS === 'web') {
         mockAnalysis();
@@ -1287,20 +1280,8 @@ export default function AnalyzeImageScreen() {
   const mockAnalysisWithRealData = async () => {
     setAnalysisProgress('Using general AI for analysis...');
     
-    let progress = 0;
-    const progressInterval = setInterval(() => {
-      progress += 20;
-      if (progress > 90) {
-        progress = 90;
-      }
-      setProgressPercentage(progress);
-    }, 500);
-
     await new Promise(resolve => setTimeout(resolve, 3000));
     
-    clearInterval(progressInterval);
-    setProgressPercentage(100);
-
     const mockType = 4;
     const mockVolume = 2;
     const mockColor = 1;
@@ -1350,36 +1331,30 @@ export default function AnalyzeImageScreen() {
     ];
     
     let step = 0;
-    let progress = 0;
     const stepInterval = setInterval(() => {
       if (step < steps.length - 1) {
         setAnalysisProgress(steps[step]);
-        progress = (step + 1) * 20;
-        setProgressPercentage(progress);
         step++;
       } else {
         clearInterval(stepInterval);
-        setProgressPercentage(100);
         
-        setTimeout(() => {
-          const mockType = Math.floor(Math.random() * 7) + 1;
-          const mockVolume = Math.floor(Math.random() * 3) + 1;
-          const mockColor = Math.floor(Math.random() * 7) + 1;
-          
-          setPredictedType(mockType);
-          setSelectedType(mockType);
-          
-          setPredictedVolume(mockVolume);
-          setSelectedVolume(mockVolume);
-          
-          setPredictedColor(mockColor);
-          setSelectedColor(mockColor);
-          
-          setAnalysisDetails('This is a web version simulation result. In actual application, AI will analyze images and provide detailed poop health reports.');
-          setRecommendations('🎯 Web Simulation Advice | 💧 Diet Advice: Maintain balanced diet | 🏃‍♂️ Exercise Advice: Regular exercise | 📱 Tip: Use mobile APP for complete features');
-          
-          setIsAnalyzing(false);
-        }, 500);  
+        const mockType = Math.floor(Math.random() * 7) + 1;
+        const mockVolume = Math.floor(Math.random() * 3) + 1;
+        const mockColor = Math.floor(Math.random() * 7) + 1;
+        
+        setPredictedType(mockType);
+        setSelectedType(mockType);
+        
+        setPredictedVolume(mockVolume);
+        setSelectedVolume(mockVolume);
+        
+        setPredictedColor(mockColor);
+        setSelectedColor(mockColor);
+        
+        setAnalysisDetails('This is a web version simulation result. In actual application, AI will analyze images and provide detailed poop health reports.');
+        setRecommendations('🎯 Web Simulation Advice | 💧 Diet Advice: Maintain balanced diet | 🏃‍♂️ Exercise Advice: Regular exercise | 📱 Tip: Use mobile APP for complete features');
+        
+        setIsAnalyzing(false);
       }
     }, 1500);
   };
@@ -1409,10 +1384,6 @@ const handleContinue = () => {
 
   const handleRetake = async () => {
     try {
-        setAnalysisError(null);
-        setNonPoopDetectionResult(null);
-        setLowConfidenceResult(null);
-        setPartialAnalysisResult(null);
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert('Camera Permission Required', 'Please allow camera access in settings');
@@ -1423,7 +1394,7 @@ const handleContinue = () => {
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [1, 1],
-        quality: 1.0,
+        quality: 0.8,
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
@@ -1441,10 +1412,6 @@ const handleContinue = () => {
 
   const handleSelectOther = async () => {
     try {
-        setAnalysisError(null);
-        setNonPoopDetectionResult(null);
-        setLowConfidenceResult(null);
-        setPartialAnalysisResult(null);
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert('Photo Library Permission Required', 'Please allow photo library access in settings');
@@ -1455,7 +1422,7 @@ const handleContinue = () => {
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [1, 1],
-        quality: 1.0,
+        quality: 0.8,
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
@@ -1602,10 +1569,7 @@ const renderContent = () => {
           <Text style={styles.loadingText}>AI Analysis in Progress...</Text>
           <Text style={styles.loadingSubtext}>{analysisProgress}</Text>
           <View style={styles.progressBar}>
-            <View style={[styles.progressFill, { width: `${progressPercentage}%` }]} />
-            <View style={[styles.progressPoopContainer, { left: `${Math.min(progressPercentage, 85)}%` }]}>
-              <Text style={styles.progressPoop}>💩</Text>
-            </View>
+            <View style={[styles.progressFill, { width: '60%' }]} />
           </View>
           <Text style={styles.estimateText}>Estimated remaining time: 30-60 seconds</Text>
         </View>
@@ -1814,20 +1778,16 @@ const styles = StyleSheet.create({
   },
   progressBar: {
     width: '100%',
-    height: 40,  
-    backgroundColor: '#FFE4D1',  
-    borderRadius: 20,  
+    height: 4,
+    backgroundColor: '#E5E7EB',
+    borderRadius: 2,
     marginBottom: 8,
-    position: 'relative',
-    borderWidth: 2,
-    borderColor: '#FFD4B8',
-    overflow: 'visible',  
+    overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#FFB88C',  
-    borderRadius: 18,
-    position: 'relative',
+    backgroundColor: Colors.primary.accent,
+    borderRadius: 2,
   },
   estimateText: {
     fontSize: 12,
@@ -2473,17 +2433,5 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.primary.lightText,
     fontStyle: 'italic',
-  },
-  progressPoopContainer: {
-    position: 'absolute',
-    top: -5,
-    width: 50,
-    height: 50,
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 10,
-  },
-  progressPoop: {
-    fontSize: 35,
   },
 });
