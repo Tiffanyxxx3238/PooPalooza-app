@@ -83,7 +83,7 @@ const handleRegister = async () => {
   }
 
   try {
-    const response = await fetch('http://192.168.0.196:5001/register', {
+    const response = await fetch('https://poopaloozabackend.onrender.com/register', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
