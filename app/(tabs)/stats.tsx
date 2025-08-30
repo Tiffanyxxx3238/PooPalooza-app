@@ -71,7 +71,7 @@ export default function StatsScreen() {
   useEffect(() => {
     const fetchPoopRecords = async () => {
       try {
-        const response = await fetch('http://192.168.0.196:5001/poop-records');
+        const response = await fetch('https://poopaloozabackend.onrender.com/poop-records');
         const data = await response.json();
         setRecords(data);
       } catch (error) {

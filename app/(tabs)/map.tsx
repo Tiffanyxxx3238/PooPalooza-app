@@ -452,7 +452,7 @@ const performCheckIn = async () => {
   }
   
   try {
-    const API_URL = 'http://192.168.0.171:5001';
+    const API_URL = 'https://poopaloozabackend.onrender.com';
     
     const checkInData = {
       user_id: 1,
@@ -1402,7 +1402,7 @@ const handleCheckIn = useCallback(async (isPrivate: boolean) => {
   }
   
   try {
-    const API_URL = 'http://192.168.0.171:5001';
+    const API_URL = 'https://poopaloozabackend.onrender.com';
     
     // Build the data object conditionally
     const checkInData: any = {
