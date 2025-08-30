@@ -1,11 +1,8 @@
-// app/(tabs)/calendar.tsx - 成就徽章頁面（連接資料庫版本）
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, ScrollView, Alert, ActivityIndicator, RefreshControl } from 'react-native';
+// app/(tabs)/calendar.tsx - 成就徽章頁面
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, ScrollView, Alert } from 'react-native';
 import Colors from '@/constants/colors';
 import { usePoopStore } from '@/store/poopStore';
-import { useFocusEffect } from '@react-navigation/native';
-import { API_BASE_URL } from '@/config';
-// API 設定 - 使用你的 IP
 
 interface Achievement {
   id: string;
@@ -33,155 +30,10 @@ interface Challenge {
   maxProgress: number;
 }
 
-// 資料庫的成就資料結構
-interface DBAchievement {
-  achievement_id: number;
-  user_id: number;
-  achievement_name: string;
-  achievement_description: string;
-  achieved_at: string;
-}
-
-// 資料庫的排便記錄資料結構
-interface DBPoopRecord {
-  record_id: number;
-  user_id: number;
-  record_time: string;
-  bristol_scale?: string;
-  color?: string;
-  consistency?: string;
-  volume?: string;
-  odor?: string;
-  has_blood?: boolean;
-  has_mucus?: boolean;
-}
-
 export default function CalendarScreen() {
-  const { entries } = usePoopStore(); // 保留本地資料作為備用
+  const { entries } = usePoopStore();
   const [selectedTab, setSelectedTab] = useState<'achievements' | 'challenges'>('achievements');
   const [activeChallenges, setActiveChallenges] = useState<Challenge[]>([]);
-  const [dbAchievements, setDbAchievements] = useState<DBAchievement[]>([]);
-  const [dbPoopRecords, setDbPoopRecords] = useState<DBPoopRecord[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
-  
-  // 使用固定的用戶 ID（和你的 add-entry 一樣）
-  const currentUserId = 1;
-
-  // 從資料庫獲取成就資料
-  const fetchAchievements = async () => {
-    try {
-      console.log('Fetching achievements for user:', currentUserId);
-      const response = await fetch(`${API_BASE_URL}/achievements/${currentUserId}`);
-      
-      if (!response.ok) {
-        console.log('Response not OK:', response.status);
-        throw new Error(`Failed to fetch achievements: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      console.log('Achievements fetched:', data);
-      setDbAchievements(data);
-    } catch (err) {
-      console.error('Error fetching achievements:', err);
-      // 不設定錯誤，讓它繼續運作
-    }
-  };
-
-  // 從資料庫獲取排便記錄
-  const fetchPoopRecords = async () => {
-    try {
-      console.log('Fetching poop records...');
-      const response = await fetch(`${API_BASE_URL}/poop-records`);
-      
-      if (!response.ok) {
-        console.log('Response not OK:', response.status);
-        throw new Error(`Failed to fetch poop records: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      console.log('All poop records:', data.length);
-      
-      // 過濾當前用戶的記錄
-      const userRecords = data.filter((record: DBPoopRecord) => record.user_id === currentUserId);
-      console.log('User records:', userRecords.length);
-      setDbPoopRecords(userRecords);
-    } catch (err) {
-      console.error('Error fetching poop records:', err);
-      // 不設定錯誤，讓它繼續運作
-    }
-  };
-
-  // 創建新成就到資料庫
-  const createAchievement = async (achievementName: string, achievementDescription: string) => {
-    try {
-      console.log('Creating achievement:', achievementName);
-      const response = await fetch(`${API_BASE_URL}/achievements`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          user_id: currentUserId,
-          achievement_name: achievementName,
-          achievement_description: achievementDescription,
-        }),
-      });
-      
-      if (!response.ok) {
-        console.log('Failed to create achievement:', response.status);
-        throw new Error('Failed to create achievement');
-      }
-      
-      const result = await response.json();
-      console.log('Achievement created:', result);
-      
-      // 重新獲取成就列表
-      await fetchAchievements();
-      Alert.alert('🎉 恭喜！', `解鎖成就：${achievementName}`);
-    } catch (err) {
-      console.error('Error creating achievement:', err);
-    }
-  };
-
-  // 載入資料的函數
-  const loadData = useCallback(async (showLoading = true) => {
-    if (showLoading) setLoading(true);
-    setError(null);
-    
-    try {
-      await Promise.all([
-        fetchAchievements(),
-        fetchPoopRecords(),
-      ]);
-    } catch (err) {
-      console.error('Error loading data:', err);
-      setError('無法連接到伺服器，使用本地資料');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
-
-  // 初始化資料
-  useEffect(() => {
-    loadData(true);
-  }, []);
-
-  // 當頁面獲得焦點時重新載入（從其他頁面返回時）
-  useFocusEffect(
-    useCallback(() => {
-      console.log('Calendar screen focused, reloading data...');
-      loadData(false); // 不顯示載入畫面，靜默更新
-    }, [])
-  );
-
-  // 下拉更新
-  const onRefresh = useCallback(() => {
-    setRefreshing(true);
-    loadData(false);
-  }, []);
 
   // 初始化挑戰
   useEffect(() => {
@@ -223,49 +75,36 @@ export default function CalendarScreen() {
     setActiveChallenges(initialChallenges);
   }, []);
 
-  // 計算成就進度（結合本地和資料庫資料）
+  // 計算成就進度
   const calculateAchievements = (): Achievement[] => {
-    // 優先使用資料庫記錄，如果沒有則用本地資料
-    const recordsToUse = dbPoopRecords.length > 0 ? dbPoopRecords : entries;
-    const totalEntries = recordsToUse.length;
-    
-    console.log('Calculating achievements with', totalEntries, 'entries');
-    
+    const totalEntries = entries.length;
     const today = new Date();
-    const thisWeek = recordsToUse.filter(record => {
-      const recordDate = 'record_time' in record 
-        ? new Date(record.record_time) 
-        : new Date(record.date);
+    const thisWeek = entries.filter(entry => {
+      const entryDate = new Date(entry.date);
       const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
-      return recordDate >= weekAgo;
+      return entryDate >= weekAgo;
     }).length;
 
     // 計算連續天數
     const calculateStreak = (): number => {
-      if (recordsToUse.length === 0) return 0;
+      if (entries.length === 0) return 0;
       
-      const dates = recordsToUse.map(record => {
-        const date = 'record_time' in record 
-          ? new Date(record.record_time) 
-          : new Date(record.date);
-        return date.toDateString();
-      });
-      
-      const uniqueDates = [...new Set(dates)].sort((a, b) => 
-        new Date(b).getTime() - new Date(a).getTime()
-      );
+      const sortedEntries = entries
+        .map(entry => new Date(entry.date).toDateString())
+        .filter((date, index, array) => array.indexOf(date) === index) // 去重複
+        .sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
 
       let streak = 1;
-      const todayStr = new Date().toDateString();
-      const yesterdayStr = new Date(Date.now() - 24 * 60 * 60 * 1000).toDateString();
+      const today = new Date().toDateString();
       
-      if (uniqueDates[0] !== todayStr && uniqueDates[0] !== yesterdayStr) {
-        return 0;
+      if (sortedEntries[0] !== today && 
+          sortedEntries[0] !== new Date(Date.now() - 24 * 60 * 60 * 1000).toDateString()) {
+        return 0; // 如果最新記錄不是今天或昨天，連續天數為0
       }
 
-      for (let i = 1; i < uniqueDates.length; i++) {
-        const currentDate = new Date(uniqueDates[i]);
-        const previousDate = new Date(uniqueDates[i - 1]);
+      for (let i = 1; i < sortedEntries.length; i++) {
+        const currentDate = new Date(sortedEntries[i]);
+        const previousDate = new Date(sortedEntries[i - 1]);
         const diffInDays = (previousDate.getTime() - currentDate.getTime()) / (24 * 60 * 60 * 1000);
         
         if (diffInDays === 1) {
@@ -279,18 +118,13 @@ export default function CalendarScreen() {
 
     const currentStreak = calculateStreak();
 
-    // 檢查資料庫中是否已有該成就
-    const hasAchievement = (name: string) => {
-      return dbAchievements.some(a => a.achievement_name === name);
-    };
-
-    const achievements: Achievement[] = [
+    return [
       {
         id: '1',
         title: 'First Drop',
         description: 'Record your first poop entry',
         icon: '💩',
-        isUnlocked: hasAchievement('First Drop') || totalEntries >= 1,
+        isUnlocked: totalEntries >= 1,
         category: 'milestone',
         color: '#4CAF50'
       },
@@ -299,7 +133,7 @@ export default function CalendarScreen() {
         title: 'Week Warrior',
         description: 'Track your bathroom visits for 7 days',
         icon: '📅',
-        isUnlocked: hasAchievement('Week Warrior') || thisWeek >= 7,
+        isUnlocked: thisWeek >= 7,
         progress: Math.min(thisWeek, 7),
         maxProgress: 7,
         category: 'streak',
@@ -310,7 +144,7 @@ export default function CalendarScreen() {
         title: 'Consistency Champion',
         description: 'Maintain a 3-day streak',
         icon: '🔥',
-        isUnlocked: hasAchievement('Consistency Champion') || currentStreak >= 3,
+        isUnlocked: currentStreak >= 3,
         progress: Math.min(currentStreak, 3),
         maxProgress: 3,
         category: 'streak',
@@ -321,7 +155,7 @@ export default function CalendarScreen() {
         title: 'Poop Tracker Pro',
         description: 'Record 10 entries in total',
         icon: '🏆',
-        isUnlocked: hasAchievement('Poop Tracker Pro') || totalEntries >= 10,
+        isUnlocked: totalEntries >= 10,
         progress: Math.min(totalEntries, 10),
         maxProgress: 10,
         category: 'milestone',
@@ -332,7 +166,7 @@ export default function CalendarScreen() {
         title: 'Consistency King',
         description: 'Maintain regular bathroom habits (20 entries)',
         icon: '👑',
-        isUnlocked: hasAchievement('Consistency King') || totalEntries >= 20,
+        isUnlocked: totalEntries >= 20,
         progress: Math.min(totalEntries, 20),
         maxProgress: 20,
         category: 'health',
@@ -343,7 +177,7 @@ export default function CalendarScreen() {
         title: 'Health Guardian',
         description: 'Track for 30 entries',
         icon: '🛡️',
-        isUnlocked: hasAchievement('Health Guardian') || totalEntries >= 30,
+        isUnlocked: totalEntries >= 30,
         progress: Math.min(totalEntries, 30),
         maxProgress: 30,
         category: 'special',
@@ -354,7 +188,7 @@ export default function CalendarScreen() {
         title: 'Bathroom Master',
         description: 'Complete 50 entries',
         icon: '🎯',
-        isUnlocked: hasAchievement('Bathroom Master') || totalEntries >= 50,
+        isUnlocked: totalEntries >= 50,
         progress: Math.min(totalEntries, 50),
         maxProgress: 50,
         category: 'milestone',
@@ -365,23 +199,13 @@ export default function CalendarScreen() {
         title: 'Week Streak Master',
         description: 'Maintain a 7-day streak',
         icon: '⚡',
-        isUnlocked: hasAchievement('Week Streak Master') || currentStreak >= 7,
+        isUnlocked: currentStreak >= 7,
         progress: Math.min(currentStreak, 7),
         maxProgress: 7,
         category: 'streak',
         color: '#FFC107'
       }
     ];
-
-    // 自動解鎖新成就並儲存到資料庫
-    achievements.forEach(achievement => {
-      if (achievement.isUnlocked && !hasAchievement(achievement.title)) {
-        // 非同步創建成就，不阻塞渲染
-        createAchievement(achievement.title, achievement.description);
-      }
-    });
-
-    return achievements;
   };
 
   const achievements = calculateAchievements();
@@ -407,7 +231,7 @@ export default function CalendarScreen() {
                       ...challenge, 
                       isActive: true, 
                       startDate: new Date().toISOString(),
-                      endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+                      endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // 7天後
                     }
                   : challenge
               )
@@ -470,7 +294,7 @@ export default function CalendarScreen() {
   const renderAchievement = ({ item }: { item: Achievement }) => (
     <View style={[
       styles.achievementCard,
-      { backgroundColor: item.isUnlocked ? item.color + '20' : '#F5F5F5' }
+      { backgroundColor: item.isUnlocked ? item.color + '20' : Colors.primary.lightBackground }
     ]}>
       <View style={[
         styles.achievementIcon,
@@ -584,25 +408,10 @@ export default function CalendarScreen() {
     </View>
   );
 
-  // 載入中畫面
-  if (loading) {
-    return (
-      <View style={[styles.container, styles.centerContent]}>
-        <ActivityIndicator size="large" color={Colors.primary.accent} />
-        <Text style={styles.loadingText}>載入資料中...</Text>
-      </View>
-    );
-  }
-
   return (
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        {error && (
-          <View style={styles.errorBanner}>
-            <Text style={styles.errorBannerText}>⚠️ 使用本地資料</Text>
-          </View>
-        )}
         <View style={styles.tabContainer}>
           <TouchableOpacity
             style={[
@@ -634,27 +443,10 @@ export default function CalendarScreen() {
             </Text>
           </TouchableOpacity>
         </View>
-        
-        {/* 顯示資料來源 */}
-        <Text style={styles.dataSourceText}>
-          {dbPoopRecords.length > 0 
-            ? `📊 資料庫記錄: ${dbPoopRecords.length} 筆`
-            : `📱 本地記錄: ${entries.length} 筆`}
-        </Text>
       </View>
 
       {/* Content */}
-      <ScrollView 
-        style={styles.content} 
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={[Colors.primary.accent]}
-          />
-        }
-      >
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {selectedTab === 'achievements' ? (
           <>
             {/* Achievement Summary */}
@@ -734,32 +526,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.primary.background,
   },
-  centerContent: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 10,
-    fontSize: 16,
-    color: Colors.primary.lightText,
-  },
-  errorBanner: {
-    backgroundColor: '#FFF3CD',
-    padding: 8,
-    borderRadius: 8,
-    marginBottom: 8,
-  },
-  errorBannerText: {
-    color: '#856404',
-    fontSize: 12,
-    textAlign: 'center',
-  },
-  dataSourceText: {
-    fontSize: 12,
-    color: Colors.primary.lightText,
-    textAlign: 'center',
-    marginTop: 8,
-  },
   header: {
     backgroundColor: Colors.primary.card,
     paddingTop: 16,
@@ -770,7 +536,7 @@ const styles = StyleSheet.create({
   },
   tabContainer: {
     flexDirection: 'row',
-    backgroundColor: '#F5F5F5',
+    backgroundColor: Colors.primary.lightBackground,
     borderRadius: 25,
     padding: 4,
   },
@@ -839,7 +605,7 @@ const styles = StyleSheet.create({
   overallProgressBar: {
     flex: 1,
     height: 8,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: Colors.primary.lightBackground,
     borderRadius: 4,
   },
   overallProgressFill: {
@@ -923,7 +689,7 @@ const styles = StyleSheet.create({
   progressBar: {
     flex: 1,
     height: 6,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: Colors.primary.lightBackground,
     borderRadius: 3,
   },
   progressFill: {
@@ -1025,7 +791,7 @@ const styles = StyleSheet.create({
   challengeProgressBar: {
     width: '100%',
     height: 8,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: Colors.primary.lightBackground,
     borderRadius: 4,
     marginBottom: 8,
   },
