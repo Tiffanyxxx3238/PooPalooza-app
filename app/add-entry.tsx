@@ -117,7 +117,7 @@ const saveEntry = async () => {
 
     console.log('🚀 Submitting payload:', payload); // debug 用
 
-    const response = await fetch('http://192.168.0.196:5001/poop-records', {
+    const response = await fetch('https://poopaloozabackend.onrender.com/poop-records', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
