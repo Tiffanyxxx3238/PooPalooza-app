@@ -37,7 +37,10 @@ export default function LibraryScreen() {
   const [dbPoopRecords, setDbPoopRecords] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const currentUserId = 1;
+  const [error, setError] = useState<string | null>(null);
+  
+  // 修改为字符串以匹配数据库中的实际数据
+  const currentUserId = "Google User";
   
   // Use database records if available, otherwise use local
   const entries = dbPoopRecords;
@@ -54,33 +57,63 @@ export default function LibraryScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterBy, setFilterBy] = useState<string>('all');
   
-  // Fetch records from database
+  // 從資料庫獲取記錄
   const fetchPoopRecords = async () => {
     try {
+      console.log('Fetching poop records from:', `${API_BASE_URL}/poop-records`);
+      setError(null);
+      
       const response = await fetch(`${API_BASE_URL}/poop-records`);
       
       if (!response.ok) {
-        throw new Error('Failed to fetch records');
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
       
       const data = await response.json();
-      const userRecords = data.filter((record: any) => record.user_id === currentUserId);
+      console.log('Raw data from API:', data);
+      console.log('Data length:', data.length);
       
-      const transformedRecords = userRecords.map((record: any) => ({
-        id: record.record_id.toString(),
-        date: record.record_time,
-        type: record.bristol_scale ? `Type ${record.bristol_scale}` : 'Type 4',
-        difficulty: record.consistency || 'medium',
-        notes: record.ai_diagnosis_summary || '',
-        color: record.color || 'brown',
-        hasBlood: record.has_blood || false,
-        hasMucus: record.has_mucus || false,
-        image: record.image_url || null,
-      }));
+      // 修改過濾條件以匹配實際的用戶 ID
+      const userRecords = data.filter((record: any) => {
+        const matches = record.user_id === currentUserId || 
+                       record.user_id === 1 || 
+                       record.user_id === "1";
+        console.log(`Record ${record.record_id}: user_id="${record.user_id}", matches: ${matches}`);
+        return matches;
+      });
       
+      console.log('Filtered user records:', userRecords.length);
+      
+      const transformedRecords = userRecords.map((record: any) => {
+        const transformed = {
+          id: record.record_id ? record.record_id.toString() : Math.random().toString(),
+          date: record.record_time || new Date().toISOString(),
+          type: record.bristol_scale ? `Type ${record.bristol_scale}` : 'Type 4',
+          difficulty: record.consistency || 'medium',
+          notes: record.ai_diagnosis_summary || '',
+          color: record.color || 'brown',
+          hasBlood: record.has_blood || false,
+          hasMucus: record.has_mucus || false,
+          image: record.image_url || null,
+          // 保留原始數據以供詳細頁面使用
+          originalRecord: record
+        };
+        console.log('Transformed record:', transformed);
+        return transformed;
+      });
+      
+      console.log('Final transformed records:', transformedRecords.length);
       setDbPoopRecords(transformedRecords);
+      
     } catch (error) {
       console.error('Error fetching poop records:', error);
+      setError(error.message || 'Failed to fetch records');
+      
+      // 如果從數據庫獲取失敗，使用本地數據
+      if (localEntries && localEntries.length > 0) {
+        console.log('Falling back to local entries:', localEntries.length);
+        setDbPoopRecords(localEntries);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -274,6 +307,24 @@ export default function LibraryScreen() {
       <View style={[styles.container, styles.centerContent]}>
         <ActivityIndicator size="large" color={Colors.primary.accent} />
         <Text style={styles.loadingText}>Loading records...</Text>
+        {error && (
+          <Text style={styles.errorText}>
+            Error: {error}
+          </Text>
+        )}
+      </View>
+    );
+  }
+
+  // Error state
+  if (error && entries.length === 0) {
+    return (
+      <View style={[styles.container, styles.centerContent]}>
+        <Text style={styles.errorText}>Failed to load records</Text>
+        <Text style={styles.errorSubtext}>{error}</Text>
+        <TouchableOpacity style={styles.retryButton} onPress={fetchPoopRecords}>
+          <Text style={styles.retryButtonText}>Retry</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -438,18 +489,38 @@ export default function LibraryScreen() {
         </View>
       </View>
       
+      {/* Debug Information */}
+      {__DEV__ && (
+        <View style={styles.debugContainer}>
+          <Text style={styles.debugText}>
+            Total entries: {entries.length} | Filtered: {filteredAndSearchedEntries.length}
+          </Text>
+        </View>
+      )}
+      
       {/* Entries List */}
       {filteredAndSearchedEntries.length === 0 ? (
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyText}>
-            {searchQuery || filterBy !== 'all' ? 'No matching entries' : 'No entries yet'}
-          </Text>
-          <Text style={styles.emptySubtext}>
-            {searchQuery || filterBy !== 'all' 
-              ? 'Try adjusting your search or filter'
-              : 'Start tracking your poops to see them here'
+            {entries.length === 0 
+              ? 'No entries yet' 
+              : (searchQuery || filterBy !== 'all' ? 'No matching entries' : 'No entries')
             }
           </Text>
+          <Text style={styles.emptySubtext}>
+            {entries.length === 0 
+              ? 'Start tracking your poops to see them here'
+              : (searchQuery || filterBy !== 'all' 
+                ? 'Try adjusting your search or filter'
+                : 'Check your database connection'
+              )
+            }
+          </Text>
+          {entries.length === 0 && (
+            <TouchableOpacity style={styles.retryButton} onPress={onRefresh}>
+              <Text style={styles.retryButtonText}>Refresh</Text>
+            </TouchableOpacity>
+          )}
         </View>
       ) : (
         <FlatList
@@ -464,6 +535,12 @@ export default function LibraryScreen() {
           )}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+            />
+          }
         />
       )}
     </View>
@@ -546,6 +623,46 @@ const styles = StyleSheet.create({
     marginTop: 10,
     fontSize: 16,
     color: Colors.primary.lightText,
+  },
+  
+  errorText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#ff4444',
+    textAlign: 'center',
+  },
+  
+  errorSubtext: {
+    marginTop: 5,
+    fontSize: 14,
+    color: Colors.primary.lightText,
+    textAlign: 'center',
+  },
+  
+  retryButton: {
+    marginTop: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    backgroundColor: Colors.primary.accent,
+    borderRadius: 20,
+  },
+  
+  retryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  
+  debugContainer: {
+    padding: 10,
+    backgroundColor: '#ffffcc',
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.primary.border,
+  },
+  
+  debugText: {
+    fontSize: 12,
+    color: '#666',
   },
   
   scrollView: {

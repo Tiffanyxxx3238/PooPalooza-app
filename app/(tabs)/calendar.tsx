@@ -118,37 +118,40 @@ const fetchAchievements = async () => {
 
   // 創建新成就到資料庫
 // 创建新成就到资料库
-const createAchievement = async (achievementName: string, achievementDescription: string) => {
+const createAchievement = async (achievementName, achievementDescription) => {
   try {
     console.log('Creating achievement:', achievementName);
-
-    console.log('Submitting payload:', payload);
     
+    // 确保这个 payload 变量存在且正确定义
+    const payload = {
+      user_id: 1,
+      record_time: new Date().toISOString(),
+      color: color.toString(),
+      consistency: feeling.toString(),
+      volume: volume.toString(),
+      odor: '',
+      has_blood: false,
+      has_mucus: false,
+      image_url: params.imageUri || '',
+      ai_poop_type: type.toString(),
+      ai_poop_color: color.toString(),
+      ai_poop_volume: volume.toString(),
+      ai_diagnosis_summary: analysisDetails,
+      health_recommendations: recommendations,
+      health_indicators: ''
+    };
+
     const response = await fetch('https://poopaloozabackend.onrender.com/poop-records', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload)
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload) // 这里使用的 payload 必须已经定义
     });
 
     const result = await response.json();
-    console.log('Server response:', result);
-    
-    if (response.ok && result.success) {
-      console.log('Record saved successfully!');
-      // 重新获取数据来更新UI
-      await fetchAchievements();
-      // 可以添加成功提示
-      alert('记录保存成功！');
-    } else {
-      console.error('Save failed:', result.message);
-      alert(`保存失败: ${result.message || 'Unknown error'}`);
-    }
+    // 处理结果...
     
   } catch (error) {
     console.error('Error creating achievement:', error);
-    alert(`网络错误: ${error.message}`);
   }
 };
 
