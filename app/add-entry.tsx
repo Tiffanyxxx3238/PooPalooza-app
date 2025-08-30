@@ -11,6 +11,7 @@ import PoopFeelingSelector from '@/components/PoopFeelingSelector';
 import PoopColorSelector from '@/components/PoopColorSelector';
 import { Image } from 'expo-image';
 import { getTimeOfDay } from '@/utils/dateUtils';
+import API_BASE_URL from '@/config';
 
 export default function AddEntryScreen() {
   const router = useRouter();
@@ -117,7 +118,7 @@ const saveEntry = async () => {
 
     console.log('🚀 Submitting payload:', payload); // debug 用
 
-    const response = await fetch('https://poopaloozabackend.onrender.com/poop-records', {
+    const response = await fetch(`${API_BASE_URL}/poop-records`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'

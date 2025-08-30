@@ -1,3 +1,2 @@
-// config.ts
-const API_BASE_URL = 'http://172.20.10.12:5001';
-export { API_BASE_URL };
+const API_URL = 'https://poopalooza-backend-api-af34f62d7c87.herokuapp.com';
+export default API_URL;
