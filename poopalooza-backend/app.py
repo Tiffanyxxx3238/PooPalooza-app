@@ -13,8 +13,10 @@ CORS(app)
 
 # 修正 URI 前綴
 uri = os.getenv("DATABASE_URL")
-if uri.startswith("postgres://"):
-   uri = uri.replace("postgres://", "postgresql://", 1)
+if uri and uri.startswith("postgres://"):
+    uri = uri.replace("postgres://", "postgresql://", 1)
+else:
+    uri = "sqlite:///app.db"  # Fallback for local development
 app.config['SQLALCHEMY_DATABASE_URI'] = uri
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 

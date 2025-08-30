@@ -7,7 +7,7 @@ import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
-
+import API_BASE_URL from '@/config';
 // 🆕 新增：資料庫整合
 import { useToiletDatabase } from '@/hooks/useToiletDatabase';
 import { ToiletAPIService } from '@/services/ToiletAPIService';

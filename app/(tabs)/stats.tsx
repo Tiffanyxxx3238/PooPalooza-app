@@ -5,7 +5,7 @@ import Colors from '@/constants/colors';
 import { poopTypes, poopVolumes, poopFeelings, poopColors } from '@/constants/poopTypes';
 import { getWeekRange, getMonthRange } from '@/utils/dateUtils';
 import { TrendingUp } from 'lucide-react-native'; // Add this import
-
+import API_BASE_URL from '@/config';
 // New component for Line Chart
 const LineChart = ({ data, title }: { data: any[], title: string }) => {
   const maxValue = Math.max(...data.map(d => d.value), 1);
@@ -71,7 +71,7 @@ export default function StatsScreen() {
   useEffect(() => {
     const fetchPoopRecords = async () => {
       try {
-        const response = await fetch('https://poopaloozabackend.onrender.com/poop-records');
+        const response = await fetch(`${API_BASE_URL}/poop-records`);
         const data = await response.json();
         setRecords(data);
       } catch (error) {
