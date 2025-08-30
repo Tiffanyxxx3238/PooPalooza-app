@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Calendar Connection Test</title>
+</head>
+<body>
+    <h1>Testing Calendar Database Connection</h1>
+    <button onclick="testConnection()">Test Connection</button>
+    <div id="results"></div>
+
+    <script>
+        async function testConnection() {
+            const resultsDiv = document.getElementById('results');
+            
+            try {
+                // Test 1: Fetch poop records
+                const poopResponse = await fetch('http://172.20.10.3:5001/poop-records');
+                const poopData = await poopResponse.json();
+                const user1Records = poopData.filter(r => r.user_id === 1);
+                
+                // Test 2: Fetch achievements
+                const achievementsResponse = await fetch('http://172.20.10.3:5001/achievements/1');
+                const achievementsData = await achievementsResponse.json();
+                
+                resultsDiv.innerHTML = `
+                    <h2>✅ Connection Successful!</h2>
+                    <p><strong>User 1 Poop Records:</strong> ${user1Records.length}</p>
+                    <p><strong>User 1 Achievements:</strong> ${achievementsData.length}</p>
+                    <h3>Records:</h3>
+                    <pre>${JSON.stringify(user1Records, null, 2)}</pre>
+                    <h3>Achievements:</h3>
+                    <pre>${JSON.stringify(achievementsData, null, 2)}</pre>
+                `;
+            } catch (error) {
+                resultsDiv.innerHTML = `<p style="color: red;">❌ Error: ${error.message}</p>`;
+            }
+        }
+    </script>
+</body>
+</html>
