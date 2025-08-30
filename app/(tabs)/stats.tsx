@@ -65,9 +65,24 @@ export default function StatsScreen() {
   const [timeRange, setTimeRange] = useState<'week' | 'month' | 'all'>('week');
   const [filteredEntries, setFilteredEntries] = useState(entries);
   
+  const [records, setRecords] = useState<PoopEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+
   useEffect(() => {
-    filterEntriesByTimeRange(timeRange);
-  }, [timeRange, entries]);
+    const fetchPoopRecords = async () => {
+      try {
+        const response = await fetch('http://192.168.0.196:5001/poop-records');
+        const data = await response.json();
+        setRecords(data);
+      } catch (error) {
+        console.error('❌ Failed to fetch poop records:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPoopRecords();
+  }, []);
   
   const filterEntriesByTimeRange = (range: 'week' | 'month' | 'all') => {
     const now = new Date();
