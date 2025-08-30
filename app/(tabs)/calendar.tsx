@@ -70,24 +70,27 @@ export default function CalendarScreen() {
   const currentUserId = 1;
 
   // 從資料庫獲取成就資料
-  const fetchAchievements = async () => {
-    try {
-      console.log('Fetching achievements for user:', currentUserId);
-      const response = await fetch(`${API_BASE_URL}/achievements/${currentUserId}`);
-      
-      if (!response.ok) {
-        console.log('Response not OK:', response.status);
-        throw new Error(`Failed to fetch achievements: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      console.log('Achievements fetched:', data);
-      setDbAchievements(data);
-    } catch (err) {
-      console.error('Error fetching achievements:', err);
-      // 不設定錯誤，讓它繼續運作
+const fetchAchievements = async () => {
+  try {
+    console.log('Requesting:', 'https://poopaloozabackend.onrender.com/poop-records');
+    const response = await fetch('https://poopaloozabackend.onrender.com/poop-records');
+    
+    console.log('Response status:', response.status);
+    console.log('Response headers:', response.headers);
+    
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      const errorText = await response.text();
+      console.log('Non-JSON response:', errorText.substring(0, 200));
+      throw new Error(`Non-JSON response: ${errorText.substring(0, 100)}`);
     }
-  };
+
+    const json = await response.json();
+    setDbPoopRecords(json);
+  } catch (err) {
+    console.error('Fetch poop records failed:', err);
+  }
+};
 
   // 從資料庫獲取排便記錄
   const fetchPoopRecords = async () => {
@@ -114,36 +117,40 @@ export default function CalendarScreen() {
   };
 
   // 創建新成就到資料庫
-  const createAchievement = async (achievementName: string, achievementDescription: string) => {
-    try {
-      console.log('Creating achievement:', achievementName);
-      const response = await fetch(`${API_BASE_URL}/achievements`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          user_id: currentUserId,
-          achievement_name: achievementName,
-          achievement_description: achievementDescription,
-        }),
-      });
-      
-      if (!response.ok) {
-        console.log('Failed to create achievement:', response.status);
-        throw new Error('Failed to create achievement');
-      }
-      
-      const result = await response.json();
-      console.log('Achievement created:', result);
-      
-      // 重新獲取成就列表
+// 创建新成就到资料库
+const createAchievement = async (achievementName: string, achievementDescription: string) => {
+  try {
+    console.log('Creating achievement:', achievementName);
+
+    console.log('Submitting payload:', payload);
+    
+    const response = await fetch('https://poopaloozabackend.onrender.com/poop-records', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const result = await response.json();
+    console.log('Server response:', result);
+    
+    if (response.ok && result.success) {
+      console.log('Record saved successfully!');
+      // 重新获取数据来更新UI
       await fetchAchievements();
-      Alert.alert('🎉 恭喜！', `解鎖成就：${achievementName}`);
-    } catch (err) {
-      console.error('Error creating achievement:', err);
+      // 可以添加成功提示
+      alert('记录保存成功！');
+    } else {
+      console.error('Save failed:', result.message);
+      alert(`保存失败: ${result.message || 'Unknown error'}`);
     }
-  };
+    
+  } catch (error) {
+    console.error('Error creating achievement:', error);
+    alert(`网络错误: ${error.message}`);
+  }
+};
 
   // 載入資料的函數
   const loadData = useCallback(async (showLoading = true) => {
