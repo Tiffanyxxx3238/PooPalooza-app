@@ -439,7 +439,7 @@ const SmartNonPoopDetectionDisplay = ({ result, onRetake, onSelectOther }: {
       case 'no_objects':
         return {
           icon: '🔍',
-          title: '未檢測到物體',
+          title: 'No objects detected',
           message: result.message,
           suggestion: result.suggestion,
           color: '#F59E0B'
@@ -448,7 +448,7 @@ const SmartNonPoopDetectionDisplay = ({ result, onRetake, onSelectOther }: {
       case 'wrong_objects':
         return {
           icon: '🚫',
-          title: '檢測到其他物體',
+          title: 'Other objects detected',
           message: result.message,
           suggestion: result.suggestion,
           color: '#EF4444'
@@ -457,7 +457,7 @@ const SmartNonPoopDetectionDisplay = ({ result, onRetake, onSelectOther }: {
       default:
         return {
           icon: '❓',
-          title: '無法識別',
+          title: 'Unable to identify',
           message: result.message,
           suggestion: result.suggestion,
           color: '#6B7280'
@@ -501,7 +501,7 @@ const SmartNonPoopDetectionDisplay = ({ result, onRetake, onSelectOther }: {
       {/* 顯示檢測到的物體 */}
       {result.detected_objects && result.detected_objects.length > 0 && (
         <View style={styles.detectedObjectsContainer}>
-          <Text style={styles.detectedObjectsTitle}>檢測到的物體：</Text>
+          <Text style={styles.detectedObjectsTitle}>Detected objects:</Text>
           {result.detected_objects.slice(0, 3).map((obj: any, index: number) => (
             <Text key={index} style={styles.detectedObjectItem}>
               • {obj.class} ({(obj.confidence * 100).toFixed(1)}%)
@@ -513,7 +513,7 @@ const SmartNonPoopDetectionDisplay = ({ result, onRetake, onSelectOther }: {
       {/* 基本顏色分析 */}
       {result.basic_color_info && (
         <View style={styles.basicColorAnalysisContainer}>
-          <Text style={styles.basicColorAnalysisTitle}>🎨 基本顏色分析</Text>
+          <Text style={styles.basicColorAnalysisTitle}>🎨 Basic color analysis </Text>
           <View style={styles.colorInfoRow}>
             <View 
               style={[
@@ -537,12 +537,12 @@ const SmartNonPoopDetectionDisplay = ({ result, onRetake, onSelectOther }: {
       
       <View style={styles.actionButtonsContainer}>
         <Button
-          title="重新拍照"
+          title="Retake the picture"
           onPress={onRetake}
           style={styles.retakeButton}
         />
         <Button
-          title="選擇其他照片"
+          title="Select a different picture"
           onPress={onSelectOther}
           variant="outline"
           style={styles.selectOtherButton}
@@ -1879,7 +1879,7 @@ const renderContent = () => {
             <View style={styles.recommendationsContainer}>
               <View style={styles.recommendationsHeader}>
                 <Text style={styles.recommendationsTitle}>
-                  {isEnglish ? '🏥 Health Recommendations & Improvement Plan' : '🏥 健康建議與改善方案'}
+                  🏥 Health Recommendations & Improvement Plan
                 </Text>
               </View>
               <RecommendationDisplay 
