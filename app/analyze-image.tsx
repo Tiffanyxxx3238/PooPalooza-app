@@ -1915,7 +1915,7 @@ const renderContent = () => {
             <View style={styles.recommendationsContainer}>
               <View style={styles.recommendationsHeader}>
                 <Text style={styles.recommendationsTitle}>
-                  {isEnglish ? '🏥 Health Recommendations & Improvement Plan' : '🏥 健康建議與改善方案'}
+                  🏥 Health Recommendations & Improvement Plan
                 </Text>
               </View>
               <RecommendationDisplay 
