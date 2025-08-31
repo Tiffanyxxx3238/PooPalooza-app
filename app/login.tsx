@@ -37,7 +37,7 @@ export default function LoginScreen() {
       alert('All fields are required');
       return;
     }
-    const url = 'https://poopalooza-backend-api-af34f62d7c87.herokuapp.com';
+   const url = 'https://poopalooza-backend-api-af34f62d7c87.herokuapp.com/login';
     try {
       const response = await fetch(url, {
         method: 'POST',
