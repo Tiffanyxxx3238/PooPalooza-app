@@ -72,8 +72,8 @@ export default function CalendarScreen() {
   // 從資料庫獲取成就資料
 const fetchAchievements = async () => {
   try {
-    console.log('Requesting:', 'https://poopaloozabackend.onrender.com/poop-records');
-    const response = await fetch('https://poopaloozabackend.onrender.com/poop-records');
+    console.log('Requesting:', 'https://poopalooza-backend-api-af34f62d7c87.herokuapp.com/poop-records');
+    const response = await fetch('https://poopalooza-backend-api-af34f62d7c87.herokuapp.com/poop-records');
     
     console.log('Response status:', response.status);
     console.log('Response headers:', response.headers);
@@ -141,7 +141,7 @@ const createAchievement = async (achievementName, achievementDescription) => {
       health_indicators: ''
     };
 
-    const response = await fetch('https://poopaloozabackend.onrender.com/poop-records', {
+    const response = await fetch('https://poopalooza-backend-api-af34f62d7c87.herokuapp.com/poop-records', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(payload) // 这里使用的 payload 必须已经定义

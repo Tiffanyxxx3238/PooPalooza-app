@@ -32,91 +32,88 @@ export default function LoginScreen() {
     }
   };
   
-const handleLogin = async () => {
-  if (!username || !password) {
-    alert('All fields are required');
-    return;
-  }
+  const handleLogin = async () => {
+    if (!username || !password) {
+      alert('All fields are required');
+      return;
+    }
+    const url = 'https://poopalooza-backend-api-af34f62d7c87.herokuapp.com';
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
 
-  const url = 'https://poopaloozabackend.onrender.com';
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const errorText = await response.text();
+        console.error('Non-JSON response:', errorText);
+        alert('Server error. Please try again later.');
+        return;
+      }
 
-  try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password }),
-    });
+      const data = await response.json();
 
-    const contentType = response.headers.get('content-type');
-    if (!contentType || !contentType.includes('application/json')) {
-      const errorText = await response.text();
-      console.error('Non-JSON response:', errorText);
-      alert('Server error. Please try again later.');
+      if (response.ok) {
+        // ✅ 儲存 user_id、username、email
+        useUserStore.getState().setUserInfo(
+          data.user_id,
+          data.username,
+          data.email || null
+        );
+        console.log('✅ User logged in:', username);
+        alert('Login successful!');
+        router.replace('/(tabs)');
+      } else {
+        alert(data.message || 'Login failed');
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      alert('Login error');
+    }
+  };
+
+  const handleRegister = async () => {
+    if (!username || !password) {
+      alert('All fields are required');
       return;
     }
 
-    const data = await response.json();
+    try {
+      const response = await fetch('https://poopalooza-backend-api-af34f62d7c87.herokuapp.com/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          username,
+          password,
+          email,
+        }),
+      });
 
-    if (response.ok) {
-      // ✅ 儲存 user_id、username、email
-      useUserStore.getState().setUserInfo(
-        data.user_id,
-        data.username,
-        data.email || null
-      );
-      console.log('✅ User logged in:', username);
-      alert('Login successful!');
-      router.replace('/(tabs)');
-    } else {
-      alert(data.message || 'Login failed');
+      // 🚨 檢查回傳是不是 JSON 格式
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const errorText = await response.text(); // 把錯誤的 HTML 印出來
+        console.error('Non-JSON response:', errorText);
+        alert('Server error. Please try again later.');
+        return;
+      }
+      const data = await response.json();
+
+      if (response.ok) {
+        alert('Registration successful!');
+        router.replace('/(tabs)');  // or navigate to login screen
+      } else {
+        alert(data.message || 'Registration failed');
+      }
+    } catch (error) {
+      console.error('Registration error:', error);
+      alert('Something went wrong. Please try again.');
     }
-  } catch (error) {
-    console.error('Login error:', error);
-    alert('Login error');
-  }
-};
-
-const handleRegister = async () => {
-  if (!username || !password) {
-    alert('All fields are required');
-    return;
-  }
-
-  try {
-    const response = await fetch('https://poopaloozabackend.onrender.com/register', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        username,
-        password,
-        email,
-      }),
-    });
-
-    
-    // 🚨 檢查回傳是不是 JSON 格式
-    const contentType = response.headers.get('content-type');
-    if (!contentType || !contentType.includes('application/json')) {
-      const errorText = await response.text(); // 把錯誤的 HTML 印出來
-      console.error('Non-JSON response:', errorText);
-      alert('Server error. Please try again later.');
-      return;
-    }
-    const data = await response.json();
-
-    if (response.ok) {
-      alert('Registration successful!');
-      router.replace('/(tabs)');  // or navigate to login screen
-    } else {
-      alert(data.message || 'Registration failed');
-    }
-  } catch (error) {
-    console.error('Registration error:', error);
-    alert('Something went wrong. Please try again.');
-  }
-};
+  };
   
   const handleGoogleSignIn = () => {
     // In a real app, you would implement Google Sign In

@@ -452,7 +452,7 @@ const performCheckIn = async () => {
   }
   
   try {
-    const API_URL = 'https://poopaloozabackend.onrender.com';
+    const API_URL = 'https://poopalooza-backend-api-af34f62d7c87.herokuapp.com';
     
     const checkInData = {
       user_id: 1,
@@ -1402,7 +1402,7 @@ const handleCheckIn = useCallback(async (isPrivate: boolean) => {
   }
   
   try {
-    const API_URL = 'https://poopaloozabackend.onrender.com';
+    const API_URL = 'https://poopalooza-backend-api-af34f62d7c87.herokuapp.com';
     
     // Build the data object conditionally
     const checkInData: any = {
