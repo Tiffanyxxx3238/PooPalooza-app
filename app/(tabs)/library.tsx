@@ -15,7 +15,8 @@ import { useRouter } from 'expo-router';
 import { usePoopStore } from '@/store/poopStore';
 import Colors from '@/constants/colors';
 import PoopCard from '@/components/PoopCard';
-import { API_BASE_URL } from '@/config';
+import API_URL  from '@/config';
+import { useUserStore } from '@/store/userStore';
 
 // 簡化的圖標組件
 const ChevronLeft = () => <Text style={{fontSize: 24, color: Colors.primary.text}}>‹</Text>;
@@ -32,7 +33,10 @@ type ViewMode = 'calendar' | 'library';
 export default function LibraryScreen() {
   const router = useRouter();
   const { entries: localEntries } = usePoopStore();
-  
+
+  // Get the logged-in user's ID from userStore
+  const { user_id } = useUserStore();
+
   // Database state
   const [dbPoopRecords, setDbPoopRecords] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -40,7 +44,7 @@ export default function LibraryScreen() {
   const [error, setError] = useState<string | null>(null);
   
   // 修改为字符串以匹配数据库中的实际数据
-  const currentUserId = "Google User";
+  const currentUserId = user_id;
   
   // Use database records if available, otherwise use local
   const entries = dbPoopRecords;
@@ -60,10 +64,14 @@ export default function LibraryScreen() {
   // 從資料庫獲取記錄
   const fetchPoopRecords = async () => {
     try {
-      console.log('Fetching poop records from:', `${API_BASE_URL}/poop-records`);
+      const apiUrl = API_URL || 'https://poopalooza-backend-api-af34f62d7c87.herokuapp.com';
+      console.log('API_URL from config:', API_URL);
+      console.log('Using API URL:', apiUrl);
+      console.log('Current user ID:', currentUserId);
+      console.log('Fetching poop records from:', `${apiUrl}/poop-records`);
       setError(null);
       
-      const response = await fetch(`${API_BASE_URL}/poop-records`);
+      const response = await fetch(`${API_URL}/poop-records`);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -73,13 +81,9 @@ export default function LibraryScreen() {
       console.log('Raw data from API:', data);
       console.log('Data length:', data.length);
       
-      // 修改過濾條件以匹配實際的用戶 ID
+
       const userRecords = data.filter((record: any) => {
-        const matches = record.user_id === currentUserId || 
-                       record.user_id === 1 || 
-                       record.user_id === "1";
-        console.log(`Record ${record.record_id}: user_id="${record.user_id}", matches: ${matches}`);
-        return matches;
+        return record.user_id === currentUserId;
       });
       
       console.log('Filtered user records:', userRecords.length);
