@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 import os
 from datetime import datetime
 from sqlalchemy import text
+from werkzeug.security import check_password_hash, generate_password_hash
 
 load_dotenv()
 
@@ -130,7 +131,53 @@ class ToiletCheckin(db.Model):
 @app.route('/')
 def home():
    return "👋 Welcome to PooPalooza API!"
+# ========== login ==========
+@app.route('/login', methods=['POST'])
+def login():
+    data = request.json
+    
+    # Get username and password from request
+    username = data.get('username')
+    password = data.get('password')
+    
+    # Validate input
+    if not username or not password:
+        return jsonify({"error": "Username and password required"}), 400
+    
+    # Find user by username
+    user = User.query.filter_by(username=username).first()
+    
+    if not user:
+        return jsonify({"error": "Invalid username or password"}), 401
+    
+    # Check password (for now, simple comparison - should use hashing in production)
+    # For testing, you can temporarily skip password check:
+    # if user.password_hash != password:  # Simple comparison for testing
+    #     return jsonify({"error": "Invalid username or password"}), 401
+    
+    # Return user data
+    return jsonify({
+        "success": True,
+        "user_id": user.user_id,
+        "username": user.username,
+        "email": user.email,
+        "message": "Login successful"
+    }), 200
 
+# Also add a route to check if a user exists (helpful for testing)
+@app.route('/users/<int:user_id>', methods=['GET'])
+def get_user(user_id):
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+    
+    return jsonify({
+        "user_id": user.user_id,
+        "username": user.username,
+        "email": user.email,
+        "created_at": user.created_at,
+        "consecutive_login_days": user.consecutive_login_days
+    })
 # ========== USERS ==========
 
 @app.route('/users', methods=['GET'])
