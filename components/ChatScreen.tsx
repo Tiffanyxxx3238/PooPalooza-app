@@ -134,48 +134,50 @@ export default function ChatScreen({ onClose }: ChatScreenProps) {
 
   const [isTyping, setIsTyping] = useState(false);
 
-  const onSend = useCallback((msgs: IMessage[] = []) => {
-    setMessages(prev => GiftedChat.append(prev, msgs));
-    const question = msgs[0].text;
-    
-    setIsTyping(true);
-    
-    console.log('🚀 發送請求到:', `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.ASSISTANT}`);
-    console.log('📝 問題:', question);
-    
-    axios.post<ApiResponse>(
-      `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.ASSISTANT}`, 
-      { question },
-      { 
-        timeout: API_CONFIG.TIMEOUT,
-        headers: {
-          'Content-Type': 'application/json'
-        }
+const onSend = useCallback((msgs: IMessage[] = []) => {
+  setMessages(prev => GiftedChat.append(prev, msgs));
+  const question = msgs[0].text;
+  
+  setIsTyping(true);
+  
+  // CORRECT URL with /api/assistant
+  console.log('🚀 發送請求到: https://poopalooza-server.onrender.com/api/assistant');
+  console.log('📝 問題:', question);
+  
+  // THE CORRECT URL - Notice the /api/ prefix
+  axios.post<ApiResponse>(
+    'https://poopalooza-server.onrender.com/api/assistant', // ← MUST BE /api/assistant
+    { question },  // ← Your server expects { question } which is correct
+    { 
+      timeout: 30000,
+      headers: {
+        'Content-Type': 'application/json'
       }
-    )
-    .then((res: AxiosResponse<ApiResponse>) => {
-      setIsTyping(false);
-      console.log('✅ API 回應成功:', res.data);
-      
-      const formattedAnswer = formatBotMessage(res.data.answer);
-      
-      const botMessage: IMessage = {
-        _id: Date.now(),
-        text: formattedAnswer,
-        createdAt: new Date(),
-        user: { 
-          _id: 2, 
-          name: 'PoopBot',
-          avatar: '💩'
-        },
-      };
-      
-      setMessages(prev => GiftedChat.append(prev, [botMessage]));
-      
-      if (res.data.plan === 'free' && res.data.requestCount) {
-        console.log(`📊 免費版本使用次數: ${res.data.requestCount}`);
-      }
-    })
+    }
+  )
+  .then((res: AxiosResponse<ApiResponse>) => {
+    setIsTyping(false);
+    console.log('✅ API 回應成功:', res.data);
+    
+    const formattedAnswer = formatBotMessage(res.data.answer);
+    
+    const botMessage: IMessage = {
+      _id: Date.now(),
+      text: formattedAnswer,
+      createdAt: new Date(),
+      user: { 
+        _id: 2, 
+        name: 'PoopBot',
+        avatar: '💩'
+      },
+    };
+    
+    setMessages(prev => GiftedChat.append(prev, [botMessage]));
+    
+    if (res.data.plan === 'free' && res.data.requestCount) {
+      console.log(`📊 免費版本使用次數: ${res.data.requestCount}`);
+    }
+  })
     .catch((error) => {
       setIsTyping(false);
       console.error('❌ API 調用錯誤:', error);
