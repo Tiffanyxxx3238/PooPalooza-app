@@ -2107,8 +2107,102 @@ const ClusterModal = () => {
 const RecordsDrawer = () => {
   const [showTodayRecords, setShowTodayRecords] = useState(true);
   const [showPreviousRecords, setShowPreviousRecords] = useState(false);
+  const [dbRecords, setDbRecords] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  // Fetch records from database when drawer opens
+  useEffect(() => {
+    if (showRecordsDrawer) {
+      fetchUserRecords();
+    }
+  }, [showRecordsDrawer]);
+
+  const fetchUserRecords = async () => {
+    setLoading(true);
+    try {
+      const userId = 1; // TODO: Get from auth context
+      
+      // Fetch both public and private check-ins for this user
+      const [publicRes, privateRes] = await Promise.all([
+        fetch('https://poopalooza-backend-api-af34f62d7c87.herokuapp.com/public-checkins'),
+        fetch(`https://poopalooza-backend-api-af34f62d7c87.herokuapp.com/private-checkins?user_id=${userId}`)
+      ]);
+
+      const publicData = await publicRes.json();
+      const privateData = await privateRes.json();
+
+      // Filter public check-ins to only show current user's
+      const userPublicCheckIns = publicData.filter((checkin: any) => checkin.user_id === userId);
+      
+      // Combine and format the records
+      const allRecords = [
+        ...userPublicCheckIns.map((checkin: any) => ({
+          ...checkin,
+          isPrivate: false,
+          timestamp: new Date(checkin.created_at).getTime()
+        })),
+        ...privateData.map((checkin: any) => ({
+          ...checkin,
+          isPrivate: true,
+          timestamp: new Date(checkin.created_at).getTime()
+        }))
+      ];
+
+      // Sort by timestamp (newest first)
+      allRecords.sort((a, b) => b.timestamp - a.timestamp);
+      
+      setDbRecords(allRecords);
+    } catch (error) {
+      console.error('Failed to fetch records:', error);
+      Alert.alert('Error', 'Failed to load check-in records');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Get today's records from database data
+  const getTodayRecords = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    return dbRecords.filter(record => {
+      const recordDate = new Date(record.timestamp);
+      recordDate.setHours(0, 0, 0, 0);
+      return recordDate.getTime() === today.getTime();
+    });
+  };
+
+  // Get previous records from database data
+  const getPreviousRecords = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    return dbRecords.filter(record => {
+      const recordDate = new Date(record.timestamp);
+      recordDate.setHours(0, 0, 0, 0);
+      return recordDate.getTime() < today.getTime();
+    });
+  };
+
   const todayRecords = getTodayRecords();
   const previousRecords = getPreviousRecords();
+
+  // Share function using database records
+  const sharePooJourney = async () => {
+    try {
+      const todayRecs = getTodayRecords();
+      const message = `Today's poop adventure: Visited ${todayRecs.length} bathrooms!\n${
+        todayRecs.map(r => `${r.mood_emoji || '💩'} ${r.bathroom_name}`).join('\n')
+      }\n\nFrom PooPalooza 💩`;
+      
+      await Share.share({
+        message: message,
+        title: 'My Poop Adventure',
+      });
+    } catch (error) {
+      console.error('Share failed:', error);
+    }
+  };
 
   if (!showRecordsDrawer) return null;
 
@@ -2139,7 +2233,7 @@ const RecordsDrawer = () => {
             </TouchableOpacity>
           </View>
 
-          {/* Tab切換 */}
+          {/* Tab switcher */}
           <View style={styles.drawerTabContainer}>
             <TouchableOpacity
               style={[
@@ -2178,128 +2272,136 @@ const RecordsDrawer = () => {
             </TouchableOpacity>
           </View>
 
-          {/* 記錄內容 */}
+          {/* Records content */}
           <ScrollView 
             style={styles.drawerContent}
             showsVerticalScrollIndicator={false}
           >
-            {/* 今日記錄 */}
-            {showTodayRecords && (
-              <View style={styles.recordsSection}>
-                {todayRecords.length === 0 ? (
-                  <View style={styles.emptyRecordsContainer}>
-                    <Text style={styles.emptyRecordsEmoji}>🌱</Text>
-                    <Text style={styles.emptyRecordsTitle}>No check-ins today</Text>
-                    <Text style={styles.emptyRecordsText}>Tap the "Check In" button to start recording!</Text>
-                  </View>
-                ) : (
-                  todayRecords.map(record => (
-                    <View key={record.id} style={styles.modernRecordCard}>
-                      <View style={styles.recordCardHeader}>
-                        <Text style={styles.recordMoodLarge}>{record.mood}</Text>
-                        <View style={styles.recordTimeInfo}>
-                          <Text style={styles.recordTimeText}>
-                            {new Date(record.timestamp).toLocaleTimeString('en-US', { 
-                              hour: '2-digit', 
-                              minute: '2-digit' 
-                            })}
-                          </Text>
-                          {record.isPrivate && (
-                            <View style={styles.privateTag}>
-                              <Text style={styles.privateTagText}>🔒 Private</Text>
-                            </View>
-                          )}
-                        </View>
-                      </View>
-                      
-                      {record.customMessage && (
-                        <View style={styles.recordMessageContainer}>
-                          <Text style={styles.recordMessage}>"{record.customMessage}"</Text>
-                        </View>
-                      )}
-                      
-                      <View style={styles.recordFooterInfo}>
-                        <Text style={styles.recordLocationText}>
-                          📍 {record.bathroom.name}
-                        </Text>
-                        {record.bristolType && (
-                          <Text style={styles.recordBristolText}>
-                            {BRISTOL_EMOJIS[record.bristolType]} Type {record.bristolType}
-                          </Text>
-                        )}
-                      </View>
-                    </View>
-                  ))
-                )}
+            {loading ? (
+              <View style={styles.loadingContainer}>
+                <Text style={styles.loadingText}>Loading records...</Text>
               </View>
-            )}
-
-            {/* 歷史記錄 */}
-            {showPreviousRecords && (
-              <View style={styles.recordsSection}>
-                {previousRecords.length === 0 ? (
-                  <View style={styles.emptyRecordsContainer}>
-                    <Text style={styles.emptyRecordsEmoji}>📚</Text>
-                    <Text style={styles.emptyRecordsTitle}>No history records</Text>
-                    <Text style={styles.emptyRecordsText}>Check in more times to build your history!</Text>
-                  </View>
-                ) : (
-                  // 按日期分組顯示
-                  (() => {
-                    const groupedRecords = previousRecords.reduce((groups, record) => {
-                      const date = new Date(record.timestamp).toLocaleDateString('en-US');
-                      if (!groups[date]) groups[date] = [];
-                      groups[date].push(record);
-                      return groups;
-                    }, {} as Record<string, CheckInRecord[]>);
-
-                    return Object.entries(groupedRecords)
-                      .sort(([a], [b]) => new Date(b).getTime() - new Date(a).getTime())
-                      .map(([date, records]) => (
-                        <View key={date} style={styles.dateGroup}>
-                          <Text style={styles.dateHeader}>{date}</Text>
-                          {records.map(record => (
-                            <View key={record.id} style={styles.modernRecordCard}>
-                              <View style={styles.recordCardHeader}>
-                                <Text style={styles.recordMoodLarge}>{record.mood}</Text>
-                                <View style={styles.recordTimeInfo}>
-                                  <Text style={styles.recordTimeText}>
-                                    {new Date(record.timestamp).toLocaleTimeString('en-US', { 
-                                      hour: '2-digit', 
-                                      minute: '2-digit' 
-                                    })}
-                                  </Text>
-                                  {record.isPrivate && (
-                                    <View style={styles.privateTag}>
-                                      <Text style={styles.privateTagText}>🔒</Text>
-                                    </View>
-                                  )}
-                                </View>
-                              </View>
-                              
-                              {record.customMessage && (
-                                <View style={styles.recordMessageContainer}>
-                                  <Text style={styles.recordMessage}>"{record.customMessage}"</Text>
+            ) : (
+              <>
+                {/* Today's records */}
+                {showTodayRecords && (
+                  <View style={styles.recordsSection}>
+                    {todayRecords.length === 0 ? (
+                      <View style={styles.emptyRecordsContainer}>
+                        <Text style={styles.emptyRecordsEmoji}>🌱</Text>
+                        <Text style={styles.emptyRecordsTitle}>No check-ins today</Text>
+                        <Text style={styles.emptyRecordsText}>Tap the "Check In" button to start recording!</Text>
+                      </View>
+                    ) : (
+                      todayRecords.map(record => (
+                        <View key={`${record.id}-${record.created_at}`} style={styles.modernRecordCard}>
+                          <View style={styles.recordCardHeader}>
+                            <Text style={styles.recordMoodLarge}>{record.mood_emoji || '💩'}</Text>
+                            <View style={styles.recordTimeInfo}>
+                              <Text style={styles.recordTimeText}>
+                                {new Date(record.timestamp).toLocaleTimeString('en-US', { 
+                                  hour: '2-digit', 
+                                  minute: '2-digit' 
+                                })}
+                              </Text>
+                              {record.isPrivate && (
+                                <View style={styles.privateTag}>
+                                  <Text style={styles.privateTagText}>🔒 Private</Text>
                                 </View>
                               )}
-                              
-                              <View style={styles.recordFooterInfo}>
-                                <Text style={styles.recordLocationText}>
-                                  📍 {record.bathroom.name}
-                                </Text>
-                                {record.bristolType && (
-                                  <Text style={styles.recordBristolText}>
-                                    {BRISTOL_EMOJIS[record.bristolType]} Type {record.bristolType}
-                                  </Text>
-                                )}
-                              </View>
                             </View>
-                          ))}
+                          </View>
+                          
+                          {record.custom_message && (
+                            <View style={styles.recordMessageContainer}>
+                              <Text style={styles.recordMessage}>"{record.custom_message}"</Text>
+                            </View>
+                          )}
+                          
+                          <View style={styles.recordFooterInfo}>
+                            <Text style={styles.recordLocationText}>
+                              📍 {record.bathroom_name}
+                            </Text>
+                            {record.bristol_type && (
+                              <Text style={styles.recordBristolText}>
+                                {BRISTOL_EMOJIS[record.bristol_type]} Type {record.bristol_type}
+                              </Text>
+                            )}
+                          </View>
                         </View>
-                      ));
-                  })()
+                      ))
+                    )}
+                  </View>
                 )}
-              </View>
+
+                {/* History records */}
+                {showPreviousRecords && (
+                  <View style={styles.recordsSection}>
+                    {previousRecords.length === 0 ? (
+                      <View style={styles.emptyRecordsContainer}>
+                        <Text style={styles.emptyRecordsEmoji}>📚</Text>
+                        <Text style={styles.emptyRecordsTitle}>No history records</Text>
+                        <Text style={styles.emptyRecordsText}>Check in more times to build your history!</Text>
+                      </View>
+                    ) : (
+                      // Group by date
+                      (() => {
+                        const groupedRecords = previousRecords.reduce((groups, record) => {
+                          const date = new Date(record.timestamp).toLocaleDateString('en-US');
+                          if (!groups[date]) groups[date] = [];
+                          groups[date].push(record);
+                          return groups;
+                        }, {} as Record<string, any[]>);
+
+                        return Object.entries(groupedRecords)
+                          .sort(([a], [b]) => new Date(b).getTime() - new Date(a).getTime())
+                          .map(([date, records]) => (
+                            <View key={date} style={styles.dateGroup}>
+                              <Text style={styles.dateHeader}>{date}</Text>
+                              {records.map(record => (
+                                <View key={`${record.id}-${record.created_at}`} style={styles.modernRecordCard}>
+                                  <View style={styles.recordCardHeader}>
+                                    <Text style={styles.recordMoodLarge}>{record.mood_emoji || '💩'}</Text>
+                                    <View style={styles.recordTimeInfo}>
+                                      <Text style={styles.recordTimeText}>
+                                        {new Date(record.timestamp).toLocaleTimeString('en-US', { 
+                                          hour: '2-digit', 
+                                          minute: '2-digit' 
+                                        })}
+                                      </Text>
+                                      {record.isPrivate && (
+                                        <View style={styles.privateTag}>
+                                          <Text style={styles.privateTagText}>🔒</Text>
+                                        </View>
+                                      )}
+                                    </View>
+                                  </View>
+                                  
+                                  {record.custom_message && (
+                                    <View style={styles.recordMessageContainer}>
+                                      <Text style={styles.recordMessage}>"{record.custom_message}"</Text>
+                                    </View>
+                                  )}
+                                  
+                                  <View style={styles.recordFooterInfo}>
+                                    <Text style={styles.recordLocationText}>
+                                      📍 {record.bathroom_name}
+                                    </Text>
+                                    {record.bristol_type && (
+                                      <Text style={styles.recordBristolText}>
+                                        {BRISTOL_EMOJIS[record.bristol_type]} Type {record.bristol_type}
+                                      </Text>
+                                    )}
+                                  </View>
+                                </View>
+                              ))}
+                            </View>
+                          ));
+                      })()
+                    )}
+                  </View>
+                )}
+              </>
             )}
           </ScrollView>
         </View>
