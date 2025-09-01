@@ -70,6 +70,31 @@ interface Review {
   timestamp: number;
 }
 
+interface PublicCheckInData {
+  id: string;
+  user_id: string | number;
+  bathroom_name: string;
+  latitude: string;
+  longitude: string;
+  mood_emoji: string;
+  bristol_type?: number;
+  custom_message?: string;
+  created_at: string;
+  is_anonymous: boolean;
+}
+
+interface PrivateCheckInData {
+  id: string;
+  user_id: string | number;
+  bathroom_name: string;
+  latitude: string;
+  longitude: string;
+  mood_emoji: string;
+  bristol_type?: number;
+  custom_message?: string;
+  created_at: string;
+}
+
 interface CheckInRecord {
   id: string;
   timestamp: number;
@@ -283,7 +308,8 @@ export default function MapScreen() {
   const [selectedCluster, setSelectedCluster] = useState<any>(null);
   const [showClusterModal, setShowClusterModal] = useState(false);
   const [showRecordsDrawer, setShowRecordsDrawer] = useState(false);
-  
+  const [publicCheckIns, setPublicCheckIns] = useState<PublicCheckInData[]>([]);
+  const [privateCheckIns, setPrivateCheckIns] = useState<PrivateCheckInData[]>([]);
   // 🔄 保留你的 Modal 狀態
   const [showCheckInModal, setShowCheckInModal] = useState(false);
   const [checkInMood, setCheckInMood] = useState('');
@@ -381,7 +407,30 @@ export default function MapScreen() {
       console.error('載入打卡記錄失敗:', error);
     }
   };
+const fetchPublicCheckIns = async () => {
+  try {
+    // Get ALL public check-ins (from all users)
+    const response = await fetch('https://poopalooza-backend-api-af34f62d7c87.herokuapp.com/public-checkins');
+    const data: PublicCheckInData[] = await response.json();
+    console.log('Fetched all public check-ins:', data.length);
+    setPublicCheckIns(data);
+  } catch (error) {
+    console.error('Failed to fetch public check-ins:', error);
+  }
+};
 
+const fetchPrivateCheckIns = async () => {
+  try {
+    const userId = 1; // TODO: Get from auth/user context
+    // Get only current user's private check-ins
+    const response = await fetch(`https://poopalooza-backend-api-af34f62d7c87.herokuapp.com/private-checkins?user_id=${userId}`);
+    const data: PrivateCheckInData[] = await response.json();
+    console.log('Fetched user private check-ins:', data.length);
+    setPrivateCheckIns(data);
+  } catch (error) {
+    console.error('Failed to fetch private check-ins:', error);
+  }
+};
   // Image picker
   const pickImage = async () => {
     try {
@@ -519,7 +568,11 @@ const performCheckIn = async () => {
     
   } catch (error) {
     console.error('Full error details:', error);
-    Alert.alert('Error', `Failed to save: ${error.message}`);
+    if (error instanceof Error) {
+      Alert.alert('Error', `Failed to save: ${error.message}`);
+    } else {
+      Alert.alert('Error', 'Failed to save: Unknown error');
+    }
   }
 };
   // 🆕 混合資料策略：資料庫優先，備用本地資料
@@ -849,10 +902,9 @@ const generateMoreMockBathrooms = (userLat: number, userLng: number): Bathroom[]
   useEffect(() => {
     const initializeApp = async () => {
       console.log('🚀 初始化應用資料');
-      
-      // 只載入本地資料
       await loadCheckInRecords();
-      
+      await fetchPublicCheckIns(); 
+      await fetchPrivateCheckIns();
       console.log('📊 本地資料初始化完成');
     };
     
@@ -1370,8 +1422,8 @@ const CheckInModal = memo(() => {
   const [localQuickTag, setLocalQuickTag] = useState('');
   const [localRating, setLocalRating] = useState(5);
 
-  // 🔧 修正：只在 Modal 顯示時初始化本地狀態
-  useEffect(() => {
+
+useEffect(() => {
     if (showCheckInModal) {
       console.log('🔄 Modal opened - initializing local state');
       setLocalMood(checkInMood || '');
@@ -1380,9 +1432,9 @@ const CheckInModal = memo(() => {
       setLocalQuickTag(checkInQuickTag || '');
       setLocalRating(checkInRating || 5);
     }
-  }, [showCheckInModal]); // 只依賴 showCheckInModal
+    
+  }, [showCheckInModal]); 
 
-  // 🔧 修正：穩定的關閉函數
   const handleClose = useCallback(() => {
     console.log('❌ Modal closing');
     setShowCheckInModal(false);
@@ -1404,52 +1456,102 @@ const handleCheckIn = useCallback(async (isPrivate: boolean) => {
   try {
     const API_URL = 'https://poopalooza-backend-api-af34f62d7c87.herokuapp.com';
     
-    // Build the data object conditionally
-    const checkInData: any = {
+    // Prepare check-in data
+    const checkInData = {
       user_id: 1,
-      checkin_time: new Date().toISOString().slice(0, 19).replace('T', ' '),
+      bathroom_id: selectedBathroom.id || `location-${Date.now()}`,
+      bathroom_name: selectedBathroom.name,
+      bathroom_address: selectedBathroom.address || 'Unknown',
       latitude: selectedBathroom.latitude,
       longitude: selectedBathroom.longitude,
-      toilet_name: selectedBathroom.name,
-      toilet_rating_cleanliness: localRating,
-      toilet_rating_privacy: isPrivate ? 5 : 3,
-      toilet_rating_amenities: localRating,
-      toilet_review_text: `${localMood} - ${localMessage || ''}`,
+      mood_emoji: localMood,
+      bristol_type: localBristolType || null,
+      rating: localRating,
+      custom_message: localMessage || '',
+      quick_tag: localQuickTag || 'Other',
+      is_anonymous: false
     };
     
-    // Only add public_toilet_id if it's NOT a location-based check-in
-    if (!selectedBathroom.id.startsWith('location-')) {
-      checkInData.public_toilet_id = selectedBathroom.id;
-    }
+    const endpoint = isPrivate ? '/private-checkins' : '/public-checkins';
     
-    console.log('Sending check-in data:', JSON.stringify(checkInData, null, 2));
+    console.log(`Sending to ${endpoint}:`, checkInData);
     
-    const response = await fetch(`${API_URL}/toilet_checkins`, {
+    const response = await fetch(`${API_URL}${endpoint}`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(checkInData),
     });
     
-    const responseText = await response.text();
+    // ADD THESE LOGS
     console.log('Response status:', response.status);
+    const responseText = await response.text();
     console.log('Response body:', responseText);
     
     if (!response.ok) {
-      throw new Error(`Server error: ${responseText}`);
+      throw new Error(`Server error (${response.status}): ${responseText}`);
     }
     
-    // Success - close modal and show alert
+    // Try to parse the response
+    let responseData;
+    try {
+      responseData = JSON.parse(responseText);
+      console.log('Parsed response:', responseData);
+    } catch (e) {
+      console.log('Response is not JSON:', responseText);
+    }
+    
+    // Save to local state for immediate UI update
+    const localRecord: CheckInRecord = {
+      id: Date.now().toString(),
+      timestamp: Date.now(),
+      bathroom: selectedBathroom,
+      mood: localMood,
+      bristolType: localBristolType,
+      note: localMessage,
+      quickTag: localQuickTag,
+      rating: localRating,
+      location: {
+        lat: selectedBathroom.latitude,
+        lng: selectedBathroom.longitude,
+        name: selectedBathroom.name,
+      },
+      isPrivate: isPrivate,
+      anonymous: false,
+      customMessage: localMessage,
+    };
+    
+    // Update local records
+    const updatedRecords = [...checkInRecords, localRecord];
+    setCheckInRecords(updatedRecords);
+    await localStorageUtil.setItem('checkInRecords', JSON.stringify(updatedRecords));
+    
+    // Refresh the appropriate list
+    if (isPrivate) {
+      await fetchPrivateCheckIns();
+    } else {
+      await fetchPublicCheckIns();
+    }
+    
+    // Close modal and reset
     setShowCheckInModal(false);
-    Alert.alert('Success!', 'Check-in saved!');
+    setLocalMood('');
+    setLocalMessage('');
+    setLocalBristolType(undefined);
+    setLocalQuickTag('');
+    setLocalRating(5);
+    
+    Alert.alert(
+      'Success! 🎉', 
+      `Your ${isPrivate ? 'private' : 'public'} check-in has been saved!`
+    );
     
   } catch (error: any) {
     console.error('Check-in error:', error);
     Alert.alert('Error', `Failed to save: ${error.message}`);
   }
-}, [localMood, localMessage, localBristolType, localQuickTag, localRating, selectedBathroom]);
-  // 🚨 如果 Modal 不顯示，直接返回 null，避免渲染
+}, [localMood, localMessage, localBristolType, localQuickTag, localRating, selectedBathroom, checkInRecords]);
+  
+// 🚨 如果 Modal 不顯示，直接返回 null，避免渲染
   if (!showCheckInModal || !selectedBathroom) {
     return null;
   }
@@ -2358,7 +2460,8 @@ const RecordsDrawer = () => {
                 lineDashPattern={[5, 5]}
               />
             )}
-{(activeTab === 'visited' || activeTab === 'journey') && (() => {
+{/* Show markers for visited tab */}
+{activeTab === 'visited' && (() => {
   const uniqueRecords = checkInRecords.reduce((acc, record) => {
     const locationKey = `${record.location.lat.toFixed(4)}-${record.location.lng.toFixed(4)}`;
     if (!acc[locationKey] || acc[locationKey].timestamp < record.timestamp) {
@@ -2380,8 +2483,78 @@ const RecordsDrawer = () => {
     </Marker>
   ));
 })()}
-          </MapView>
 
+{/* Journey Tab: Show ALL check-ins */}
+{activeTab === 'journey' && (
+  <>
+    {/* User's Own Check-ins (both private and public) */}
+    {checkInRecords.map((record) => (
+      <Marker
+        key={`user-${record.id}`}
+        coordinate={{ 
+          latitude: record.location.lat, 
+          longitude: record.location.lng 
+        }}
+        title={`${record.mood} ${record.location.name}`}
+        description={`${record.isPrivate ? '🔒 Private' : '🌍 Public'}: ${record.customMessage || record.note}`}
+      >
+        <View style={[
+          styles.checkInMarker,
+          record.isPrivate && { backgroundColor: '#F3E5F5', borderColor: '#9C27B0' }
+        ]}>
+          <Text style={styles.checkInEmoji}>
+            {record.isPrivate ? '🔒' : record.mood}
+          </Text>
+        </View>
+      </Marker>
+    ))}
+
+    {/* ALL Public Check-ins from ALL Users */}
+    {publicCheckIns.map((checkin) => (
+      <Marker
+        key={`public-${checkin.id}`}
+        coordinate={{ 
+          latitude: parseFloat(checkin.latitude), 
+          longitude: parseFloat(checkin.longitude) 
+        }}
+        title={`${checkin.mood_emoji || '💩'} ${checkin.bathroom_name}`}
+        description={`Public by User ${checkin.is_anonymous ? 'Anonymous' : checkin.user_id}: ${checkin.custom_message || 'Public check-in'}`}
+      >
+        <View style={[
+          styles.checkInMarker,
+          { backgroundColor: '#E8F5E9', borderColor: '#4CAF50' }
+        ]}>
+          <Text style={styles.checkInEmoji}>
+            {checkin.mood_emoji || '💩'}
+          </Text>
+        </View>
+      </Marker>
+    ))}
+
+    {/* User's Private Check-ins (only visible to them) */}
+    {privateCheckIns.map((checkin) => (
+      <Marker
+        key={`private-${checkin.id}`}
+        coordinate={{ 
+          latitude: parseFloat(checkin.latitude), 
+          longitude: parseFloat(checkin.longitude) 
+        }}
+        title={`🔒 ${checkin.mood_emoji || '💩'} ${checkin.bathroom_name}`}
+        description={`Private: ${checkin.custom_message || 'My private note'}`}
+      >
+        <View style={[
+          styles.checkInMarker,
+          { backgroundColor: '#F3E5F5', borderColor: '#9C27B0' }
+        ]}>
+          <Text style={styles.checkInEmoji}>🔒</Text>
+        </View>
+      </Marker>
+    ))}
+  </>
+)}
+
+{/* Keep the existing private check-ins section as is */}
+          </MapView>
           <View style={styles.mapControls}>
             <TouchableOpacity 
               style={[styles.mapControlButton, !location && styles.disabledButton]} 
