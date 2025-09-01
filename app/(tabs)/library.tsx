@@ -9,13 +9,16 @@ import {
   TextInput,
   ScrollView,
   ActivityIndicator,
-  RefreshControl
+  RefreshControl,
+  Alert,
+  Image
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { usePoopStore } from '@/store/poopStore';
 import Colors from '@/constants/colors';
 import PoopCard from '@/components/PoopCard';
-import API_URL  from '@/config';
+import API_BASE_URL from '@/config';
 import { useUserStore } from '@/store/userStore';
 
 // 簡化的圖標組件
@@ -33,21 +36,16 @@ type ViewMode = 'calendar' | 'library';
 export default function LibraryScreen() {
   const router = useRouter();
   const { entries: localEntries } = usePoopStore();
-
-  // Get the logged-in user's ID from userStore
   const { user_id } = useUserStore();
-
+  
   // Database state
   const [dbPoopRecords, setDbPoopRecords] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  // 修改为字符串以匹配数据库中的实际数据
   const currentUserId = user_id;
-  
-  // Use database records if available, otherwise use local
-  const entries = dbPoopRecords;
+  const entries = dbPoopRecords.length > 0 ? dbPoopRecords : localEntries;
   
   // Calendar state
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -61,61 +59,207 @@ export default function LibraryScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterBy, setFilterBy] = useState<string>('all');
   
+  // 所有標籤樣式函數
+  const getDifficultyTagStyle = (difficulty) => {
+    switch (difficulty?.toLowerCase()) {
+      case 'easy':
+        return { backgroundColor: '#E8F5E8' };
+      case 'medium':
+        return { backgroundColor: '#FFF3E0' };
+      case 'difficult':
+      case 'hard':
+        return { backgroundColor: '#FFEBEE' };
+      default:
+        return { backgroundColor: '#F5F5F5' };
+    }
+  };
+
+  const getDifficultyTagTextStyle = (difficulty) => {
+    switch (difficulty?.toLowerCase()) {
+      case 'easy':
+        return { color: '#2E7D32' };
+      case 'medium':
+        return { color: '#F57C00' };
+      case 'difficult':
+      case 'hard':
+        return { color: '#C62828' };
+      default:
+        return { color: '#666666' };
+    }
+  };
+
+  const getTypeTagStyle = (type) => {
+    const typeNumber = parseInt(type?.replace(/[^0-9]/g, '') || '4');
+    
+    switch (typeNumber) {
+      case 1:
+        return { backgroundColor: '#FFCDD2' };
+      case 2:
+        return { backgroundColor: '#FFE0B2' };
+      case 3:
+        return { backgroundColor: '#FFF9C4' };
+      case 4:
+        return { backgroundColor: '#E8F5E8' };
+      case 5:
+        return { backgroundColor: '#E1F5FE' };
+      case 6:
+        return { backgroundColor: '#F3E5F5' };
+      case 7:
+        return { backgroundColor: '#FCE4EC' };
+      default:
+        return { backgroundColor: '#D7CCC8' };
+    }
+  };
+
+  const getTypeTagTextStyle = (type) => {
+    const typeNumber = parseInt(type?.replace(/[^0-9]/g, '') || '4');
+    
+    switch (typeNumber) {
+      case 1:
+        return { color: '#C62828' };
+      case 2:
+        return { color: '#E65100' };
+      case 3:
+        return { color: '#F57F17' };
+      case 4:
+        return { color: '#2E7D32' };
+      case 5:
+        return { color: '#0277BD' };
+      case 6:
+        return { color: '#7B1FA2' };
+      case 7:
+        return { color: '#AD1457' };
+      default:
+        return { color: '#5D4037' };
+    }
+  };
+
+  const getVolumeTagStyle = (volume) => {
+    switch (volume) {
+      case 'Small':
+        return { backgroundColor: '#E8F5E8' };
+      case 'Medium':
+        return { backgroundColor: '#FFF3E0' };
+      case 'Large':
+        return { backgroundColor: '#FFEBEE' };
+      default:
+        return { backgroundColor: '#E1BEE7' };
+    }
+  };
+
+  const getVolumeTagTextStyle = (volume) => {
+    switch (volume) {
+      case 'Small':
+        return { color: '#2E7D32' };
+      case 'Medium':
+        return { color: '#F57C00' };
+      case 'Large':
+        return { color: '#C62828' };
+      default:
+        return { color: '#7B1FA2' };
+    }
+  };
+  
   // 從資料庫獲取記錄
   const fetchPoopRecords = async () => {
     try {
-      const apiUrl = API_URL || 'https://poopalooza-backend-api-af34f62d7c87.herokuapp.com';
-      console.log('API_URL from config:', API_URL);
-      console.log('Using API URL:', apiUrl);
+      console.log('🔍 Fetching records...');
+      console.log('API_BASE_URL:', API_BASE_URL);
       console.log('Current user ID:', currentUserId);
-      console.log('Fetching poop records from:', `${apiUrl}/poop-records`);
-      setError(null);
       
-      const response = await fetch(`${API_URL}/poop-records`);
+      setError(null);
+      const response = await fetch(`${API_BASE_URL}/poop-records`);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error('Response is not JSON');
+      }
+      
       const data = await response.json();
-      console.log('Raw data from API:', data);
-      console.log('Data length:', data.length);
+      console.log('📊 Raw data from API:', data.length, 'records');
       
-
-      const userRecords = data.filter((record: any) => {
-        return record.user_id === currentUserId;
-      });
+      let userRecords = [];
+      if (currentUserId) {
+        userRecords = data.filter((record: any) => {
+          return record.user_id === currentUserId || 
+                 record.user_id === String(currentUserId) ||
+                 record.user_id === Number(currentUserId);
+        });
+      } else {
+        console.warn('⚠️ No user_id available, showing all records');
+        userRecords = data;
+      }
       
-      console.log('Filtered user records:', userRecords.length);
+      console.log('👤 Filtered user records:', userRecords.length);
       
       const transformedRecords = userRecords.map((record: any) => {
+        // 處理 bristol_scale 或 ai_poop_type
+        let poopType = 'Type 4';
+        if (record.bristol_scale) {
+          poopType = `Type ${record.bristol_scale}`;
+        } else if (record.ai_poop_type) {
+          poopType = `Type ${record.ai_poop_type}`;
+        }
+        
+        // 處理 consistency 或其他難度指標
+        let difficulty = 'medium';
+        if (record.consistency) {
+          const consistencyNum = parseInt(record.consistency);
+          if (consistencyNum === 1) difficulty = 'easy';
+          else if (consistencyNum === 2) difficulty = 'medium';
+          else if (consistencyNum >= 3) difficulty = 'difficult';
+        }
+        
+        // 處理體積顯示
+        let volumeDisplay = 'Medium';
+        const rawVolume = record.volume || record.ai_poop_volume;
+        if (rawVolume !== undefined && rawVolume !== null) {
+          if (typeof rawVolume === 'number') {
+            switch (rawVolume) {
+              case 1: volumeDisplay = 'Small'; break;
+              case 2: volumeDisplay = 'Medium'; break;
+              case 3: volumeDisplay = 'Large'; break;
+              default: volumeDisplay = 'Medium';
+            }
+          } else if (typeof rawVolume === 'string') {
+            const lowerVolume = rawVolume.toLowerCase();
+            if (lowerVolume === 'small' || lowerVolume === '1') volumeDisplay = 'Small';
+            else if (lowerVolume === 'medium' || lowerVolume === '2') volumeDisplay = 'Medium';
+            else if (lowerVolume === 'large' || lowerVolume === '3') volumeDisplay = 'Large';
+            else volumeDisplay = rawVolume.charAt(0).toUpperCase() + rawVolume.slice(1).toLowerCase();
+          }
+        }
+
         const transformed = {
           id: record.record_id ? record.record_id.toString() : Math.random().toString(),
           date: record.record_time || new Date().toISOString(),
-          type: record.bristol_scale ? `Type ${record.bristol_scale}` : 'Type 4',
-          difficulty: record.consistency || 'medium',
-          notes: record.ai_diagnosis_summary || '',
-          color: record.color || 'brown',
+          type: poopType,
+          difficulty: difficulty,
+          notes: record.ai_diagnosis_summary || record.health_recommendations || '',
+          color: record.color || record.ai_poop_color || 'brown',
           hasBlood: record.has_blood || false,
           hasMucus: record.has_mucus || false,
           image: record.image_url || null,
-          // 保留原始數據以供詳細頁面使用
+          volume: volumeDisplay,
           originalRecord: record
         };
-        console.log('Transformed record:', transformed);
+        
         return transformed;
       });
       
-      console.log('Final transformed records:', transformedRecords.length);
+      console.log('✅ Final transformed records:', transformedRecords.length);
       setDbPoopRecords(transformedRecords);
       
     } catch (error) {
-      console.error('Error fetching poop records:', error);
+      console.error('❌ Error fetching poop records:', error);
       setError(error.message || 'Failed to fetch records');
       
-      // 如果從數據庫獲取失敗，使用本地數據
       if (localEntries && localEntries.length > 0) {
-        console.log('Falling back to local entries:', localEntries.length);
+        console.log('📱 Falling back to local entries:', localEntries.length);
         setDbPoopRecords(localEntries);
       }
     } finally {
@@ -123,12 +267,11 @@ export default function LibraryScreen() {
     }
   };
   
-  // Load data on mount
   useEffect(() => {
+    console.log('🚀 LibraryScreen mounted, user_id:', currentUserId);
     fetchPoopRecords();
-  }, []);
+  }, [currentUserId]);
   
-  // Refresh handler
   const onRefresh = async () => {
     setRefreshing(true);
     await fetchPoopRecords();
@@ -182,7 +325,6 @@ export default function LibraryScreen() {
   const filteredAndSearchedEntries = useMemo(() => {
     let result = [...entries];
     
-    // Apply search filter
     if (searchQuery.trim()) {
       result = result.filter(entry => 
         entry.notes?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -191,12 +333,10 @@ export default function LibraryScreen() {
       );
     }
     
-    // Apply difficulty filter
     if (filterBy !== 'all') {
       result = result.filter(entry => entry.difficulty === filterBy);
     }
     
-    // Sort by date (newest first)
     return result.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [entries, searchQuery, filterBy]);
   
@@ -249,17 +389,99 @@ export default function LibraryScreen() {
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
   };
   
+  const handleTakePicture = async (date?: Date) => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission Required', 'Camera permission is needed to take photos.');
+      return;
+    }
+    
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+    });
+    
+    if (!result.canceled) {
+      router.push({ 
+        pathname: '/add-entry', 
+        params: { 
+          imageUri: result.assets[0].uri,
+          date: date?.toISOString() || new Date().toISOString()
+        } 
+      });
+    }
+  };
+
+  const handleUploadPicture = async (date?: Date) => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission Required', 'Media library permission is needed to upload photos.');
+      return;
+    }
+    
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+    });
+    
+    if (!result.canceled) {
+      router.push({ 
+        pathname: '/add-entry', 
+        params: { 
+          imageUri: result.assets[0].uri,
+          date: date?.toISOString() || new Date().toISOString()
+        } 
+      });
+    }
+  };
+
   const handleDayPress = (date: Date | null) => {
     if (date) {
       setSelectedDate(date);
+      
+      const dayEntries = getEntriesForDate(date);
+      if (dayEntries.length === 0) {
+        const dateStr = date.toLocaleDateString('en-US', { 
+          month: 'long', 
+          day: 'numeric',
+          year: 'numeric'
+        });
+        
+        Alert.alert(
+          'No Records',
+          `No records found for ${dateStr}.\nWould you like to add a record for this date?`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { 
+              text: 'No Photo', 
+              onPress: () => {
+                router.push({
+                  pathname: '/add-entry',
+                  params: { date: date.toISOString() }
+                });
+              }
+            },
+            { 
+              text: 'Take Photo', 
+              onPress: () => handleTakePicture(date)
+            },
+            { 
+              text: 'Upload Photo', 
+              onPress: () => handleUploadPicture(date)
+            }
+          ]
+        );
+      }
     }
   };
   
   const handleEntryPress = (id: string) => {
-    // Find the entry
     const entry = entries.find(e => e.id === id);
     if (entry) {
-      // Navigate to the database details page with entry data
       router.push({
         pathname: '/entry-details-db',
         params: { 
@@ -270,7 +492,9 @@ export default function LibraryScreen() {
   };
   
   const toggleShowImages = () => {
-    setShowImages(!showImages);
+    const newState = !showImages;
+    console.log('Toggling showImages from', showImages, 'to', newState);
+    setShowImages(newState);
   };
   
   const handleExport = () => {
@@ -311,6 +535,9 @@ export default function LibraryScreen() {
       <View style={[styles.container, styles.centerContent]}>
         <ActivityIndicator size="large" color={Colors.primary.accent} />
         <Text style={styles.loadingText}>Loading records...</Text>
+        <Text style={styles.debugText}>
+          User ID: {currentUserId || 'Not logged in'}
+        </Text>
         {error && (
           <Text style={styles.errorText}>
             Error: {error}
@@ -326,6 +553,10 @@ export default function LibraryScreen() {
       <View style={[styles.container, styles.centerContent]}>
         <Text style={styles.errorText}>Failed to load records</Text>
         <Text style={styles.errorSubtext}>{error}</Text>
+        <Text style={styles.debugText}>
+          User ID: {currentUserId || 'Not logged in'} | 
+          Local entries: {localEntries.length}
+        </Text>
         <TouchableOpacity style={styles.retryButton} onPress={fetchPoopRecords}>
           <Text style={styles.retryButtonText}>Retry</Text>
         </TouchableOpacity>
@@ -345,7 +576,13 @@ export default function LibraryScreen() {
         />
       }
     >
-      {/* Calendar Header with Stats */}
+      <View style={styles.debugContainer}>
+        <Text style={styles.debugText}>
+          📊 DB Records: {dbPoopRecords.length} | Local: {localEntries.length} | 
+          Total Entries: {entries.length} | User: {currentUserId || 'None'}
+        </Text>
+      </View>
+
       <View style={styles.calendarContainer}>
         <View style={styles.monthSelector}>
           <TouchableOpacity onPress={handlePrevMonth} style={styles.navButton}>
@@ -361,7 +598,6 @@ export default function LibraryScreen() {
           </TouchableOpacity>
         </View>
         
-        {/* Monthly Stats */}
         <View style={styles.statsContainer}>
           <View style={styles.statItem}>
             <Text style={styles.statNumber}>{monthlyStats.totalEntries}</Text>
@@ -377,7 +613,6 @@ export default function LibraryScreen() {
           </View>
         </View>
         
-        {/* Calendar Grid */}
         <View style={styles.weekdaysContainer}>
           {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, index) => (
             <Text key={index} style={styles.weekdayText}>{day}</Text>
@@ -385,38 +620,51 @@ export default function LibraryScreen() {
         </View>
         
         <View style={styles.daysContainer}>
-          {calendarDays.map((item, index) => (
-            <TouchableOpacity
-              key={index}
-              style={[
-                styles.dayItem,
-                item.day === 0 && styles.emptyDay,
-                isToday(item.date) && styles.todayItem,
-                isSelectedDate(item.date) && styles.selectedDayItem,
-              ]}
-              onPress={() => handleDayPress(item.date)}
-              disabled={item.day === 0}
-            >
-              {item.day !== 0 && (
-                <>
-                  <Text style={[
-                    styles.dayText,
-                    isToday(item.date) && styles.todayText,
-                    isSelectedDate(item.date) && styles.selectedDayText,
-                  ]}>
-                    {item.day}
-                  </Text>
-                  
-                  {hasEntries(item.date) && (
-                    <View style={[
-                      styles.entryIndicator,
-                      isSelectedDate(item.date) && styles.selectedEntryIndicator,
-                    ]} />
-                  )}
-                </>
-              )}
-            </TouchableOpacity>
-          ))}
+          {calendarDays.map((item, index) => {
+            const entriesCount = item.date ? getEntriesForDate(item.date).length : 0;
+            
+            return (
+              <TouchableOpacity
+                key={index}
+                style={[
+                  styles.dayItem,
+                  item.day === 0 && styles.emptyDay,
+                  isToday(item.date) && styles.todayItem,
+                  isSelectedDate(item.date) && styles.selectedDayItem,
+                  entriesCount > 0 && styles.hasEntriesDay,
+                ]}
+                onPress={() => handleDayPress(item.date)}
+                disabled={item.day === 0}
+              >
+                {item.day !== 0 && (
+                  <>
+                    <Text style={[
+                      styles.dayText,
+                      isToday(item.date) && styles.todayText,
+                      isSelectedDate(item.date) && styles.selectedDayText,
+                      entriesCount > 0 && styles.hasEntriesText,
+                    ]}>
+                      {item.day}
+                    </Text>
+                    
+                    {entriesCount > 0 && (
+                      <View style={[
+                        styles.recordCountBadge,
+                        isSelectedDate(item.date) && styles.selectedRecordCountBadge,
+                      ]}>
+                        <Text style={[
+                          styles.recordCountText,
+                          isSelectedDate(item.date) && styles.selectedRecordCountText,
+                        ]}>
+                          {entriesCount}
+                        </Text>
+                      </View>
+                    )}
+                  </>
+                )}
+              </TouchableOpacity>
+            );
+          })}
         </View>
       </View>
       
@@ -437,12 +685,87 @@ export default function LibraryScreen() {
         ) : (
           <View style={styles.entriesContainer}>
             {selectedEntries.map((entry) => (
-              <PoopCard 
+              <TouchableOpacity
                 key={entry.id}
-                entry={entry} 
+                style={styles.libraryCardContainer}
                 onPress={() => handleEntryPress(entry.id)}
-                showImage={showImages}
-              />
+              >
+                <View style={styles.libraryCard}>
+                  <View style={styles.libraryCardHeader}>
+                    <Text style={styles.libraryCardTitle}>Today Poop</Text>
+                    <Text style={styles.libraryCardTime}>
+                      {new Date(entry.date).toLocaleTimeString([], { 
+                        hour: '2-digit', 
+                        minute: '2-digit' 
+                      })}
+                    </Text>
+                  </View>
+                  
+                  <View style={styles.libraryCardContent}>
+                    <View style={styles.libraryCardTags}>
+                      <View style={[styles.difficultyTag, getDifficultyTagStyle(entry.difficulty)]}>
+                        <Text style={[styles.difficultyTagText, getDifficultyTagTextStyle(entry.difficulty)]}>
+                          {entry.difficulty.charAt(0).toUpperCase() + entry.difficulty.slice(1)}
+                        </Text>
+                      </View>
+                      
+                      <View style={[styles.typeTag, getTypeTagStyle(entry.type)]}>
+                        <Text style={[styles.typeTagText, getTypeTagTextStyle(entry.type)]}>
+                          {entry.type}
+                        </Text>
+                      </View>
+                      
+                      {entry.volume && (
+                        <View style={[styles.volumeTag, getVolumeTagStyle(entry.volume)]}>
+                          <Text style={[styles.volumeTagText, getVolumeTagTextStyle(entry.volume)]}>
+                            {entry.volume}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                    
+                    {showImages && (
+                      <View style={styles.libraryCardImageContainer}>
+                        {entry.image ? (
+                          <Image 
+                            source={{ uri: entry.image }} 
+                            style={styles.libraryCardImage}
+                          />
+                        ) : (
+                          <View style={styles.libraryCardNoImage}>
+                            <Text style={styles.noImageIcon}>📸</Text>
+                            <Text style={styles.noImageText}>No Photo</Text>
+                          </View>
+                        )}
+                      </View>
+                    )}
+                  </View>
+                  
+                  {entry.notes && (
+                    <View style={styles.libraryCardNotes}>
+                      <Text style={styles.libraryCardNotesText} numberOfLines={2}>
+                        {entry.originalRecord?.ai_diagnosis_summary ? '🎯 ' : '📝 '}{entry.notes}
+                      </Text>
+                    </View>
+                  )}
+                  
+                  {(entry.hasBlood || entry.hasMucus || entry.originalRecord?.ai_diagnosis_summary) && (
+                    <View style={styles.libraryCardAlerts}>
+                      {entry.hasBlood && (
+                        <Text style={styles.alertText}>🩸 Blood detected</Text>
+                      )}
+                      {entry.hasMucus && (
+                        <Text style={styles.alertText}>💧 Mucus detected</Text>
+                      )}
+                      {entry.originalRecord?.ai_diagnosis_summary && (
+                        <Text style={[styles.alertText, { backgroundColor: '#E3F2FD', color: '#1976D2' }]}>
+                          🤖 AI Analysis Available
+                        </Text>
+                      )}
+                    </View>
+                  )}
+                </View>
+              </TouchableOpacity>
             ))}
           </View>
         )}
@@ -453,7 +776,6 @@ export default function LibraryScreen() {
   // Render Library View
   const renderLibraryView = () => (
     <View style={styles.libraryContainer}>
-      {/* Search and Filter Section */}
       <View style={styles.searchSection}>
         <View style={styles.searchInputContainer}>
           <Search />
@@ -471,7 +793,6 @@ export default function LibraryScreen() {
           )}
         </View>
         
-        {/* Filter Buttons */}
         <View style={styles.filterContainer}>
           {['all', 'easy', 'medium', 'difficult'].map((filter) => (
             <TouchableOpacity
@@ -493,16 +814,13 @@ export default function LibraryScreen() {
         </View>
       </View>
       
-      {/* Debug Information */}
-      {__DEV__ && (
-        <View style={styles.debugContainer}>
-          <Text style={styles.debugText}>
-            Total entries: {entries.length} | Filtered: {filteredAndSearchedEntries.length}
-          </Text>
-        </View>
-      )}
+      <View style={styles.debugContainer}>
+        <Text style={styles.debugText}>
+          Total entries: {entries.length} | Filtered: {filteredAndSearchedEntries.length} | 
+          User: {currentUserId || 'None'}
+        </Text>
+      </View>
       
-      {/* Entries List */}
       {filteredAndSearchedEntries.length === 0 ? (
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyText}>
@@ -531,11 +849,86 @@ export default function LibraryScreen() {
           data={filteredAndSearchedEntries}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
-            <PoopCard 
-              entry={item} 
+            <TouchableOpacity
+              style={styles.libraryCardContainer}
               onPress={() => handleEntryPress(item.id)}
-              showImage={showImages}
-            />
+            >
+              <View style={styles.libraryCard}>
+                <View style={styles.libraryCardHeader}>
+                  <Text style={styles.libraryCardTitle}>Today Poop</Text>
+                  <Text style={styles.libraryCardTime}>
+                    {new Date(item.date).toLocaleTimeString([], { 
+                      hour: '2-digit', 
+                      minute: '2-digit' 
+                    })}
+                  </Text>
+                </View>
+                
+                <View style={styles.libraryCardContent}>
+                  <View style={styles.libraryCardTags}>
+                    <View style={[styles.difficultyTag, getDifficultyTagStyle(item.difficulty)]}>
+                      <Text style={[styles.difficultyTagText, getDifficultyTagTextStyle(item.difficulty)]}>
+                        {item.difficulty.charAt(0).toUpperCase() + item.difficulty.slice(1)}
+                      </Text>
+                    </View>
+                    
+                    <View style={[styles.typeTag, getTypeTagStyle(item.type)]}>
+                      <Text style={[styles.typeTagText, getTypeTagTextStyle(item.type)]}>
+                        {item.type}
+                      </Text>
+                    </View>
+                    
+                    {item.volume && (
+                      <View style={[styles.volumeTag, getVolumeTagStyle(item.volume)]}>
+                        <Text style={[styles.volumeTagText, getVolumeTagTextStyle(item.volume)]}>
+                          {item.volume}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                  
+                  {showImages && (
+                    <View style={styles.libraryCardImageContainer}>
+                      {item.image ? (
+                        <Image 
+                          source={{ uri: item.image }} 
+                          style={styles.libraryCardImage}
+                        />
+                      ) : (
+                        <View style={styles.libraryCardNoImage}>
+                          <Text style={styles.noImageIcon}>📸</Text>
+                          <Text style={styles.noImageText}>No Photo</Text>
+                        </View>
+                      )}
+                    </View>
+                  )}
+                </View>
+                
+                {item.notes && (
+                  <View style={styles.libraryCardNotes}>
+                    <Text style={styles.libraryCardNotesText} numberOfLines={2}>
+                      {item.originalRecord?.ai_diagnosis_summary ? '🎯 ' : '📝 '}{item.notes}
+                    </Text>
+                  </View>
+                )}
+                
+                {(item.hasBlood || item.hasMucus || item.originalRecord?.ai_diagnosis_summary) && (
+                  <View style={styles.libraryCardAlerts}>
+                    {item.hasBlood && (
+                      <Text style={styles.alertText}>🩸 Blood detected</Text>
+                    )}
+                    {item.hasMucus && (
+                      <Text style={styles.alertText}>💧 Mucus detected</Text>
+                    )}
+                    {item.originalRecord?.ai_diagnosis_summary && (
+                      <Text style={[styles.alertText, { backgroundColor: '#E3F2FD', color: '#1976D2' }]}>
+                        🤖 AI Analysis Available
+                      </Text>
+                    )}
+                  </View>
+                )}
+              </View>
+            </TouchableOpacity>
           )}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
@@ -552,7 +945,6 @@ export default function LibraryScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Enhanced Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Text style={styles.title}>
@@ -566,7 +958,6 @@ export default function LibraryScreen() {
         </View>
         
         <View style={styles.headerRight}>
-          {/* View Mode Toggle */}
           <View style={styles.viewToggle}>
             <TouchableOpacity 
               style={[
@@ -589,9 +980,11 @@ export default function LibraryScreen() {
             </TouchableOpacity>
           </View>
           
-          {/* Control Buttons */}
           <TouchableOpacity 
-            style={styles.headerButton}
+            style={[
+              styles.headerButton,
+              showImages && styles.activeHeaderButton
+            ]}
             onPress={toggleShowImages}
           >
             {showImages ? <Eye /> : <EyeOff />}
@@ -606,7 +999,6 @@ export default function LibraryScreen() {
         </View>
       </View>
       
-      {/* Dynamic Content */}
       {viewMode === 'calendar' ? renderCalendarView() : renderLibraryView()}
     </View>
   );
@@ -747,6 +1139,11 @@ const styles = StyleSheet.create({
     borderColor: Colors.primary.border,
   },
   
+  activeHeaderButton: {
+    backgroundColor: Colors.primary.accent + '20',
+    borderColor: Colors.primary.accent,
+  },
+  
   // Calendar Styles
   calendarContainer: {
     backgroundColor: Colors.primary.card,
@@ -805,12 +1202,12 @@ const styles = StyleSheet.create({
   // Calendar Grid
   weekdaysContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
     marginBottom: 8,
+    paddingHorizontal: 4,
   },
   
   weekdayText: {
-    width: 40,
+    flex: 1,
     textAlign: 'center',
     fontSize: 14,
     color: Colors.primary.lightText,
@@ -820,18 +1217,20 @@ const styles = StyleSheet.create({
   daysContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-around',
+    paddingHorizontal: 4,
     marginBottom: 16,
   },
   
   dayItem: {
-    width: 40,
-    height: 40,
+    width: '14.28%',
+    aspectRatio: 1,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 8,
     borderRadius: 20,
     position: 'relative',
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
   
   emptyDay: {
@@ -840,10 +1239,17 @@ const styles = StyleSheet.create({
   
   todayItem: {
     backgroundColor: Colors.primary.border,
+    borderColor: Colors.primary.accent,
   },
   
   selectedDayItem: {
     backgroundColor: Colors.primary.accent,
+    borderColor: Colors.primary.accent,
+  },
+  
+  hasEntriesDay: {
+    backgroundColor: '#E8F5E8',
+    borderColor: '#4CAF50',
   },
   
   dayText: {
@@ -853,6 +1259,7 @@ const styles = StyleSheet.create({
   
   todayText: {
     fontWeight: 'bold',
+    color: Colors.primary.accent,
   },
   
   selectedDayText: {
@@ -860,17 +1267,37 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   
-  entryIndicator: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: Colors.primary.accent,
-    position: 'absolute',
-    bottom: 6,
+  hasEntriesText: {
+    color: '#2E7D32',
+    fontWeight: '600',
   },
   
-  selectedEntryIndicator: {
+  recordCountBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    backgroundColor: Colors.primary.accent,
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  
+  selectedRecordCountBadge: {
     backgroundColor: '#FFFFFF',
+  },
+  
+  recordCountText: {
+    fontSize: 11,
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+  },
+  
+  selectedRecordCountText: {
+    color: Colors.primary.accent,
   },
   
   // Selected Date Section
@@ -995,5 +1422,167 @@ const styles = StyleSheet.create({
     color: Colors.primary.lightText,
     textAlign: 'center',
     marginBottom: 24,
+  },
+
+  // Library Card 樣式
+  libraryCardContainer: {
+    marginBottom: 12,
+  },
+  
+  libraryCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  
+  libraryCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  
+  libraryCardTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333333',
+  },
+  
+  libraryCardTime: {
+    fontSize: 14,
+    color: '#666666',
+    backgroundColor: '#F5F5F5',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  
+  libraryCardContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  
+  libraryCardTags: {
+    flex: 1,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  
+  // 標籤基本樣式
+  difficultyTag: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  
+  difficultyTagText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  
+  typeTag: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  
+  typeTagText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  
+  volumeTag: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    minWidth: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  
+  volumeTagText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  
+  // 圖片區域
+  libraryCardImageContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginLeft: 12,
+  },
+  
+  libraryCardImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 12,
+  },
+  
+  libraryCardNoImage: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#F5F5F5',
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#E0E0E0',
+    borderStyle: 'dashed',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  
+  noImageIcon: {
+    fontSize: 20,
+    marginBottom: 2,
+    opacity: 0.6,
+  },
+  
+  noImageText: {
+    fontSize: 10,
+    color: Colors.primary.lightText,
+    textAlign: 'center',
+    opacity: 0.7,
+  },
+  
+  // 備註區域
+  libraryCardNotes: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F0F0F0',
+  },
+  
+  libraryCardNotesText: {
+    fontSize: 13,
+    color: '#666666',
+    lineHeight: 18,
+  },
+  
+  // 警告區域
+  libraryCardAlerts: {
+    marginTop: 8,
+    flexDirection: 'row',
+    gap: 12,
+  },
+  
+  alertText: {
+    fontSize: 12,
+    color: '#D32F2F',
+    backgroundColor: '#FFEBEE',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
 });
