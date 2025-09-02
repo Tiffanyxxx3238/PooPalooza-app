@@ -49,8 +49,8 @@ export default function TrackerScreen() {
         // Calculate health percentage based on bristol_scale
         if (userRecords.length > 0) {
           const healthyRecords = userRecords.filter((record: any) => {
-            const scale = parseInt(record.bristol_scale) || 0;
-            return scale >= 3 && scale <= 5; // Types 3-5 are considered healthy
+            const scale = parseInt(record.ai_poop_type) || parseInt(record.bristol_scale) || 0;
+            return scale >= 3 && scale <= 5;
           });
           const healthPercent = Math.round((healthyRecords.length / userRecords.length) * 100);
           setHealthPercentage(healthPercent);
