@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, Image, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TextInput, Image, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useUserStore } from '@/store/userStore';
 import Colors from '@/constants/colors';
@@ -7,6 +7,11 @@ import Button from '@/components/Button';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Apple, ArrowLeft } from 'lucide-react-native';
 import * as AppleAuthentication from 'expo-apple-authentication';
+import * as Google from 'expo-auth-session/providers/google';
+import * as WebBrowser from 'expo-web-browser';
+
+// Complete the web browser for Google Sign-In
+WebBrowser.maybeCompleteAuthSession();
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -14,13 +19,31 @@ export default function LoginScreen() {
   
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [email, setEmail] = useState('');
   const [isLogin, setIsLogin] = useState(true);
   const [isAppleSignInAvailable, setIsAppleSignInAvailable] = useState(false);
   
+  // Google Sign-In configuration
+  const [request, response, promptAsync] = Google.useAuthRequest({
+    androidClientId: '376130747740-5kg1cn8hdof8292ehiubl3e8intq9ejn.apps.googleusercontent.com',
+    iosClientId: '376130747740-ch4ck9m6qo7sbsim6eg3bjo7hl0esjmt.apps.googleusercontent.com',
+    webClientId: '376130747740-qvia4hsrl1l328dkntqod8rbd2q4jbu1.apps.googleusercontent.com',
+    scopes: ['profile', 'email'],
+  });
   useEffect(() => {
     checkAppleSignInAvailability();
   }, []);
+  
+  // Handle Google Sign-In response
+  useEffect(() => {
+    if (response?.type === 'success') {
+      const { authentication } = response;
+      if (authentication?.accessToken) {
+        handleGoogleSignInSuccess(authentication.accessToken);
+      }
+    }
+  }, [response]);
   
   const checkAppleSignInAvailability = async () => {
     try {
@@ -32,12 +55,27 @@ export default function LoginScreen() {
     }
   };
   
+  const validatePassword = (password: string): { isValid: boolean; errors: string[] } => {
+    const errors = [];
+    if (password.length < 8) errors.push('At least 8 characters');
+    if (!/[A-Z]/.test(password)) errors.push('One uppercase letter');
+    if (!/[a-z]/.test(password)) errors.push('One lowercase letter');
+    if (!/[0-9]/.test(password)) errors.push('One number');
+    if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) errors.push('One special character');
+    
+    return {
+      isValid: errors.length === 0,
+      errors
+    };
+  };
+
   const handleLogin = async () => {
     if (!username || !password) {
-      alert('All fields are required');
+      Alert.alert('Error', 'All fields are required');
       return;
     }
-   const url = 'https://poopalooza-backend-api-af34f62d7c87.herokuapp.com/login';
+    
+    const url = 'https://poopalooza-backend-api-af34f62d7c87.herokuapp.com/login';
     try {
       const response = await fetch(url, {
         method: 'POST',
@@ -49,34 +87,59 @@ export default function LoginScreen() {
       if (!contentType || !contentType.includes('application/json')) {
         const errorText = await response.text();
         console.error('Non-JSON response:', errorText);
-        alert('Server error. Please try again later.');
+        Alert.alert('Error', 'Server error. Please try again later.');
         return;
       }
 
       const data = await response.json();
 
       if (response.ok) {
-        // ✅ 儲存 user_id、username、email
+        // Store user info consistently
         useUserStore.getState().setUserInfo(
           data.user_id,
           data.username,
           data.email || null
         );
         console.log('✅ User logged in:', username);
-        alert('Login successful!');
+        Alert.alert('Success', 'Login successful!');
         router.replace('/(tabs)');
       } else {
-        alert(data.message || 'Login failed');
+        Alert.alert('Error', data.message || 'Login failed');
       }
     } catch (error) {
       console.error('Login error:', error);
-      alert('Login error');
+      Alert.alert('Error', 'Login error');
     }
   };
 
   const handleRegister = async () => {
     if (!username || !password) {
-      alert('All fields are required');
+      Alert.alert('Error', 'All fields are required');
+      return;
+    }
+
+    // Validate username
+    if (username.length < 3) {
+      Alert.alert('Error', 'Username must be at least 3 characters');
+      return;
+    }
+
+    // Validate password strength
+    const passwordValidation = validatePassword(password);
+    if (!passwordValidation.isValid) {
+      Alert.alert('Password Requirements', 'Password must contain:\n• ' + passwordValidation.errors.join('\n• '));
+      return;
+    }
+
+    // Check password confirmation
+    if (password !== confirmPassword) {
+      Alert.alert('Error', 'Passwords do not match');
+      return;
+    }
+
+    // Validate email format if provided
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      Alert.alert('Error', 'Please enter a valid email address');
       return;
     }
 
@@ -89,36 +152,94 @@ export default function LoginScreen() {
         body: JSON.stringify({
           username,
           password,
-          email,
+          email: email || null,
         }),
       });
 
-      // 🚨 檢查回傳是不是 JSON 格式
       const contentType = response.headers.get('content-type');
       if (!contentType || !contentType.includes('application/json')) {
-        const errorText = await response.text(); // 把錯誤的 HTML 印出來
+        const errorText = await response.text();
         console.error('Non-JSON response:', errorText);
-        alert('Server error. Please try again later.');
+        Alert.alert('Error', 'Server error. Please try again later.');
         return;
       }
+      
       const data = await response.json();
 
       if (response.ok) {
-        alert('Registration successful!');
-        router.replace('/(tabs)');  // or navigate to login screen
+        // Store user info after successful registration
+        useUserStore.getState().setUserInfo(
+          data.user_id,
+          data.username,
+          data.email || null
+        );
+        Alert.alert('Success', 'Registration successful!');
+        router.replace('/(tabs)');
       } else {
-        alert(data.message || 'Registration failed');
+        Alert.alert('Error', data.message || 'Registration failed');
       }
     } catch (error) {
       console.error('Registration error:', error);
-      alert('Something went wrong. Please try again.');
+      Alert.alert('Error', 'Something went wrong. Please try again.');
+    }
+  };
+  
+  const handleGoogleSignInSuccess = async (accessToken: string) => {
+    try {
+      // Get user info from Google
+      const userInfoResponse = await fetch(
+        'https://www.googleapis.com/oauth2/v2/userinfo',
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }
+      );
+      
+      const userInfo = await userInfoResponse.json();
+      
+      // Send to your backend for OAuth login/registration
+      const response = await fetch('https://poopalooza-backend-api-af34f62d7c87.herokuapp.com/oauth/google', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          googleId: userInfo.id,
+          email: userInfo.email,
+          name: userInfo.name,
+          picture: userInfo.picture,
+        }),
+      });
+      
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const errorText = await response.text();
+        console.error('Non-JSON response:', errorText);
+        Alert.alert('Error', 'Server error during Google Sign-In');
+        return;
+      }
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        // Store user info
+        useUserStore.getState().setUserInfo(
+          data.user_id,
+          data.username,
+          data.email
+        );
+        console.log('✅ Google Sign-In successful');
+        router.replace('/(tabs)');
+      } else {
+        Alert.alert('Error', data.message || 'Google Sign-In failed');
+      }
+    } catch (error) {
+      console.error('Google Sign-In error:', error);
+      Alert.alert('Error', 'Failed to sign in with Google');
     }
   };
   
   const handleGoogleSignIn = () => {
-    // In a real app, you would implement Google Sign In
-    setUserInfo('Google User', 'google@example.com');
-    router.replace('/(tabs)');
+    promptAsync();
   };
   
   const handleAppleSignIn = async () => {
@@ -130,28 +251,65 @@ export default function LoginScreen() {
         ],
       });
 
-      const name = credential.fullName?.givenName || 'Apple User';
-      const email = credential.email || 'unknown@example.com';
-
-      setUserInfo(name, email); // 存進全域狀態
-      router.replace('/(tabs)');
+      // Send to your backend for OAuth login/registration
+      const response = await fetch('https://poopalooza-backend-api-af34f62d7c87.herokuapp.com/oauth/apple', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          appleId: credential.user,
+          email: credential.email,
+          fullName: credential.fullName,
+          identityToken: credential.identityToken,
+          authorizationCode: credential.authorizationCode,
+        }),
+      });
+      
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const errorText = await response.text();
+        console.error('Non-JSON response:', errorText);
+        Alert.alert('Error', 'Server error during Apple Sign-In');
+        return;
+      }
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        // Store user info
+        useUserStore.getState().setUserInfo(
+          data.user_id,
+          data.username,
+          data.email
+        );
+        console.log('✅ Apple Sign-In successful');
+        router.replace('/(tabs)');
+      } else {
+        Alert.alert('Error', data.message || 'Apple Sign-In failed');
+      }
     } catch (e: any) {
       if (e.code === 'ERR_CANCELED') {
         console.log('Apple Sign-In cancelled');
       } else {
         console.error('Apple Sign-In error:', e);
+        Alert.alert('Error', 'Failed to sign in with Apple');
       }
     }
   };
   
   const toggleAuthMode = () => {
     setIsLogin(!isLogin);
+    // Clear form when switching modes
+    setUsername('');
+    setPassword('');
+    setConfirmPassword('');
+    setEmail('');
   };
   
   const handleBack = () => {
     router.back();
   };
-  
 
   return (
     <LinearGradient
@@ -203,17 +361,51 @@ export default function LoginScreen() {
             </View>
             
             {!isLogin && (
-              <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>Email</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Enter your email"
-                  value={email}
-                  onChangeText={setEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                />
-              </View>
+              <>
+                <View style={styles.inputContainer}>
+                  <Text style={styles.inputLabel}>Confirm Password</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Re-enter your password"
+                    value={confirmPassword}
+                    onChangeText={setConfirmPassword}
+                    secureTextEntry
+                  />
+                </View>
+                
+                <View style={styles.inputContainer}>
+                  <Text style={styles.inputLabel}>Email (Optional)</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter your email"
+                    value={email}
+                    onChangeText={setEmail}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                  />
+                </View>
+
+                {password.length > 0 && (
+                  <View style={styles.passwordRequirements}>
+                    <Text style={styles.requirementsTitle}>Password must contain:</Text>
+                    <Text style={[styles.requirementItem, password.length >= 8 && styles.requirementMet]}>
+                      • At least 8 characters
+                    </Text>
+                    <Text style={[styles.requirementItem, /[A-Z]/.test(password) && styles.requirementMet]}>
+                      • One uppercase letter
+                    </Text>
+                    <Text style={[styles.requirementItem, /[a-z]/.test(password) && styles.requirementMet]}>
+                      • One lowercase letter
+                    </Text>
+                    <Text style={[styles.requirementItem, /[0-9]/.test(password) && styles.requirementMet]}>
+                      • One number
+                    </Text>
+                    <Text style={[styles.requirementItem, /[!@#$%^&*(),.?":{}|<>]/.test(password) && styles.requirementMet]}>
+                      • One special character
+                    </Text>
+                  </View>
+                )}
+              </>
             )}
             
             <Button
@@ -232,6 +424,7 @@ export default function LoginScreen() {
               <TouchableOpacity 
                 style={styles.socialButton}
                 onPress={handleGoogleSignIn}
+                disabled={!request}
               >
                 <Text style={styles.socialButtonText}>
                   <Text style={styles.googleIcon}>G</Text> Continue with Google
@@ -375,5 +568,27 @@ const styles = StyleSheet.create({
   toggleAuthText: {
     color: Colors.primary.accent,
     fontSize: 14,
+  },
+  passwordRequirements: {
+    marginTop: 8,
+    marginBottom: 16,
+    padding: 12,
+    backgroundColor: '#F5F5F5',
+    borderRadius: 8,
+  },
+  requirementsTitle: {
+    fontSize: 12,
+    color: Colors.primary.lightText,
+    marginBottom: 4,
+    fontWeight: '600',
+  },
+  requirementItem: {
+    fontSize: 11,
+    color: '#999',
+    marginTop: 2,
+  },
+  requirementMet: {
+    color: '#4CAF50',
+    fontWeight: '500',
   },
 });
