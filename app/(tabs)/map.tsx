@@ -2587,73 +2587,185 @@ const RecordsDrawer = () => {
 })()}
 
 {/* Journey Tab: Show ALL check-ins */}
-{activeTab === 'journey' && (
-  <>
-    {/* User's Own Check-ins (both private and public) */}
-    {checkInRecords.map((record) => (
-      <Marker
-        key={`user-${record.id}`}
-        coordinate={{ 
-          latitude: record.location.lat, 
-          longitude: record.location.lng 
-        }}
-        title={`${record.mood} ${record.location.name}`}
-        description={`${record.isPrivate ? '🔒 Private' : '🌍 Public'}: ${record.customMessage || record.note}`}
-      >
-        <View style={[
-          styles.checkInMarker,
-          record.isPrivate && { backgroundColor: '#F3E5F5', borderColor: '#9C27B0' }
-        ]}>
-          <Text style={styles.checkInEmoji}>
-            {record.isPrivate ? '🔒' : record.mood}
+{/* Journey Tab: 使用聚合邏輯避免重疊閃爍 */}
+{activeTab === 'journey' && (() => {
+  // 定義類型
+  interface CheckInPoint {
+    id: string;
+    latitude: number;
+    longitude: number;
+    type: string;
+    isPrivate?: boolean;
+    mood: string;
+    message?: string;
+    timestamp?: number;
+    bathroom?: string;
+    userId?: string | number;
+    isAnonymous?: boolean;
+  }
+
+  interface ClusterPoint {
+    id: string;
+    latitude: number;
+    longitude: number;
+    count: number;
+    checkIns?: CheckInPoint[];
+    displayMood?: string;
+    isCluster: boolean;
+    type?: string;
+    isPrivate?: boolean;
+    mood?: string;
+    message?: string;
+    bathroom?: string;
+  }
+
+  // 1. 合併所有打卡數據
+  const allCheckIns: CheckInPoint[] = [
+    // 用戶自己的打卡
+    ...checkInRecords.map(record => ({
+      id: `user-${record.id}`,
+      latitude: record.location.lat,
+      longitude: record.location.lng,
+      type: 'user',
+      isPrivate: record.isPrivate,
+      mood: record.mood,
+      message: record.customMessage || record.note,
+      timestamp: record.timestamp,
+      bathroom: record.bathroom.name || record.location.name,
+    })),
+    // 公開打卡
+    ...publicCheckIns.map(checkin => ({
+      id: `public-${checkin.id}`,
+      latitude: parseFloat(checkin.latitude),
+      longitude: parseFloat(checkin.longitude),
+      type: 'public',
+      mood: checkin.mood_emoji || '💩',
+      message: checkin.custom_message,
+      userId: checkin.user_id,
+      isAnonymous: checkin.is_anonymous,
+      bathroom: checkin.bathroom_name,
+    })),
+    // 私人打卡
+    ...privateCheckIns.map(checkin => ({
+      id: `private-${checkin.id}`,
+      latitude: parseFloat(checkin.latitude),
+      longitude: parseFloat(checkin.longitude),
+      type: 'private',
+      mood: checkin.mood_emoji || '💩',
+      message: checkin.custom_message,
+      bathroom: checkin.bathroom_name,
+    }))
+  ];
+
+  // 2. 聚合重疊的打卡點
+  const clusterCheckIns = (checkIns: CheckInPoint[], threshold: number = 0.0001): ClusterPoint[] => {
+    const clusters: ClusterPoint[] = [];
+    const processed = new Set<string>();
+    
+    checkIns.forEach((checkIn: CheckInPoint) => {
+      if (processed.has(checkIn.id)) return;
+      
+      // 找出附近的打卡點（同一位置）
+      const nearbyCheckIns = checkIns.filter((other: CheckInPoint) => {
+        if (processed.has(other.id) || other.id === checkIn.id) return false;
+        
+        const latDiff = Math.abs(checkIn.latitude - other.latitude);
+        const lngDiff = Math.abs(checkIn.longitude - other.longitude);
+        return latDiff < threshold && lngDiff < threshold;
+      });
+      
+      if (nearbyCheckIns.length > 0) {
+        // 創建聚合點
+        const allPoints = [checkIn, ...nearbyCheckIns];
+        
+        clusters.push({
+          id: `cluster-${checkIn.id}`,
+          latitude: checkIn.latitude,
+          longitude: checkIn.longitude,
+          count: allPoints.length,
+          checkIns: allPoints,
+          displayMood: allPoints[0].mood,
+          isCluster: true,
+        });
+        
+        allPoints.forEach(p => processed.add(p.id));
+      } else {
+        // 單獨的打卡點
+        clusters.push({
+          ...checkIn,
+          count: 1,
+          isCluster: false,
+        });
+        processed.add(checkIn.id);
+      }
+    });
+    
+    return clusters;
+  };
+
+  const clusteredCheckIns = clusterCheckIns(allCheckIns);
+
+  // 3. 渲染聚合後的標記
+return clusteredCheckIns.map((cluster: ClusterPoint) => (
+  <Marker
+    key={cluster.id}
+    coordinate={{ 
+      latitude: cluster.latitude, 
+      longitude: cluster.longitude 
+    }}
+    onPress={() => {
+      // 處理聚合點的點擊
+      if (cluster.isCluster && cluster.count > 1) {
+        const details = cluster.checkIns?.map((c: CheckInPoint) => 
+          `${c.mood} ${c.bathroom || 'Location'}\n${c.message || ''}`
+        ).join('\n---\n');
+        
+        Alert.alert(
+          `📍 ${cluster.count} Check-ins Here`,
+          details || 'No details available',
+          [{ text: 'OK' }]
+        );
+      }
+    }}
+  >
+    <View style={[
+      styles.checkInMarker,
+      cluster.isCluster && cluster.count > 1 && {
+        width: 36,
+        height: 36,
+        backgroundColor: '#FFE0E0',
+        borderColor: '#FF6B6B',
+        borderWidth: 3,
+      }
+    ]}>
+      {cluster.isCluster && cluster.count > 1 ? (
+        <View style={{ alignItems: 'center' }}>
+          <Text style={{ fontSize: 14, fontWeight: 'bold', color: '#FF6B6B' }}>
+            {cluster.count}
           </Text>
         </View>
-      </Marker>
-    ))}
-
-    {/* ALL Public Check-ins from ALL Users */}
-    {publicCheckIns.map((checkin) => (
-      <Marker
-        key={`public-${checkin.id}`}
-        coordinate={{ 
-          latitude: parseFloat(checkin.latitude), 
-          longitude: parseFloat(checkin.longitude) 
-        }}
-        title={`${checkin.mood_emoji || '💩'} ${checkin.bathroom_name}`}
-        description={`Public by User ${checkin.is_anonymous ? 'Anonymous' : checkin.user_id}: ${checkin.custom_message || 'Public check-in'}`}
-      >
-        <View style={[
-          styles.checkInMarker,
-          { backgroundColor: '#E8F5E9', borderColor: '#4CAF50' }
-        ]}>
-          <Text style={styles.checkInEmoji}>
-            {checkin.mood_emoji || '💩'}
-          </Text>
-        </View>
-      </Marker>
-    ))}
-
-    {/* User's Private Check-ins (only visible to them) */}
-    {privateCheckIns.map((checkin) => (
-      <Marker
-        key={`private-${checkin.id}`}
-        coordinate={{ 
-          latitude: parseFloat(checkin.latitude), 
-          longitude: parseFloat(checkin.longitude) 
-        }}
-        title={`🔒 ${checkin.mood_emoji || '💩'} ${checkin.bathroom_name}`}
-        description={`Private: ${checkin.custom_message || 'My private note'}`}
-      >
-        <View style={[
-          styles.checkInMarker,
-          { backgroundColor: '#F3E5F5', borderColor: '#9C27B0' }
-        ]}>
-          <Text style={styles.checkInEmoji}>🔒</Text>
-        </View>
-      </Marker>
-    ))}
-  </>
-)}
+      ) : (
+        <Text style={styles.checkInEmoji}>
+          {cluster.type === 'private' || cluster.isPrivate ? '🔒' : (cluster.mood || cluster.displayMood)}
+        </Text>
+      )}
+    </View>
+    
+    <Callout tooltip>
+      <View style={styles.calloutContainer}>
+        <Text style={styles.calloutTitle}>
+          {cluster.isCluster && cluster.count > 1 
+            ? `${cluster.count} Check-ins` 
+            : cluster.bathroom || 'Location'}
+        </Text>
+        {cluster.message && (
+          <Text style={styles.calloutSubtitle}>{cluster.message}</Text>
+        )}
+      </View>
+    </Callout>
+  </Marker>
+));
+})()}
 
 {/* Keep the existing private check-ins section as is */}
           </MapView>
