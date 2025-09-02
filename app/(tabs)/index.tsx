@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, Platform, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { usePoopStore } from '@/store/poopStore';
@@ -8,16 +8,111 @@ import Button from '@/components/Button';
 import Timer from '@/components/Timer';
 import { User } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { API_CONFIG } from '@/config';
 
 export default function TrackerScreen() {
   const router = useRouter();
   const { addEntry, longestStreak, entries } = usePoopStore();
-  const { username } = useUserStore();
+  const { username, user_id } = useUserStore();
+  const currentUserId = user_id || 49;
 
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [showImageConfirmation, setShowImageConfirmation] = useState(false);
+  
+  // Add state for database records
+  const [dbRecordCount, setDbRecordCount] = useState(0);
+  const [healthPercentage, setHealthPercentage] = useState(0);
+  const [currentStreak, setCurrentStreak] = useState(0);
 
-  // 主要的新增記錄函數 - 詢問是否要添加照片
+  // Fetch user's records from database
+  useEffect(() => {
+    const fetchUserRecords = async () => {
+      try {
+        console.log('Fetching records for user:', currentUserId);
+        
+        const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.POOP_RECORDS}`);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        // Filter by current user
+        const userRecords = data.filter((record: any) => 
+          record.user_id === currentUserId
+        );
+        
+        console.log(`Found ${userRecords.length} records for user ${currentUserId}`);
+        setDbRecordCount(userRecords.length);
+        
+        // Calculate health percentage based on bristol_scale
+        if (userRecords.length > 0) {
+          const healthyRecords = userRecords.filter((record: any) => {
+            const scale = parseInt(record.bristol_scale) || 0;
+            return scale >= 3 && scale <= 5; // Types 3-5 are considered healthy
+          });
+          const healthPercent = Math.round((healthyRecords.length / userRecords.length) * 100);
+          setHealthPercentage(healthPercent);
+        }
+        
+        // Calculate current streak
+        const streak = calculateStreak(userRecords);
+        setCurrentStreak(streak);
+        
+      } catch (error) {
+        console.error('Failed to fetch records:', error);
+        // Fall back to local data
+        setDbRecordCount(entries.length);
+      }
+    };
+
+    if (currentUserId) {
+      fetchUserRecords();
+    }
+  }, [currentUserId]);
+
+  // Calculate streak function
+  const calculateStreak = (records: any[]) => {
+    if (records.length === 0) return 0;
+    
+    // Sort by date
+    const sortedRecords = [...records].sort((a, b) => 
+      new Date(b.record_time).getTime() - new Date(a.record_time).getTime()
+    );
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    let streak = 0;
+    let currentDate = new Date(today);
+    
+    for (const record of sortedRecords) {
+      const recordDate = new Date(record.record_time);
+      recordDate.setHours(0, 0, 0, 0);
+      
+      if (recordDate.getTime() === currentDate.getTime()) {
+        streak++;
+        currentDate.setDate(currentDate.getDate() - 1);
+      } else if (recordDate.getTime() < currentDate.getTime()) {
+        // Check if we missed a day
+        const dayDiff = (currentDate.getTime() - recordDate.getTime()) / (1000 * 60 * 60 * 24);
+        if (dayDiff === 1) {
+          // Yesterday, continue streak
+          streak++;
+          currentDate = new Date(recordDate);
+          currentDate.setDate(currentDate.getDate() - 1);
+        } else {
+          // Streak broken
+          break;
+        }
+      }
+    }
+    
+    return streak;
+  };
+
+  // Main add entry function - ask if photo should be included
   const handleAddEntry = () => {
     Alert.alert(
       'Add New Record',
@@ -45,7 +140,7 @@ export default function TrackerScreen() {
     );
   };
 
-  // 拍照功能
+  // Take picture function
   const handleTakePicture = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
@@ -68,7 +163,7 @@ export default function TrackerScreen() {
     }
   };
 
-  // 上傳照片功能
+  // Upload picture function
   const handleUploadPicture = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
@@ -89,7 +184,7 @@ export default function TrackerScreen() {
     }
   };
 
-  // 確認選擇的照片
+  // Confirm selected photo
   const handleConfirmImage = () => {
     if (selectedImage) {
       router.push({ 
@@ -101,7 +196,7 @@ export default function TrackerScreen() {
     }
   };
 
-  // 取消照片選擇
+  // Cancel photo selection
   const handleCancelImage = () => {
     setSelectedImage(null);
     setShowImageConfirmation(false);
@@ -122,23 +217,26 @@ export default function TrackerScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Summary Section */}
+      {/* Summary Section - Now showing database data */}
       <View style={styles.summaryContainer}>
         <Text style={styles.summaryTitle}>Your Poop Summary</Text>
         <View style={styles.summaryRow}>
           <View style={styles.summaryCard}>
             <Text style={styles.summaryLabel}>Total Entries</Text>
-            <Text style={styles.summaryValue}>{entries.length}</Text>
+            <Text style={styles.summaryValue}>{dbRecordCount}</Text>
           </View>
           <View style={styles.summaryCard}>
             <Text style={styles.summaryLabel}>Streak</Text>
-            <Text style={styles.summaryValue}>{longestStreak} days</Text>
+            <Text style={styles.summaryValue}>{currentStreak} days</Text>
           </View>
           <View style={styles.summaryCard}>
             <Text style={styles.summaryLabel}>Healthy %</Text>
-            <Text style={styles.summaryValue}>84%</Text>
+            <Text style={styles.summaryValue}>{healthPercentage}%</Text>
           </View>
         </View>
+        <Text style={styles.dataSourceText}>
+          Data from user {currentUserId}
+        </Text>
       </View>
 
       {/* Timer */}
@@ -309,6 +407,12 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     color: Colors.primary.accent,
+  },
+  dataSourceText: {
+    fontSize: 12,
+    color: Colors.primary.lightText,
+    textAlign: 'center',
+    marginTop: 8,
   },
 
   // Main Action Section
