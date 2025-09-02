@@ -4,7 +4,8 @@ import { View, Text, StyleSheet, TouchableOpacity, FlatList, ScrollView, Alert, 
 import Colors from '@/constants/colors';
 import { usePoopStore } from '@/store/poopStore';
 import { useFocusEffect } from '@react-navigation/native';
-import { API_BASE_URL } from '@/config';
+import  API_BASE_URL  from '@/config';
+import { useUserStore } from '@/store/userStore';
 // API 設定 - 使用你的 IP
 
 interface Achievement {
@@ -65,90 +66,111 @@ export default function CalendarScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  
-  // 使用固定的用戶 ID（和你的 add-entry 一樣）
-  const currentUserId = 1;
+  const [isProcessingAchievements, setIsProcessingAchievements] = useState(false);
+  const { user_id } = useUserStore(); 
+  const currentUserId = user_id || 49;
 
   // 從資料庫獲取成就資料
 const fetchAchievements = async () => {
   try {
-    console.log('Requesting:', 'https://poopalooza-backend-api-af34f62d7c87.herokuapp.com/poop-records');
-    const response = await fetch('https://poopalooza-backend-api-af34f62d7c87.herokuapp.com/poop-records');
+    console.log('Fetching achievements...');
+    const response = await fetch('https://poopalooza-backend-api-af34f62d7c87.herokuapp.com/achievements');
     
-    console.log('Response status:', response.status);
-    console.log('Response headers:', response.headers);
-    
-    const contentType = response.headers.get('content-type');
-    if (!contentType || !contentType.includes('application/json')) {
-      const errorText = await response.text();
-      console.log('Non-JSON response:', errorText.substring(0, 200));
-      throw new Error(`Non-JSON response: ${errorText.substring(0, 100)}`);
+    if (!response.ok) {
+      console.log('Response not OK:', response.status);
+      throw new Error(`Failed to fetch achievements: ${response.status}`);
     }
-
-    const json = await response.json();
-    setDbPoopRecords(json);
+    
+    const data = await response.json();
+    console.log('All achievements:', data.length);
+    
+    // Filter for current user's achievements
+    const userAchievements = data.filter((achievement: DBAchievement) => 
+      achievement.user_id === currentUserId
+    );
+    console.log('User achievements:', userAchievements.length);
+    setDbAchievements(userAchievements);
   } catch (err) {
-    console.error('Fetch poop records failed:', err);
+    console.error('Error fetching achievements:', err);
   }
 };
 
   // 從資料庫獲取排便記錄
-  const fetchPoopRecords = async () => {
-    try {
-      console.log('Fetching poop records...');
-      const response = await fetch(`${API_BASE_URL}/poop-records`);
-      
-      if (!response.ok) {
-        console.log('Response not OK:', response.status);
-        throw new Error(`Failed to fetch poop records: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      console.log('All poop records:', data.length);
-      
-      // 過濾當前用戶的記錄
-      const userRecords = data.filter((record: DBPoopRecord) => record.user_id === currentUserId);
-      console.log('User records:', userRecords.length);
-      setDbPoopRecords(userRecords);
-    } catch (err) {
-      console.error('Error fetching poop records:', err);
-      // 不設定錯誤，讓它繼續運作
+const fetchPoopRecords = async () => {
+  try {
+    console.log('Fetching poop records...');
+    const response = await fetch('https://poopalooza-backend-api-af34f62d7c87.herokuapp.com/poop-records');
+    
+    if (!response.ok) {
+      console.log('Response not OK:', response.status);
+      throw new Error(`Failed to fetch poop records: ${response.status}`);
     }
-  };
+    
+    const data = await response.json();
+    console.log('All poop records:', data.length);
+    
+    // 現在會正確過濾 user_id = 49 的記錄
+    const userRecords = data.filter((record: DBPoopRecord) => record.user_id === currentUserId);
+    console.log('User records for user_id', currentUserId, ':', userRecords.length);
+    setDbPoopRecords(userRecords);
+  } catch (err) {
+    console.error('Error fetching poop records:', err);
+  }
+};
 
   // 創建新成就到資料庫
-// 创建新成就到资料库
-const createAchievement = async (achievementName, achievementDescription) => {
+const createAchievement = async (achievementName: string, achievementDescription: string) => {
   try {
-    console.log('Creating achievement:', achievementName);
+    // Check if already exists in local state to prevent duplicate API calls
+    const alreadyExists = dbAchievements.some(
+      a => a.achievement_name === achievementName && a.user_id === currentUserId
+    );
     
-    // 确保这个 payload 变量存在且正确定义
+    if (alreadyExists) {
+      console.log('Achievement already exists locally:', achievementName);
+      return;
+    }
+
+    console.log('Creating new achievement:', achievementName);
+    
+    const url = 'https://poopalooza-backend-api-af34f62d7c87.herokuapp.com/achievements';
+    
     const payload = {
-      user_id: 1,
-      record_time: new Date().toISOString(),
-      color: color.toString(),
-      consistency: feeling.toString(),
-      volume: volume.toString(),
-      odor: '',
-      has_blood: false,
-      has_mucus: false,
-      image_url: params.imageUri || '',
-      ai_poop_type: type.toString(),
-      ai_poop_color: color.toString(),
-      ai_poop_volume: volume.toString(),
-      ai_diagnosis_summary: analysisDetails,
-      health_recommendations: recommendations,
-      health_indicators: ''
+      user_id: currentUserId,
+      achievement_name: achievementName,
+      achievement_description: achievementDescription
     };
 
-    const response = await fetch('https://poopalooza-backend-api-af34f62d7c87.herokuapp.com/poop-records', {
+    const response = await fetch(url, {
       method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(payload) // 这里使用的 payload 必须已经定义
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
     });
 
+    if (!response.ok) {
+      console.log('Failed to create achievement:', response.status);
+      return;
+    }
+
     const result = await response.json();
-    // 处理结果...
+    console.log('Achievement created successfully:', achievementName);
+    
+    // Immediately update local state to prevent duplicate creation
+    setDbAchievements(prev => {
+      // Check again to prevent race conditions
+      if (prev.some(a => a.achievement_name === achievementName && a.user_id === currentUserId)) {
+        return prev;
+      }
+      return [...prev, {
+        achievement_id: Date.now(),
+        user_id: currentUserId,
+        achievement_name: achievementName,
+        achievement_description: achievementDescription,
+        achieved_at: new Date().toISOString()
+      }];
+    });
     
   } catch (error) {
     console.error('Error creating achievement:', error);
@@ -174,10 +196,12 @@ const createAchievement = async (achievementName, achievementDescription) => {
     }
   }, []);
 
-  // 初始化資料
   useEffect(() => {
-    loadData(true);
-  }, []);
+    if (user_id) {  // 有 user_id 時才載入
+      console.log('User logged in, loading data for user:', user_id);
+      loadData(true);
+    }
+  }, [user_id]); // 依賴 user_id
 
   // 當頁面獲得焦點時重新載入（從其他頁面返回時）
   useFocusEffect(
@@ -382,17 +406,28 @@ const createAchievement = async (achievementName, achievementDescription) => {
         color: '#FFC107'
       }
     ];
+ // Process new achievements only if not already processing
+  if (!isProcessingAchievements) {
+    const newAchievements = achievements.filter(
+      achievement => achievement.isUnlocked && !hasAchievement(achievement.title)
+    );
+    
+    if (newAchievements.length > 0) {
+      setIsProcessingAchievements(true);
+      
+      // Process all new achievements
+      Promise.all(
+        newAchievements.map(achievement => 
+          createAchievement(achievement.title, achievement.description)
+        )
+      ).finally(() => {
+        setIsProcessingAchievements(false);
+      });
+    }
+  }
 
-    // 自動解鎖新成就並儲存到資料庫
-    achievements.forEach(achievement => {
-      if (achievement.isUnlocked && !hasAchievement(achievement.title)) {
-        // 非同步創建成就，不阻塞渲染
-        createAchievement(achievement.title, achievement.description);
-      }
-    });
-
-    return achievements;
-  };
+  return achievements;
+};
 
   const achievements = calculateAchievements();
   const unlockedCount = achievements.filter(a => a.isUnlocked).length;
