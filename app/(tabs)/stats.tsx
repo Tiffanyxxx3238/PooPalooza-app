@@ -1,12 +1,34 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Platform, ActivityIndicator } from 'react-native';
 import { usePoopStore } from '@/store/poopStore';
 import Colors from '@/constants/colors';
 import { poopTypes, poopVolumes, poopFeelings, poopColors } from '@/constants/poopTypes';
 import { getWeekRange, getMonthRange } from '@/utils/dateUtils';
-import { TrendingUp } from 'lucide-react-native'; // Add this import
-import API_BASE_URL from '@/config';
-// New component for Line Chart
+import { TrendingUp } from 'lucide-react-native';
+import { API_CONFIG } from '@/config'; // Updated import
+
+// Type definition for database records
+interface PoopEntry {
+  record_id: number;
+  user_id: number;
+  record_time: string;
+  bristol_scale: string;
+  color: string;
+  consistency: string;
+  volume: string;
+  odor: string;
+  has_blood: boolean;
+  has_mucus: boolean;
+  image_url?: string;
+  ai_poop_type?: string;
+  ai_poop_color?: string;
+  ai_poop_volume?: string;
+  ai_diagnosis_summary?: string;
+  health_recommendations?: string;
+  health_indicators?: string;
+}
+
+// Component definitions remain the same
 const LineChart = ({ data, title }: { data: any[], title: string }) => {
   const maxValue = Math.max(...data.map(d => d.value), 1);
   
@@ -35,7 +57,6 @@ const LineChart = ({ data, title }: { data: any[], title: string }) => {
   );
 };
 
-// New component for Analysis Card
 const AnalysisCard = ({ title, description, icon }: { title: string, description: string, icon: React.ReactNode }) => {
   return (
     <View style={styles.analysisCard}>
@@ -48,7 +69,6 @@ const AnalysisCard = ({ title, description, icon }: { title: string, description
   );
 };
 
-// New component for Recommendation Card
 const RecommendationCard = ({ title, recommendations }: { title: string, recommendations: string[] }) => {
   return (
     <View style={styles.recommendationCard}>
@@ -61,50 +81,132 @@ const RecommendationCard = ({ title, recommendations }: { title: string, recomme
 };
 
 export default function StatsScreen() {
-  const { entries } = usePoopStore();
+  const { entries } = usePoopStore(); // Local state entries
   const [timeRange, setTimeRange] = useState<'week' | 'month' | 'all'>('week');
   const [filteredEntries, setFilteredEntries] = useState(entries);
   
-  const [records, setRecords] = useState<PoopEntry[]>([]);
+  // Database state
+  const [dbRecords, setDbRecords] = useState<PoopEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isConnected, setIsConnected] = useState<boolean | null>(null);
 
+  // Test database connection and fetch records
   useEffect(() => {
-    const fetchPoopRecords = async () => {
+    const testConnectionAndFetch = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/poop-records`);
+        setLoading(true);
+        setError(null);
+        
+        console.log('🔄 Testing database connection...');
+        
+        // Test connection with timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+        
+        const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.POOP_RECORDS}`, {
+          signal: controller.signal,
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
         const data = await response.json();
-        setRecords(data);
-      } catch (error) {
-        console.error('❌ Failed to fetch poop records:', error);
+        console.log('✅ Database connected! Records fetched:', data.length);
+        
+        setDbRecords(data);
+        setIsConnected(true);
+        
+        // If you want to use database records instead of local entries
+        // Convert database records to match your local format if needed
+        // setFilteredEntries(convertDbRecordsToLocalFormat(data));
+        
+      } catch (error: any) {
+        console.error('❌ Database connection failed:', error);
+        setError(error.message || 'Failed to connect to database');
+        setIsConnected(false);
+        
+        // Fall back to local entries
+        setFilteredEntries(entries);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchPoopRecords();
-  }, []);
+    testConnectionAndFetch();
+  }, []); // Run once on component mount
+
+  // Filter entries when time range changes
+  useEffect(() => {
+    filterEntriesByTimeRange(timeRange);
+  }, [timeRange, entries, dbRecords]);
   
   const filterEntriesByTimeRange = (range: 'week' | 'month' | 'all') => {
     const now = new Date();
     
+    // Use database records if connected, otherwise use local entries
+    const dataSource = isConnected && dbRecords.length > 0 ? 
+      convertDbRecordsToLocalFormat(dbRecords) : entries;
+    
     if (range === 'week') {
       const { startDate, endDate } = getWeekRange(now);
-      setFilteredEntries(entries.filter(entry => {
+      setFilteredEntries(dataSource.filter(entry => {
         const entryDate = new Date(entry.date);
         return entryDate >= startDate && entryDate <= endDate;
       }));
     } else if (range === 'month') {
       const { startDate, endDate } = getMonthRange(now);
-      setFilteredEntries(entries.filter(entry => {
+      setFilteredEntries(dataSource.filter(entry => {
         const entryDate = new Date(entry.date);
         return entryDate >= startDate && entryDate <= endDate;
       }));
     } else {
-      setFilteredEntries(entries);
+      setFilteredEntries(dataSource);
     }
   };
   
-  // Generate weekly bowel health data
+  // Helper function to convert database records to local format
+  const convertDbRecordsToLocalFormat = (records: PoopEntry[]) => {
+    return records.map(record => ({
+      id: record.record_id.toString(),
+      date: record.record_time,
+      type: parseInt(record.bristol_scale) || 4, // Convert bristol_scale to number
+      volume: getVolumeId(record.volume),
+      feeling: 3, // Default since not in database
+      color: getColorId(record.color),
+      duration: 180, // Default since not in database
+      notes: record.ai_diagnosis_summary || '',
+    }));
+  };
+  
+  // Helper functions to map database values to IDs
+  const getVolumeId = (volume: string): number => {
+    const volumeMap: { [key: string]: number } = {
+      'small': 1,
+      'medium': 2,
+      'large': 3,
+    };
+    return volumeMap[volume?.toLowerCase()] || 2;
+  };
+  
+  const getColorId = (color: string): number => {
+    const colorMap: { [key: string]: number } = {
+      'brown': 1,
+      'green': 2,
+      'yellow': 3,
+      'black': 4,
+      'red': 5,
+    };
+    return colorMap[color?.toLowerCase()] || 1;
+  };
+
+  // All your existing calculation functions remain the same
   const generateWeeklyBowelData = () => {
     const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     const now = new Date();
@@ -119,14 +221,12 @@ export default function StatsScreen() {
         return entryDate.toDateString() === dayDate.toDateString();
       });
       
-      // Calculate health score based on Bristol Stool Scale and other factors
-      let healthScore = 5; // Default neutral score
+      let healthScore = 5;
       
       if (dayEntries.length > 0) {
         const avgType = dayEntries.reduce((sum, entry) => sum + entry.type, 0) / dayEntries.length;
         const avgFeeling = dayEntries.reduce((sum, entry) => sum + entry.feeling, 0) / dayEntries.length;
         
-        // Bristol Stool Scale scoring (types 3-4 are ideal)
         if (avgType >= 3 && avgType <= 4) {
           healthScore = 8;
         } else if (avgType >= 2 && avgType <= 5) {
@@ -135,14 +235,12 @@ export default function StatsScreen() {
           healthScore = 3;
         }
         
-        // Adjust based on feeling
         if (avgFeeling >= 4) {
           healthScore = Math.min(10, healthScore + 1);
         } else if (avgFeeling <= 2) {
           healthScore = Math.max(1, healthScore - 2);
         }
         
-        // Frequency adjustment
         if (dayEntries.length >= 1 && dayEntries.length <= 3) {
           healthScore = Math.min(10, healthScore + 1);
         } else if (dayEntries.length > 3) {
@@ -157,8 +255,8 @@ export default function StatsScreen() {
       };
     });
   };
-  
-  // Generate health analysis
+
+  // Rest of your existing functions...
   const generateHealthAnalysis = () => {
     if (filteredEntries.length === 0) {
       return {
@@ -167,7 +265,6 @@ export default function StatsScreen() {
       };
     }
     
-    const avgType = filteredEntries.reduce((sum, entry) => sum + entry.type, 0) / filteredEntries.length;
     const weeklyData = generateWeeklyBowelData();
     const avgHealthScore = weeklyData.reduce((sum, day) => sum + day.value, 0) / weeklyData.length;
     
@@ -187,8 +284,7 @@ export default function StatsScreen() {
     
     return { title, description };
   };
-  
-  // Generate diet recommendations
+
   const generateDietRecommendations = () => {
     if (filteredEntries.length === 0) {
       return {
@@ -202,7 +298,6 @@ export default function StatsScreen() {
       };
     }
     
-    const avgType = filteredEntries.reduce((sum, entry) => sum + entry.type, 0) / filteredEntries.length;
     const hardStools = filteredEntries.filter(entry => entry.type <= 2).length;
     const looseStools = filteredEntries.filter(entry => entry.type >= 6).length;
     
@@ -236,8 +331,7 @@ export default function StatsScreen() {
       recommendations
     };
   };
-  
-  // Calculate statistics (existing functions)
+
   const calculateTypeStats = () => {
     const typeCounts = poopTypes.map(type => ({
       id: type.id,
@@ -248,7 +342,7 @@ export default function StatsScreen() {
     
     return typeCounts.sort((a, b) => b.count - a.count);
   };
-  
+
   const calculateVolumeStats = () => {
     const volumeCounts = poopVolumes.map(volume => ({
       id: volume.id,
@@ -258,7 +352,7 @@ export default function StatsScreen() {
     
     return volumeCounts.sort((a, b) => b.count - a.count);
   };
-  
+
   const calculateFeelingStats = () => {
     const feelingCounts = poopFeelings.map(feeling => ({
       id: feeling.id,
@@ -269,7 +363,7 @@ export default function StatsScreen() {
     
     return feelingCounts.sort((a, b) => b.count - a.count);
   };
-  
+
   const calculateColorStats = () => {
     const colorCounts = poopColors.map(color => ({
       id: color.id,
@@ -280,14 +374,14 @@ export default function StatsScreen() {
     
     return colorCounts.sort((a, b) => b.count - a.count);
   };
-  
+
   const calculateAverageDuration = () => {
     if (filteredEntries.length === 0) return 0;
     
     const totalDuration = filteredEntries.reduce((sum, entry) => sum + entry.duration, 0);
     return Math.round(totalDuration / filteredEntries.length);
   };
-  
+
   const calculateFrequency = () => {
     if (filteredEntries.length <= 1) return 'N/A';
     
@@ -314,7 +408,18 @@ export default function StatsScreen() {
       return `${Math.round(avgInterval / 24)} days`;
     }
   };
-  
+
+  const formatDuration = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}m ${remainingSeconds}s`;
+  };
+
+  const getMaxCount = (stats: any[]) => {
+    return Math.max(...stats.map(item => item.count), 1);
+  };
+
+  // Calculate all stats
   const typeStats = calculateTypeStats();
   const volumeStats = calculateVolumeStats();
   const feelingStats = calculateFeelingStats();
@@ -326,24 +431,34 @@ export default function StatsScreen() {
   const healthAnalysis = generateHealthAnalysis();
   const dietRecommendations = generateDietRecommendations();
   
-  const formatDuration = (seconds: number) => {
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    return `${minutes}m ${remainingSeconds}s`;
-  };
-  
-  const getMaxCount = (stats: any[]) => {
-    return Math.max(...stats.map(item => item.count), 1);
-  };
-  
   const typeMaxCount = getMaxCount(typeStats);
   const volumeMaxCount = getMaxCount(volumeStats);
   const feelingMaxCount = getMaxCount(feelingStats);
   const colorMaxCount = getMaxCount(colorStats);
 
+  // Show loading state
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.centerContent]}>
+        <ActivityIndicator size="large" color={Colors.primary.accent} />
+        <Text style={styles.loadingText}>Connecting to database...</Text>
+      </View>
+    );
+  }
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.title}>Poop Statistics</Text>
+      
+      {/* Connection Status Banner */}
+      <View style={[styles.connectionBanner, isConnected ? styles.connectedBanner : styles.disconnectedBanner]}>
+        <Text style={styles.connectionText}>
+          {isConnected ? 
+            `✅ Connected to Database (${dbRecords.length} records)` : 
+            `⚠️ Using Local Data${error ? `: ${error}` : ''}`
+          }
+        </Text>
+      </View>
       
       <View style={styles.timeRangeSelector}>
         <Text
@@ -408,6 +523,7 @@ export default function StatsScreen() {
         </>
       )}
       
+      {/* Rest of your existing UI components */}
       <View style={styles.summaryContainer}>
         <View style={styles.summaryItem}>
           <Text style={styles.summaryValue}>{filteredEntries.length}</Text>
@@ -538,6 +654,18 @@ export default function StatsScreen() {
         </Text>
       </View>
       
+      {/* Database Records Display (Optional - for debugging) */}
+      {isConnected && dbRecords.length > 0 && (
+        <View style={styles.debugContainer}>
+          <Text style={styles.debugTitle}>Database Records Summary</Text>
+          <Text style={styles.debugText}>Total Records: {dbRecords.length}</Text>
+          <Text style={styles.debugText}>
+            Latest Record: {dbRecords[0]?.record_time ? 
+              new Date(dbRecords[0].record_time).toLocaleDateString() : 'N/A'}
+          </Text>
+        </View>
+      )}
+      
       <View style={styles.bottomSpacer} />
     </ScrollView>
   );
@@ -547,6 +675,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.primary.background,
+  },
+  centerContent: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   content: {
     padding: 16,
@@ -558,6 +690,31 @@ const styles = StyleSheet.create({
     color: Colors.primary.text,
     marginTop: Platform.OS === 'ios' ? 0 : 16,
     marginBottom: 16,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: Colors.primary.lightText,
+  },
+  connectionBanner: {
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  connectedBanner: {
+    backgroundColor: '#4caf5020',
+    borderColor: '#4caf50',
+    borderWidth: 1,
+  },
+  disconnectedBanner: {
+    backgroundColor: '#ff980020',
+    borderColor: '#ff9800',
+    borderWidth: 1,
+  },
+  connectionText: {
+    fontSize: 14,
+    color: Colors.primary.text,
+    textAlign: 'center',
   },
   timeRangeSelector: {
     flexDirection: 'row',
@@ -764,6 +921,22 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.primary.text,
     lineHeight: 20,
+  },
+  debugContainer: {
+    backgroundColor: '#f0f0f0',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+  },
+  debugTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  debugText: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 4,
   },
   bottomSpacer: {
     height: 60,
