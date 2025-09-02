@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, Platform, ActivityIndicator } from 'react-native';
 import { usePoopStore } from '@/store/poopStore';
+import { useUserStore } from '@/store/userStore'; // Add this import
 import Colors from '@/constants/colors';
 import { poopTypes, poopVolumes, poopFeelings, poopColors } from '@/constants/poopTypes';
 import { getWeekRange, getMonthRange } from '@/utils/dateUtils';
@@ -82,6 +83,9 @@ const RecommendationCard = ({ title, recommendations }: { title: string, recomme
 
 export default function StatsScreen() {
   const { entries } = usePoopStore(); // Local state entries
+  const { user_id } = useUserStore(); // Get user_id from store
+  const currentUserId = user_id || 49; // Define currentUserId here
+  
   const [timeRange, setTimeRange] = useState<'week' | 'month' | 'all'>('week');
   const [filteredEntries, setFilteredEntries] = useState(entries);
   
@@ -118,14 +122,25 @@ export default function StatsScreen() {
         }
         
         const data = await response.json();
-        console.log('✅ Database connected! Records fetched:', data.length);
+        console.log('✅ Database connected! Total records:', data.length);
         
-        setDbRecords(data);
+        // Filter the data by user:
+        const userRecords = data.filter((record: PoopEntry) => 
+          record.user_id === currentUserId
+        );
+        console.log(`Filtered to ${userRecords.length} records for user ${currentUserId}`);
+        
+        // Sort records by date (newest first)
+        const sortedRecords = userRecords.sort((a: PoopEntry, b: PoopEntry) => 
+          new Date(b.record_time).getTime() - new Date(a.record_time).getTime()
+        );
+        
+        setDbRecords(sortedRecords);
         setIsConnected(true);
         
-        // If you want to use database records instead of local entries
-        // Convert database records to match your local format if needed
-        // setFilteredEntries(convertDbRecordsToLocalFormat(data));
+        // IMPORTANT: Convert and set the filtered entries immediately
+        const convertedRecords = convertDbRecordsToLocalFormat(sortedRecords);
+        setFilteredEntries(convertedRecords);
         
       } catch (error: any) {
         console.error('❌ Database connection failed:', error);
@@ -173,37 +188,143 @@ export default function StatsScreen() {
   
   // Helper function to convert database records to local format
   const convertDbRecordsToLocalFormat = (records: PoopEntry[]) => {
-    return records.map(record => ({
-      id: record.record_id.toString(),
-      date: record.record_time,
-      type: parseInt(record.bristol_scale) || 4, // Convert bristol_scale to number
-      volume: getVolumeId(record.volume),
-      feeling: 3, // Default since not in database
-      color: getColorId(record.color),
-      duration: 180, // Default since not in database
-      notes: record.ai_diagnosis_summary || '',
-    }));
+    return records.map(record => {
+      // Parse bristol_scale - handle numbers, Chinese text, and NULL
+      let typeValue = 4; // default
+      if (record.bristol_scale && record.bristol_scale !== '[NULL]') {
+        const bristolStr = record.bristol_scale.toString();
+        
+        // Try to extract number first
+        const match = bristolStr.match(/\d+/);
+        if (match) {
+          typeValue = parseInt(match[0]) || 4;
+        } else {
+          // Handle Chinese text
+          const chineseMap: { [key: string]: number } = {
+            '棕色': 4,  // Normal brown
+            '浅棕': 3,  // Light brown
+            '深棕': 4,  // Dark brown
+            '黄色': 3,  // Yellow
+            '绿色': 5,  // Green
+            '红色': 1,  // Red
+            '黑色': 7,  // Black
+          };
+          typeValue = chineseMap[bristolStr] || 4;
+        }
+      }
+      
+      // Parse volume - handle numbers and Chinese text
+      let volumeValue = 2; // default medium
+      if (record.volume && record.volume !== '[NULL]') {
+        const volumeStr = record.volume.toString();
+        
+        // Check if it's a number
+        if (volumeStr === '1' || volumeStr === '2' || volumeStr === '3') {
+          volumeValue = parseInt(volumeStr);
+        } else {
+          // Handle Chinese text
+          const volumeChineseMap: { [key: string]: number } = {
+            '少量': 1,  // Small
+            '中等': 2,  // Medium
+            '大量': 3,  // Large
+            '正常': 2,  // Normal
+          };
+          volumeValue = volumeChineseMap[volumeStr] || getVolumeId(volumeStr);
+        }
+      }
+      
+      // Parse color - handle numbers and Chinese text
+      let colorValue = 1; // default brown
+      if (record.color && record.color !== '[NULL]') {
+        const colorStr = record.color.toString();
+        
+        // Check if it's a number
+        if (colorStr.match(/^\d+$/)) {
+          colorValue = parseInt(colorStr) || 1;
+        } else {
+          // Handle Chinese text
+          const colorChineseMap: { [key: string]: number } = {
+            '棕色': 1,  // Brown
+            '香蕉状': 1,  // Banana-like (brown)
+            '光滑蛇状': 1,  // Smooth snake-like (brown)
+            '黄色': 3,  // Yellow
+            '绿色': 2,  // Green
+            '红色': 5,  // Red
+            '黑色': 4,  // Black
+          };
+          colorValue = colorChineseMap[colorStr] || getColorId(colorStr);
+        }
+      }
+      
+      // Debug log to check what we're getting
+      console.log('Converting record:', {
+        record_id: record.record_id,
+        bristol_scale: record.bristol_scale,
+        parsed_type: typeValue,
+        color: record.color,
+        parsed_color: colorValue,
+        volume: record.volume,
+        parsed_volume: volumeValue
+      });
+      
+      return {
+        id: record.record_id.toString(),
+        date: record.record_time,
+        type: typeValue,
+        volume: volumeValue,
+        feeling: 3, // Default since not in database
+        color: colorValue,
+        duration: 180, // Default since not in database
+        notes: record.ai_diagnosis_summary || '',
+      };
+    });
   };
   
   // Helper functions to map database values to IDs
   const getVolumeId = (volume: string): number => {
+    if (!volume) return 2; // default medium
+    
+    const volumeLower = volume.toLowerCase();
+    if (volumeLower.includes('small') || volumeLower.includes('little')) return 1;
+    if (volumeLower.includes('medium') || volumeLower.includes('normal')) return 2;
+    if (volumeLower.includes('large') || volumeLower.includes('big')) return 3;
+    
+    // Try exact match
     const volumeMap: { [key: string]: number } = {
       'small': 1,
       'medium': 2,
       'large': 3,
+      '1': 1,
+      '2': 2,
+      '3': 3,
     };
-    return volumeMap[volume?.toLowerCase()] || 2;
+    return volumeMap[volumeLower] || 2;
   };
   
   const getColorId = (color: string): number => {
+    if (!color) return 1; // default brown
+    
+    const colorLower = color.toLowerCase();
+    if (colorLower.includes('brown')) return 1;
+    if (colorLower.includes('green')) return 2;
+    if (colorLower.includes('yellow')) return 3;
+    if (colorLower.includes('black')) return 4;
+    if (colorLower.includes('red')) return 5;
+    
+    // Try exact match
     const colorMap: { [key: string]: number } = {
       'brown': 1,
       'green': 2,
       'yellow': 3,
       'black': 4,
       'red': 5,
+      '1': 1,
+      '2': 2,
+      '3': 3,
+      '4': 4,
+      '5': 5,
     };
-    return colorMap[color?.toLowerCase()] || 1;
+    return colorMap[colorLower] || 1;
   };
 
   // All your existing calculation functions remain the same
@@ -454,10 +575,15 @@ export default function StatsScreen() {
       <View style={[styles.connectionBanner, isConnected ? styles.connectedBanner : styles.disconnectedBanner]}>
         <Text style={styles.connectionText}>
           {isConnected ? 
-            `✅ Connected to Database (${dbRecords.length} records)` : 
+            `✅ Connected to Database (${dbRecords.length} total records for user ${currentUserId})` : 
             `⚠️ Using Local Data${error ? `: ${error}` : ''}`
           }
         </Text>
+        {isConnected && timeRange !== 'all' && (
+          <Text style={styles.connectionSubtext}>
+            Showing {filteredEntries.length} records for {timeRange === 'week' ? 'this week' : 'this month'}
+          </Text>
+        )}
       </View>
       
       <View style={styles.timeRangeSelector}>
@@ -715,6 +841,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.primary.text,
     textAlign: 'center',
+  },
+  connectionSubtext: {
+    fontSize: 12,
+    color: Colors.primary.lightText,
+    textAlign: 'center',
+    marginTop: 4,
   },
   timeRangeSelector: {
     flexDirection: 'row',
