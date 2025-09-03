@@ -9,6 +9,7 @@ import { Apple, ArrowLeft } from 'lucide-react-native';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
+import { makeRedirectUri } from 'expo-auth-session';
 
 // Complete the web browser for Google Sign-In
 WebBrowser.maybeCompleteAuthSession();
@@ -25,25 +26,28 @@ export default function LoginScreen() {
   const [isAppleSignInAvailable, setIsAppleSignInAvailable] = useState(false);
   
   // Google Sign-In configuration
-  const [request, response, promptAsync] = Google.useAuthRequest({
-    androidClientId: '376130747740-5kg1cn8hdof8292ehiubl3e8intq9ejn.apps.googleusercontent.com',
-    iosClientId: '376130747740-ch4ck9m6qo7sbsim6eg3bjo7hl0esjmt.apps.googleusercontent.com',
-    webClientId: '376130747740-qvia4hsrl1l328dkntqod8rbd2q4jbu1.apps.googleusercontent.com',
-    scopes: ['profile', 'email'],
-  });
+
+const [request, response, promptAsync] = Google.useAuthRequest({
+  clientId: '376130747740-qvia4hsrl1l328dkntqod8rbd2q4jbu1.apps.googleusercontent.com',
+  scopes: ['profile', 'email'],
+  redirectUri: 'https://auth.expo.io/@rhdairy24/poopalooza-630t3r0', 
+});
   useEffect(() => {
     checkAppleSignInAvailability();
   }, []);
   
   // Handle Google Sign-In response
-  useEffect(() => {
-    if (response?.type === 'success') {
-      const { authentication } = response;
-      if (authentication?.accessToken) {
-        handleGoogleSignInSuccess(authentication.accessToken);
-      }
+useEffect(() => {
+  if (response?.type === 'success') {
+    const { authentication } = response;
+    if (authentication?.accessToken) {
+      handleGoogleSignInSuccess(authentication.accessToken);
     }
-  }, [response]);
+  } else if (response?.type === 'error') {
+    console.error('❌ Google Sign-In failed:', response);
+    Alert.alert('登入失敗', 'Google 授權錯誤');
+  }
+}, [response]);
   
   const checkAppleSignInAvailability = async () => {
     try {
