@@ -24,7 +24,27 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [isLogin, setIsLogin] = useState(true);
   const [isAppleSignInAvailable, setIsAppleSignInAvailable] = useState(false);
-  
+  // 忘記密碼相關的 state
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [resetCode, setResetCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetStep, setResetStep] = useState(1);
+  const [securityQuestion, setSecurityQuestion] = useState('');
+  const [securityAnswer, setSecurityAnswer] = useState('');
+  const [userSecurityQuestion, setUserSecurityQuestion] = useState('');
+  const [resetAnswer, setResetAnswer] = useState('');
+  const [resetUsername, setResetUsername] = useState('');
+
+    // 預設的安全問題
+  const securityQuestions = [
+    "What was the name of your first pet?",
+    "What city were you born in?",
+    "What is your favorite movie?",
+    "What was the name of your first school?",
+    "What is your favorite food?",
+  ];
   // Google Sign-In configuration
 
 const [request, response, promptAsync] = Google.useAuthRequest({
@@ -121,6 +141,10 @@ useEffect(() => {
       Alert.alert('Error', 'All fields are required');
       return;
     }
+    if (!securityQuestion || !securityAnswer) {
+      Alert.alert('Error', 'Security question and answer are required');
+      return;
+    }
 
     // Validate username
     if (username.length < 3) {
@@ -157,6 +181,8 @@ useEffect(() => {
           username,
           password,
           email: email || null,
+          security_question: securityQuestion,
+          security_answer: securityAnswer,
         }),
       });
 
@@ -187,7 +213,82 @@ useEffect(() => {
       Alert.alert('Error', 'Something went wrong. Please try again.');
     }
   };
-  
+  const handleForgotPassword = async () => {
+    setShowForgotPassword(true);
+    setResetStep(1); 
+  };
+const handleGetSecurityQuestion = async () => {
+  if (!resetUsername) {
+    Alert.alert('Error', 'Please enter your username');
+    return;
+  }
+
+  try {
+    const response = await fetch('https://poopalooza-backend-api-af34f62d7c87.herokuapp.com/forgot-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: resetUsername }),
+    });
+
+    const data = await response.json();
+
+    if (data.success && data.security_question) {
+      setUserSecurityQuestion(data.security_question);
+      setResetStep(2); // 進入下一步
+    } else {
+      Alert.alert('Error', 'No recovery method available for this account');
+    }
+  } catch (error) {
+    Alert.alert('Error', 'Network connection failed');
+  }
+};
+const handleResetPassword = async () => {
+  if (!resetAnswer || !newPassword || !confirmNewPassword) {
+    Alert.alert('Error', 'Please fill in all fields');
+    return;
+  }
+
+  if (newPassword !== confirmNewPassword) {
+    Alert.alert('Error', 'Passwords do not match');
+    return;
+  }
+
+  const passwordValidation = validatePassword(newPassword);
+  if (!passwordValidation.isValid) {
+    Alert.alert('Password Requirements', 'Password must contain:\n• ' + passwordValidation.errors.join('\n• '));
+    return;
+  }
+
+  try {
+    const response = await fetch('https://poopalooza-backend-api-af34f62d7c87.herokuapp.com/reset-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: resetUsername, // 使用 resetUsername 而不是 username
+        security_answer: resetAnswer,
+        new_password: newPassword,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (response.ok) {
+      Alert.alert('Success', 'Password reset successful! Please login with your new password');
+      setShowForgotPassword(false);
+      setResetStep(1);
+      setResetUsername('');
+      setResetAnswer('');
+      setNewPassword('');
+      setConfirmNewPassword('');
+    } else {
+      Alert.alert('Error', data.error || 'Invalid answer');
+    }
+  } catch (error) {
+    Alert.alert('Error', 'Network connection failed');
+  }
+};
+
+
   const handleGoogleSignInSuccess = async (accessToken: string) => {
     try {
       // Get user info from Google
@@ -388,6 +489,43 @@ useEffect(() => {
                     autoCapitalize="none"
                   />
                 </View>
+                    <View style={styles.inputContainer}>
+      <Text style={styles.inputLabel}>
+       Security Question (Required) 
+      </Text>
+      <View style={styles.selectContainer}>
+        {securityQuestions.map((question, index) => (
+          <TouchableOpacity
+            key={index}
+            style={[
+              styles.questionOption,
+              securityQuestion === question && styles.questionSelected
+            ]}
+            onPress={() => setSecurityQuestion(question)}
+          >
+            <Text style={[
+              styles.questionText,
+              securityQuestion === question && styles.questionTextSelected
+            ]}>
+              {question}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </View>
+    
+    {securityQuestion && (
+      <View style={styles.inputContainer}>
+        <Text style={styles.inputLabel}>Security Answer(Required)</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Your answer (case insensitive)"
+          value={securityAnswer}
+          onChangeText={setSecurityAnswer}
+          autoCapitalize="none"
+        />
+      </View>
+    )}
 
                 {password.length > 0 && (
                   <View style={styles.passwordRequirements}>
@@ -417,7 +555,14 @@ useEffect(() => {
               onPress={isLogin ? handleLogin : handleRegister}
               style={styles.authButton}
             />
-            
+            {isLogin && (
+              <TouchableOpacity 
+                style={styles.forgotPassword}
+                onPress={handleForgotPassword}
+              >
+                <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+              </TouchableOpacity>
+            )}
             <View style={styles.divider}>
               <View style={styles.dividerLine} />
               <Text style={styles.dividerText}>OR</Text>
@@ -457,6 +602,109 @@ useEffect(() => {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+{showForgotPassword && (
+  <View style={styles.modalOverlay}>
+    <View style={styles.modalContent}>
+      <TouchableOpacity 
+        style={styles.modalClose}
+        onPress={() => {
+          setShowForgotPassword(false);
+          setResetStep(1);
+          setResetUsername('');
+          setResetAnswer('');
+          setNewPassword('');
+          setConfirmNewPassword('');
+        }}
+      >
+        <Text style={styles.modalCloseText}>✕</Text>
+      </TouchableOpacity>
+
+      <Text style={styles.modalTitle}>Reset Password</Text>
+      
+      {resetStep === 1 ? (
+        // 步驟 1: 輸入用戶名
+        <>
+          <Text style={styles.modalDescription}>
+            Enter your username to reset password
+          </Text>
+          
+          <TextInput
+            style={styles.modalInput}
+            placeholder="Username"
+            placeholderTextColor="#999"
+            value={resetUsername}
+            onChangeText={setResetUsername}
+            autoCapitalize="none"
+          />
+          
+          <TouchableOpacity 
+            style={styles.modalButton}
+            onPress={handleGetSecurityQuestion}
+          >
+            <Text style={styles.modalButtonText}>Continue</Text>
+          </TouchableOpacity>
+        </>
+      ) : (
+        // 步驟 2: 回答安全問題
+        <>
+          <Text style={styles.modalDescription}>
+            Answer your security question:
+          </Text>
+          
+          <Text style={styles.securityQuestionDisplay}>
+            {userSecurityQuestion}
+          </Text>
+          
+          <TextInput
+            style={styles.modalInput}
+            placeholder="Your answer"
+            placeholderTextColor="#999"
+            value={resetAnswer}
+            onChangeText={setResetAnswer}
+            autoCapitalize="none"
+          />
+          
+          <TextInput
+            style={styles.modalInput}
+            placeholder="New password"
+            placeholderTextColor="#999"
+            value={newPassword}
+            onChangeText={setNewPassword}
+            secureTextEntry
+          />
+          
+          <TextInput
+            style={styles.modalInput}
+            placeholder="Confirm new password"
+            placeholderTextColor="#999"
+            value={confirmNewPassword}
+            onChangeText={setConfirmNewPassword}
+            secureTextEntry
+          />
+          
+          <TouchableOpacity 
+            style={styles.modalButton}
+            onPress={handleResetPassword}
+          >
+            <Text style={styles.modalButtonText}>Reset Password</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.modalBackButton}
+            onPress={() => {
+              setResetStep(1);
+              setResetAnswer('');
+              setNewPassword('');
+              setConfirmNewPassword('');
+            }}
+          >
+            <Text style={styles.modalBackText}>Back</Text>
+          </TouchableOpacity>
+        </>
+      )}
+    </View>
+  </View>
+)}
     </LinearGradient>
   );
 }
@@ -520,10 +768,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
-  },
-  forgotPassword: {
-    alignSelf: 'flex-end',
-    marginBottom: 24,
+    color: '#6b5740ff',
   },
   forgotPasswordText: {
     color: Colors.primary.accent,
@@ -595,4 +840,128 @@ const styles = StyleSheet.create({
     color: '#4CAF50',
     fontWeight: '500',
   },
+   forgotPassword: {
+    alignSelf: 'flex-end',
+    marginBottom: 24,
+    marginTop: -8,
+  },
+  modalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 9999,
+    elevation: 10,
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    width: '90%',
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  modalClose: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    zIndex: 1,
+    padding: 4,
+  },
+  modalCloseText: {
+    fontSize: 24,
+    color: '#666',
+  },
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  modalDescription: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  modalInput: {
+    backgroundColor: '#F5F5F5',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    marginBottom: 12,
+    color: '#333',
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  modalOr: {
+    textAlign: 'center',
+    color: '#999',
+    marginVertical: 8,
+    fontSize: 14,
+  },
+  modalButton: {
+    backgroundColor: Colors.primary.accent,
+    borderRadius: 8,
+    padding: 14,
+    alignItems: 'center',
+    marginTop: 12,
+  },
+  modalButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  modalBackButton: {
+    padding: 12,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  modalBackText: {
+    color: Colors.primary.accent,
+    fontSize: 14,
+  },
+  selectContainer: {
+  backgroundColor: '#FFFFFF',
+  borderRadius: 8,
+  padding: 8,
+},
+questionOption: {
+  padding: 12,
+  borderRadius: 6,
+  marginBottom: 6,
+  backgroundColor: '#F5F5F5',
+},
+questionSelected: {
+  backgroundColor: Colors.primary.accent,
+},
+questionText: {
+  fontSize: 14,
+  color: '#333',
+},
+questionTextSelected: {
+  color: '#FFFFFF',
+  fontWeight: '500',
+},
+securityQuestionDisplay: {
+  fontSize: 16,
+  fontWeight: '600',
+  color: '#333',
+  marginBottom: 16,
+  padding: 12,
+  backgroundColor: '#F0F0F0',
+  borderRadius: 8,
+},
 });
