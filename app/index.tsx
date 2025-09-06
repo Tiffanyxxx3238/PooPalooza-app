@@ -22,13 +22,7 @@ export default function WelcomeScreen() {
     router.push('/login');
   };
 
-  const openChat = () => {
-    setShowChat(true);
-  };
-
-  const closeChat = () => {
-    setShowChat(false);
-  };
+  // 移除了 openChat 和 closeChat 函數，因為不再需要
 
   return (
     <LinearGradient
@@ -79,23 +73,7 @@ export default function WelcomeScreen() {
         </View>
       </View>
 
-      {/* 浮動聊天按鈕 */}
-      <TouchableOpacity 
-        style={styles.chatButton}
-        onPress={openChat}
-        activeOpacity={0.8}
-      >
-        <Text style={styles.chatButtonEmoji}>🤖</Text>
-      </TouchableOpacity>
-
-      {/* 聊天模態框 */}
-      <Modal
-        visible={showChat}
-        animationType="slide"
-        presentationStyle="fullScreen"
-      >
-        <ChatScreen onClose={closeChat} />
-      </Modal>
+      {/* 移除了浮動聊天按鈕和聊天模態框 */}
     </LinearGradient>
   );
 }
@@ -165,28 +143,5 @@ const styles = StyleSheet.create({
   button: {
     paddingVertical: 16,
   },
-  // 浮動聊天按鈕樣式
-  chatButton: {
-    position: 'absolute',
-    left: 20,
-    top: '50%',
-    marginTop: -30, // 按鈕高度的一半
-    backgroundColor: '#F7A600',
-    borderRadius: 30,
-    width: 60,
-    height: 60,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 8,
-  },
-  chatButtonEmoji: {
-    fontSize: 30,
-  },
+  // 移除了 chatButton 和 chatButtonEmoji 樣式
 });
