@@ -11,6 +11,7 @@ import { FileText, Check, AlertCircle, Eye } from 'lucide-react-native';
 import * as FileSystem from 'expo-file-system';
 import { Platform } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { EnhancedLoadingScreen } from '../components/EnhancedLoadingScreen';
 
 // 在 import 區塊後加入
 const HEALTH_ADVISOR_API_URL = 'https://poop-analysis-recommendation-system.onrender.com'; 
@@ -1774,19 +1775,14 @@ const handleContinue = () => {
   };
 const renderContent = () => {
     // 載入中狀態
-    if (isAnalyzing) {
-      return (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primary.accent} />
-          <Text style={styles.loadingText}>AI Analysis in Progress...</Text>
-          <Text style={styles.loadingSubtext}>{analysisProgress}</Text>
-          <View style={styles.progressBar}>
-            <View style={[styles.progressFill, { width: '60%' }]} />
-          </View>
-          <Text style={styles.estimateText}>Estimated remaining time: 30-60 seconds</Text>
-        </View>
-      );
-    }
+ if (isAnalyzing) {
+    return (
+      <EnhancedLoadingScreen 
+        analysisProgress={analysisProgress}
+        showGame={true} // Set to false to disable the game
+      />
+    );
+  }
 
     // 非大便檢測結果
     if (nonPoopDetectionResult) {
