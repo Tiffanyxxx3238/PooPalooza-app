@@ -383,7 +383,7 @@ const styles = StyleSheet.create({
   },
   poopContainer: {
     width: 32,
-    height: 24,
+    height: 28,
     marginBottom: 4,
     position: 'relative',
   },
@@ -391,7 +391,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 6,
     bottom: 0,
-    width: 20,
+    width: 24,
     height: 12,
     backgroundColor: '#FFFFFF', // 改回白色便便
     borderRadius: 10,
@@ -402,7 +402,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 8,
     bottom: 8,
-    width: 16,
+    width: 20,
     height: 10,
     backgroundColor: '#FFFFFF', // 改回白色便便
     borderRadius: 8,
@@ -411,17 +411,18 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 10,
     bottom: 14,
-    width: 12,
-    height: 8,
+    width: 14,
+    height: 10,
     backgroundColor: '#FFFFFF', // 改回白色便便
     borderRadius: 6,
-    borderTopLeftRadius: 8,
-    borderTopRightRadius: 8,
+    borderTopLeftRadius: 6,
+    borderTopRightRadius: 6,
+    transform: [{ scaleY: 0.8 }],  // 稍微壓扁頂部
   },
   poopEyeLeft: {
     position: 'absolute',
-    left: 12,
-    bottom: 6,
+    left: 10,
+    bottom: 8,
     width: 3,
     height: 3,
     backgroundColor: '#667eea', // 藍紫色眼睛
@@ -429,8 +430,8 @@ const styles = StyleSheet.create({
   },
   poopEyeRight: {
     position: 'absolute',
-    left: 17,
-    bottom: 6,
+    left: 19,
+    bottom: 8,
     width: 3,
     height: 3,
     backgroundColor: '#667eea', // 藍紫色眼睛
@@ -439,7 +440,7 @@ const styles = StyleSheet.create({
   poopMouth: {
     position: 'absolute',
     left: 14,
-    bottom: 3,
+    bottom: 4,
     width: 4,
     height: 2,
     backgroundColor: '#667eea', // 藍紫色嘴巴

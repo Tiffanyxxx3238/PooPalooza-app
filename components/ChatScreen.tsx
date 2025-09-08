@@ -3,6 +3,7 @@ import { View, StyleSheet, SafeAreaView, TouchableOpacity, Text, Alert } from 'r
 import { GiftedChat, Bubble, InputToolbar, IMessage } from 'react-native-gifted-chat';
 import axios, { AxiosResponse } from 'axios';
 import { API_CONFIG } from './config';
+import { LoadingWithGame } from './PoopRainGame';
 
 interface ChatScreenProps {
   onClose: () => void;
@@ -134,50 +135,50 @@ export default function ChatScreen({ onClose }: ChatScreenProps) {
 
   const [isTyping, setIsTyping] = useState(false);
 
-const onSend = useCallback((msgs: IMessage[] = []) => {
-  setMessages(prev => GiftedChat.append(prev, msgs));
-  const question = msgs[0].text;
-  
-  setIsTyping(true);
-  
-  // CORRECT URL with /api/assistant
-  console.log('🚀 發送請求到: https://poopalooza-server.onrender.com/api/assistant');
-  console.log('📝 問題:', question);
-  
-  // THE CORRECT URL - Notice the /api/ prefix
-  axios.post<ApiResponse>(
-    'https://poopalooza-server.onrender.com/api/assistant', // ← MUST BE /api/assistant
-    { question },  // ← Your server expects { question } which is correct
-    { 
-      timeout: 30000,
-      headers: {
-        'Content-Type': 'application/json'
+  const onSend = useCallback((msgs: IMessage[] = []) => {
+    setMessages(prev => GiftedChat.append(prev, msgs));
+    const question = msgs[0].text;
+    
+    setIsTyping(true);
+    
+    // CORRECT URL with /api/assistant
+    console.log('🚀 發送請求到: https://poopalooza-server.onrender.com/api/assistant');
+    console.log('📝 問題:', question);
+    
+    // THE CORRECT URL - Notice the /api/ prefix
+    axios.post<ApiResponse>(
+      'https://poopalooza-server.onrender.com/api/assistant', // ← MUST BE /api/assistant
+      { question },  // ← Your server expects { question } which is correct
+      { 
+        timeout: 30000,
+        headers: {
+          'Content-Type': 'application/json'
+        }
       }
-    }
-  )
-  .then((res: AxiosResponse<ApiResponse>) => {
-    setIsTyping(false);
-    console.log('✅ API 回應成功:', res.data);
-    
-    const formattedAnswer = formatBotMessage(res.data.answer);
-    
-    const botMessage: IMessage = {
-      _id: Date.now(),
-      text: formattedAnswer,
-      createdAt: new Date(),
-      user: { 
-        _id: 2, 
-        name: 'PoopBot',
-        avatar: '💩'
-      },
-    };
-    
-    setMessages(prev => GiftedChat.append(prev, [botMessage]));
-    
-    if (res.data.plan === 'free' && res.data.requestCount) {
-      console.log(`📊 免費版本使用次數: ${res.data.requestCount}`);
-    }
-  })
+    )
+    .then((res: AxiosResponse<ApiResponse>) => {
+      setIsTyping(false);
+      console.log('✅ API 回應成功:', res.data);
+      
+      const formattedAnswer = formatBotMessage(res.data.answer);
+      
+      const botMessage: IMessage = {
+        _id: Date.now(),
+        text: formattedAnswer,
+        createdAt: new Date(),
+        user: { 
+          _id: 2, 
+          name: 'PoopBot',
+          avatar: '💩'
+        },
+      };
+      
+      setMessages(prev => GiftedChat.append(prev, [botMessage]));
+      
+      if (res.data.plan === 'free' && res.data.requestCount) {
+        console.log(`📊 免費版本使用次數: ${res.data.requestCount}`);
+      }
+    })
     .catch((error) => {
       setIsTyping(false);
       console.error('❌ API 調用錯誤:', error);
@@ -229,7 +230,7 @@ const onSend = useCallback((msgs: IMessage[] = []) => {
         messages={messages}
         onSend={onSend}
         user={{ _id: 1 }}
-        isTyping={isTyping}
+        isTyping={false}  // 關閉內建的 typing indicator
         renderBubble={props => (
           <View style={styles.bubbleWrapper}>
             {/* 強制左對齊容器 */}
@@ -333,19 +334,14 @@ const onSend = useCallback((msgs: IMessage[] = []) => {
         keyboardShouldPersistTaps="never"
         minInputToolbarHeight={60}
         renderTime={() => null}
-        // 添加正在輸入指示器
-        renderTypingIndicator={() => (
-          <View style={styles.typingContainer}>
-            <View style={styles.typingBubble}>
-              <View style={styles.typingDots}>
-                <View style={[styles.typingDot, styles.typingDot1]} />
-                <View style={[styles.typingDot, styles.typingDot2]} />
-                <View style={[styles.typingDot, styles.typingDot3]} />
-              </View>
-            </View>
-          </View>
-        )}
       />
+      
+      {/* 大便掉落遊戲覆蓋層 - 放在 GiftedChat 外面 */}
+      {isTyping && (
+        <View style={styles.gameOverlay}>
+          <LoadingWithGame isLoading={isTyping} />
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -544,52 +540,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   
-  // 正在輸入指示器
-  typingContainer: {
-    paddingHorizontal: 4, // 減少左邊距
-    paddingVertical: 8,
-    alignItems: 'flex-start',
-  },
-  
-  typingBubble: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    borderTopLeftRadius: 4,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    marginLeft: 32, // 與訊息氣泡對齊
-    elevation: 1,
-    shadowColor: '#8B4513',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 2,
-  },
-  
-  typingDots: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  
-  typingDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#A67C52',
-    marginHorizontal: 2,
-  },
-  
-  typingDot1: {
-    // 可以加動畫
-  },
-  
-  typingDot2: {
-    // 可以加動畫延遲
-  },
-  
-  typingDot3: {
-    // 可以加動畫延遲
-  },
-  
   // 彩色文字容器
   coloredTextContainer: {
     width: '100%',
@@ -720,5 +670,16 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 20,
     color: '#5D4E37',
+  },
+  
+  // 遊戲覆蓋層樣式
+  gameOverlay: {
+    position: 'absolute',
+    top: 60,  // 避開標題欄
+    left: 0,
+    right: 0,
+    bottom: 60,  // 避開輸入欄
+    backgroundColor: 'rgba(245, 230, 196, 0.95)',
+    zIndex: 1000,
   },
 });
