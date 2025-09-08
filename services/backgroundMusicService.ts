@@ -22,58 +22,85 @@ class BackgroundMusicService {
       const mutedSetting = await AsyncStorage.getItem('musicMuted');
       this.isMuted = mutedSetting === 'true';
 
+      // 總是載入音樂，但根據靜音設定決定是否播放
+      await this.loadMusic();
+      
       if (!this.isMuted) {
-        await this.loadAndPlay();
+        await this.play();
       }
     } catch (error) {
       console.error('初始化背景音樂失敗:', error);
     }
   }
 
-  async loadAndPlay() {
+  async loadMusic() {
     try {
       if (this.sound) {
         await this.sound.unloadAsync();
       }
 
-      // 載入音樂檔案
+      // 載入音樂檔案但不自動播放
       const { sound } = await Audio.Sound.createAsync(
-        require('../assets/sounds/lo-fi.wav'),  // 注意路徑
+        require('../assets/sounds/lo-fi.wav'),
         { 
           isLooping: true,
           volume: 0.3,
-          shouldPlay: true 
+          shouldPlay: false  // 改為 false
         }
       );
 
       this.sound = sound;
-      this.isPlaying = true;
-
     } catch (error) {
       console.error('載入音樂失敗:', error);
     }
   }
 
-  async toggleMute() {
-    this.isMuted = !this.isMuted;
-    await AsyncStorage.setItem('musicMuted', this.isMuted.toString());
-
-    if (this.isMuted && this.sound) {
-      await this.sound.pauseAsync();
-      this.isPlaying = false;
-    } else if (!this.isMuted) {
-      if (this.sound) {
+  async play() {
+    try {
+      if (this.sound && !this.isPlaying) {
         await this.sound.playAsync();
         this.isPlaying = true;
-      } else {
-        await this.loadAndPlay();
       }
+    } catch (error) {
+      console.error('播放音樂失敗:', error);
     }
-
-    return this.isMuted;
   }
 
-  getIsMuted() {
+  async pause() {
+    try {
+      if (this.sound && this.isPlaying) {
+        await this.sound.pauseAsync();
+        this.isPlaying = false;
+      }
+    } catch (error) {
+      console.error('暫停音樂失敗:', error);
+    }
+  }
+
+  async toggleMute(): Promise<boolean> {
+    try {
+      this.isMuted = !this.isMuted;
+      
+      if (this.isMuted) {
+        // 靜音時暫停音樂
+        await this.pause();
+      } else {
+        // 取消靜音時播放音樂
+        await this.play();
+      }
+      
+      // 儲存設定
+      await AsyncStorage.setItem('musicMuted', this.isMuted.toString());
+      
+      console.log('Music toggled, muted:', this.isMuted);
+      return this.isMuted;
+    } catch (error) {
+      console.error('Toggle mute error:', error);
+      return this.isMuted;
+    }
+  }
+
+  getIsMuted(): boolean {
     return this.isMuted;
   }
 

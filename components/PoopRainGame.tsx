@@ -6,7 +6,6 @@ import {
   Animated, 
   TouchableOpacity, 
   Dimensions,
-  Modal
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 
@@ -18,8 +17,17 @@ interface FallingPoop {
   y: Animated.Value;
   speed: number;
   size: number;
+  hitbox: number;
   type: string;
   points: number;
+}
+
+interface ScorePopup {
+  id: number;
+  x: number;
+  y: number;
+  points: number;
+  opacity: Animated.Value;
 }
 
 export const PoopRainGame = ({ 
@@ -32,6 +40,7 @@ export const PoopRainGame = ({
   const [score, setScore] = useState(0);
   const [combo, setCombo] = useState(0);
   const [poops, setPoops] = useState<FallingPoop[]>([]);
+  const [scorePopups, setScorePopups] = useState<ScorePopup[]>([]);
   const [gameActive, setGameActive] = useState(true);
   const poopIdRef = useRef(0);
   const animationsRef = useRef<Animated.CompositeAnimation[]>([]);
@@ -39,19 +48,20 @@ export const PoopRainGame = ({
   // 創建新的大便
   const createPoop = () => {
     const types = [
-      { emoji: '💩', points: 10, size: 30 },
-      { emoji: '✨', points: 20, size: 25 }, // 金色大便
-      { emoji: '🌈', points: 30, size: 35 }, // 彩虹大便
-      { emoji: '🚀', points: 50, size: 28 }, // 火箭大便
+      { emoji: '💩', points: 10, size: 40, hitbox: 70 }, 
+      { emoji: '✨', points: 20, size: 35, hitbox: 65 },
+      { emoji: '🌈', points: 30, size: 45, hitbox: 75 },
+      { emoji: '🚀', points: 50, size: 38, hitbox: 68 },
     ];
     
     const selectedType = types[Math.floor(Math.random() * types.length)];
     const poop: FallingPoop = {
       id: poopIdRef.current++,
-      x: Math.random() * (SCREEN_WIDTH - 40),
+      x: Math.random() * (SCREEN_WIDTH - 80) + 40,
       y: new Animated.Value(-50),
-      speed: 2000 + Math.random() * 2000, // 2-4 秒掉落
+      speed: 4000 + Math.random() * 2000, // 4-6秒
       size: selectedType.size,
+      hitbox: selectedType.hitbox,
       type: selectedType.emoji,
       points: selectedType.points,
     };
@@ -59,36 +69,53 @@ export const PoopRainGame = ({
     return poop;
   };
 
-  // 處理點擊
-  const handlePoopTap = (poop: FallingPoop) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  // 顯示得分彈出動畫
+  const showScorePopup = (x: number, yValue: number, points: number) => {
+    const popup: ScorePopup = {
+      id: Date.now(),
+      x,
+      y: yValue,
+      points,
+      opacity: new Animated.Value(1),
+    };
     
-    // 更新分數和連擊
-    setScore(prev => prev + poop.points * (1 + Math.floor(combo / 5)));
-    setCombo(prev => prev + 1);
+    setScorePopups(prev => [...prev, popup]);
     
-    // 移除被點擊的大便
-    setPoops(prev => prev.filter(p => p.id !== poop.id));
-    
-    // 創建爆炸效果
-    createExplosion(poop.x, poop.y._value);
+    Animated.timing(popup.opacity, {
+      toValue: 0,
+      duration: 1000,
+      useNativeDriver: true,
+    }).start(() => {
+      setScorePopups(prev => prev.filter(p => p.id !== popup.id));
+    });
   };
 
-  // 爆炸動畫效果
-  const createExplosion = (x: number, y: number) => {
-    // 這裡可以添加粒子效果
+  // 處理點擊
+  const handlePoopTap = (poop: FallingPoop) => {
+    // 震動反饋
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    
+    // 立即移除避免重複點擊
+    setPoops(prev => prev.filter(p => p.id !== poop.id));
+    
+    // 計算分數
+    const points = poop.points * (1 + Math.floor(combo / 5));
+    setScore(prev => prev + points);
+    setCombo(prev => prev + 1);
+    
+    // 顯示得分動畫
+    // @ts-ignore
+    showScorePopup(poop.x, poop.y._value, points);
   };
 
   // 遊戲循環
   useEffect(() => {
     if (!isVisible || !gameActive) return;
 
-    // 產生大便的間隔
     const spawnInterval = setInterval(() => {
       const newPoop = createPoop();
       setPoops(prev => [...prev, newPoop]);
       
-      // 動畫
       const animation = Animated.timing(newPoop.y, {
         toValue: SCREEN_HEIGHT + 100,
         duration: newPoop.speed,
@@ -97,18 +124,16 @@ export const PoopRainGame = ({
       
       animation.start(({ finished }) => {
         if (finished) {
-          // 錯過的大便重置連擊
           setCombo(0);
           setPoops(prev => prev.filter(p => p.id !== newPoop.id));
         }
       });
       
       animationsRef.current.push(animation);
-    }, 500); // 每 0.5 秒產生一個
+    }, 800); // 每0.8秒產生一個
 
     return () => {
       clearInterval(spawnInterval);
-      // 清理所有動畫
       animationsRef.current.forEach(anim => anim.stop());
       animationsRef.current = [];
     };
@@ -119,7 +144,7 @@ export const PoopRainGame = ({
     if (combo > 0) {
       const timer = setTimeout(() => {
         setCombo(0);
-      }, 3000); // 3秒後重置連擊
+      }, 3000);
       
       return () => clearTimeout(timer);
     }
@@ -149,22 +174,60 @@ export const PoopRainGame = ({
           style={[
             styles.poop,
             {
-              left: poop.x,
+              left: poop.x - poop.hitbox / 2,
               transform: [{ translateY: poop.y }],
-              width: poop.size,
-              height: poop.size,
+              width: poop.hitbox,
+              height: poop.hitbox,
             }
           ]}
         >
           <TouchableOpacity
             onPress={() => handlePoopTap(poop)}
-            style={styles.poopTouchable}
-            activeOpacity={0.8}
+            style={[styles.poopTouchable, { 
+              width: poop.hitbox, 
+              height: poop.hitbox 
+            }]}
+            activeOpacity={1}
+            hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
           >
-            <Text style={[styles.poopEmoji, { fontSize: poop.size - 5 }]}>
-              {poop.type}
-            </Text>
+            <View style={styles.poopContent}>
+              <Text style={[styles.poopEmoji, { fontSize: poop.size }]}>
+                {poop.type}
+              </Text>
+              {/* 調試用 - 顯示點擊區域 */}
+              {__DEV__ && (
+                <View style={[styles.debugHitbox, { 
+                  width: poop.hitbox, 
+                  height: poop.hitbox 
+                }]} />
+              )}
+            </View>
           </TouchableOpacity>
+        </Animated.View>
+      ))}
+
+      {/* 得分彈出動畫 */}
+      {scorePopups.map(popup => (
+        <Animated.View
+          key={popup.id}
+          style={[
+            styles.scorePopup,
+            {
+              left: popup.x - 20,
+              top: popup.y,
+              opacity: popup.opacity,
+              transform: [
+                {
+                  translateY: popup.opacity.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [-30, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          <Text style={styles.scorePopupText}>+{popup.points}</Text>
         </Animated.View>
       ))}
 
@@ -185,12 +248,10 @@ export const LoadingWithGame = ({ isLoading }: { isLoading: boolean }) => {
 
   useEffect(() => {
     if (isLoading) {
-      // 顯示遊戲
       const timer = setTimeout(() => {
         setShowGame(true);
-      }, 1000); // 1秒後顯示遊戲
+      }, 1000);
 
-      // 載入動畫
       Animated.loop(
         Animated.sequence([
           Animated.timing(loadingDots, {
@@ -316,13 +377,36 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   poopTouchable: {
-    width: '100%',
-    height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
   },
+  poopContent: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
+    height: '100%',
+  },
   poopEmoji: {
     textAlign: 'center',
+  },
+  debugHitbox: {
+    position: 'absolute',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 0, 0, 0.2)',
+    borderStyle: 'dashed',
+    backgroundColor: 'rgba(255, 0, 0, 0.05)',
+  },
+  scorePopup: {
+    position: 'absolute',
+    backgroundColor: 'rgba(255, 215, 0, 0.9)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 15,
+  },
+  scorePopupText: {
+    color: '#FFF',
+    fontWeight: 'bold',
+    fontSize: 16,
   },
   specialEffect: {
     position: 'absolute',

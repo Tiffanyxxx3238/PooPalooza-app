@@ -12,10 +12,17 @@ export default function ProfileScreen() {
   const router = useRouter();
   const { username, email, logout } = useUserStore();
   const { entries, longestStreak } = usePoopStore();
+  
+  // 所有開關的狀態
   const [isMusicOn, setIsMusicOn] = useState(true);
+  const [achievementAlerts, setAchievementAlerts] = useState(true);
+  const [stickersInAlerts, setStickersInAlerts] = useState(true);
+  const [sharingEnabled, setSharingEnabled] = useState(false);
+  
   useEffect(() => {
     setIsMusicOn(!backgroundMusicService.getIsMuted());
   }, []);
+  
   const avgMinutes =
     entries.length > 0
       ? Math.round(
@@ -27,16 +34,24 @@ export default function ProfileScreen() {
     logout();
     router.replace('/');
   };
+  
   const handleMusicToggle = async () => {
-    const muted = await backgroundMusicService.toggleMute();
-    setIsMusicOn(!muted);
+    try {
+      console.log('Toggle pressed, current state:', isMusicOn);
+      const muted = await backgroundMusicService.toggleMute();
+      setIsMusicOn(!muted);
+      console.log('New state:', !muted ? 'ON' : 'OFF');
+    } catch (error) {
+      console.error('Failed to toggle music:', error);
+      setIsMusicOn(!isMusicOn);
+    }
   };
 
   return (
     <>
       <Stack.Screen options={{ title: 'Profile' }} />
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-        {/* 🔵 使用者資訊 */}
+        {/* 使用者資訊 */}
         <View style={styles.profileHeader}>
           <View style={styles.avatarContainer}>
             <User size={40} color={Colors.primary.accent} />
@@ -52,15 +67,17 @@ export default function ProfileScreen() {
           <Divider />
           <Stat label="Avg Minutes" value={avgMinutes} />
         </View>
-        {/* 👇 新增音樂設定區 */}
+        
+        {/* 音樂設定 */}
         <Section title="Sound Settings">
           <Row 
-            label="Background Music 🎵"  // 直接在標籤加入 emoji
+            label="Background Music 🎵"
             switchValue={isMusicOn}
             onPress={handleMusicToggle}
           />
         </Section>
-        {/* 🔔 通知設定區 */}
+        
+        {/* 通知設定 */}
         <Section title="Notifications">
           <Row
             label="Poop Reminders"
@@ -70,31 +87,43 @@ export default function ProfileScreen() {
             label="Notification Sounds"
             onPress={() => router.push('/notification-sounds')}
           />
-          <Row label="Achievement Alerts" switchValue />
-          <Row label="Stickers in Alerts" switchValue />
+          <Row 
+            label="Achievement Alerts" 
+            switchValue={achievementAlerts}
+            onPress={() => setAchievementAlerts(!achievementAlerts)}
+          />
+          <Row 
+            label="Stickers in Alerts" 
+            switchValue={stickersInAlerts}
+            onPress={() => setStickersInAlerts(!stickersInAlerts)}
+          />
         </Section>
 
-        {/* 🎨 外觀設定 */}
+        {/* 外觀設定 */}
         <Section title="Appearance">
           <Row label="Theme" right="Light" icon={<Moon size={18} color={Colors.primary.text} />} />
-          <Row label="Sharing Enabled" switchValue />
+          <Row 
+            label="Sharing Enabled" 
+            switchValue={sharingEnabled}
+            onPress={() => setSharingEnabled(!sharingEnabled)}
+          />
         </Section>
 
-        {/* ⚙️ 一般設定 */}
+        {/* 一般設定 */}
         <Section title="General">
           <Row label="Sync with Health" right="On" />
           <Row label="iCloud Backup" right="On" />
           <Row label="Reset Time" right="12:00 AM" />
         </Section>
 
-        {/* 💬 支援 */}
+        {/* 支援 */}
         <Section title="Support">
           <Row label="Help Center" icon={<HelpCircle size={18} color={Colors.primary.text} />} />
           <Row label="Rate Us" icon={<Star size={18} color={Colors.primary.text} />} />
           <Row label="Share App" icon={<Share2 size={18} color={Colors.primary.text} />} />
         </Section>
 
-        {/* 🚪 登出按鈕 */}
+        {/* 登出按鈕 */}
         <View style={styles.logoutContainer}>
           <Button
             title="Log Out"
@@ -153,8 +182,8 @@ function Row({
   return (
     <View style={styles.rowWrapper}>
       <TouchableOpacity 
-        onPress={switchValue !== undefined && onPress ? onPress : onPress} 
-        disabled={!onPress} 
+        onPress={switchValue !== undefined ? undefined : onPress}
+        disabled={switchValue !== undefined || !onPress}
         style={styles.row}
       >
         <View style={styles.rowLeft}>
@@ -163,8 +192,12 @@ function Row({
         </View>
         {switchValue !== undefined ? (
           <Switch 
-            value={switchValue}  // 👈 改為使用傳入的值
-            onValueChange={onPress}  // 👈 處理變更
+            value={switchValue}
+            onValueChange={() => {
+              if (onPress) onPress();
+            }}
+            trackColor={{ false: '#767577', true: Colors.primary.accent }}
+            thumbColor={switchValue ? '#f4f3f4' : '#f4f3f4'}
           />
         ) : (
           <Text style={styles.rowRight}>{right}</Text>
