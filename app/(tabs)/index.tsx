@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, Platform, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, Platform, Alert,LogBox } from 'react-native';
 import { useRouter } from 'expo-router';
 import { usePoopStore } from '@/store/poopStore';
 import { useUserStore } from '@/store/userStore';
@@ -9,6 +9,7 @@ import Timer from '@/components/Timer';
 import { User } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { API_CONFIG } from '@/config';
+import cloudinaryService from '@/services/cloudinaryService';
 
 export default function TrackerScreen() {
   const router = useRouter();
@@ -23,7 +24,7 @@ export default function TrackerScreen() {
   const [dbRecordCount, setDbRecordCount] = useState(0);
   const [healthPercentage, setHealthPercentage] = useState(0);
   const [currentStreak, setCurrentStreak] = useState(0);
-
+  const [isCloudinaryConfigured, setIsCloudinaryConfigured] = useState(false);
   // Fetch user's records from database
   useEffect(() => {
     const fetchUserRecords = async () => {
@@ -71,7 +72,29 @@ export default function TrackerScreen() {
       fetchUserRecords();
     }
   }, [currentUserId]);
-
+useEffect(() => {
+    checkCloudinarySetup();
+  }, [currentUserId]);
+  
+  const checkCloudinarySetup = async () => {
+    const config = await cloudinaryService.loadConfig();
+    setIsCloudinaryConfigured(config !== null);
+    
+    // 提示使用者設定（延遲顯示避免干擾）
+    if (currentUserId && !config) {
+      setTimeout(() => {
+        Alert.alert(
+          '☁️ Setup Cloud Storage',
+          'Would you like to setup free cloud storage?\nThis way you can view your photos even when switching phones!',
+          [
+            { text: 'Later', style: 'cancel' },
+            { text: 'Setup Now', onPress: () => router.push('/cloudinary-setup') }
+          ]
+        );
+      }, 3000);
+    }
+  };
+LogBox.ignoreLogs(['useInsertionEffect must not schedule updates']);
   // Calculate streak function
   const calculateStreak = (records: any[]) => {
     if (records.length === 0) return 0;
@@ -156,9 +179,21 @@ export default function TrackerScreen() {
     });
     
     if (!result.canceled) {
+      const localUri = result.assets[0].uri;
+      let finalUri = localUri;
+      
+      // 👇 加入 Cloudinary 上傳邏輯
+      if (isCloudinaryConfigured) {
+        const uploadResult = await cloudinaryService.uploadImage(localUri, currentUserId);
+        if (uploadResult.success && uploadResult.url) {
+          finalUri = uploadResult.url;
+          console.log('✅ 已上傳到雲端:', finalUri);
+        }
+      }
+      
       router.push({ 
         pathname: '/add-entry', 
-        params: { imageUri: result.assets[0].uri } 
+        params: { imageUri: finalUri }  // 👈 使用 finalUri
       });
     }
   };
@@ -179,7 +214,18 @@ export default function TrackerScreen() {
     });
     
     if (!result.canceled) {
-      setSelectedImage(result.assets[0].uri);
+      let finalUri = result.assets[0].uri;
+      
+      // 👇 加入 Cloudinary 上傳邏輯
+      if (isCloudinaryConfigured) {
+        const uploadResult = await cloudinaryService.uploadImage(finalUri, currentUserId);
+        if (uploadResult.success && uploadResult.url) {
+          finalUri = uploadResult.url;
+          console.log('✅ 已上傳到雲端:', finalUri);
+        }
+      }
+      
+      setSelectedImage(finalUri);  // 👈 使用 finalUri
       setShowImageConfirmation(true);
     }
   };
@@ -216,6 +262,19 @@ export default function TrackerScreen() {
           <User size={24} color={Colors.primary.accent} />
         </TouchableOpacity>
       </View>
+            {currentUserId && (
+        <TouchableOpacity 
+          style={[
+            styles.cloudIndicator,
+            isCloudinaryConfigured ? styles.cloudOn : styles.cloudOff
+          ]}
+          onPress={() => router.push('/cloudinary-setup')}
+        >
+          <Text style={styles.cloudText}>
+            {isCloudinaryConfigured ? '☁️ Cloud Storage Active' : '📱 Device Only (Tap to Configure)'}
+          </Text>
+        </TouchableOpacity>
+      )}
 
       {/* Summary Section - Now showing database data */}
       <View style={styles.summaryContainer}>
@@ -527,5 +586,22 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.primary.lightText,
     lineHeight: 20,
+  },
+  cloudIndicator: {
+    marginHorizontal: 16,
+    marginBottom: 8,
+    padding: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  cloudOn: {
+    backgroundColor: '#E8F5E8',
+  },
+  cloudOff: {
+    backgroundColor: '#FFF3E0',
+  },
+  cloudText: {
+    fontSize: 13,
+    fontWeight: '500',
   },
 });

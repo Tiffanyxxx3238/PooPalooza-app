@@ -15,4 +15,5 @@ export interface PoopEntry {
   ai_diagnosis_summary?: string;
   health_recommendations?: string;
   health_indicators?: string;
+  duration?: number; 
 }

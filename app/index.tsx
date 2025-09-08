@@ -6,12 +6,12 @@ import Colors from '@/constants/colors';
 import Button from '@/components/Button';
 import { LinearGradient } from 'expo-linear-gradient';
 import ChatScreen from '@/components/ChatScreen';
+import cloudinaryService from '@/services/cloudinaryService';
 
 export default function WelcomeScreen() {
   const router = useRouter();
   const isLoggedIn = useUserStore((state) => state.isLoggedIn);
   const [showChat, setShowChat] = useState(false);
-
   useEffect(() => {
     if (isLoggedIn) {
       router.replace('/(tabs)');

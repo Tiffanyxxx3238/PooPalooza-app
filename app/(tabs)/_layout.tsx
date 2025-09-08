@@ -1,9 +1,18 @@
-import React from 'react';
+import React, { useEffect } from 'react'; 
 import { Tabs } from 'expo-router';
 import Colors from '@/constants/colors';
 import { MapPin, BookOpen, Trophy, BarChart, Clock } from 'lucide-react-native';
-
+import backgroundMusicService from '@/services/backgroundMusicService';
 export default function TabLayout() {
+   useEffect(() => {
+    // 初始化背景音樂
+    backgroundMusicService.initialize();
+
+    // 清理函數
+    return () => {
+      backgroundMusicService.cleanup();
+    };
+  }, []);
   return (
     <Tabs
       screenOptions={{

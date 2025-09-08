@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, Switch, TouchableOpacity } from 'react-native';
 import { useRouter, Stack } from 'expo-router';
 import { useUserStore } from '@/store/userStore';
@@ -6,20 +6,30 @@ import { usePoopStore } from '@/store/poopStore';
 import Colors from '@/constants/colors';
 import Button from '@/components/Button';
 import { User, Bell, Moon, Star, Share2, HelpCircle, LogOut } from 'lucide-react-native';
+import backgroundMusicService from '@/services/backgroundMusicService';
 
 export default function ProfileScreen() {
   const router = useRouter();
   const { username, email, logout } = useUserStore();
   const { entries, longestStreak } = usePoopStore();
-
+  const [isMusicOn, setIsMusicOn] = useState(true);
+  useEffect(() => {
+    setIsMusicOn(!backgroundMusicService.getIsMuted());
+  }, []);
   const avgMinutes =
     entries.length > 0
-      ? Math.round(entries.reduce((sum, entry) => sum + entry.duration, 0) / entries.length / 60)
+      ? Math.round(
+          entries.reduce((sum, entry) => sum + (entry.duration || 0), 0) / entries.length / 60
+        )
       : 0;
 
   const handleLogout = () => {
     logout();
     router.replace('/');
+  };
+  const handleMusicToggle = async () => {
+    const muted = await backgroundMusicService.toggleMute();
+    setIsMusicOn(!muted);
   };
 
   return (
@@ -42,7 +52,14 @@ export default function ProfileScreen() {
           <Divider />
           <Stat label="Avg Minutes" value={avgMinutes} />
         </View>
-
+        {/* 👇 新增音樂設定區 */}
+        <Section title="Sound Settings">
+          <Row 
+            label="Background Music 🎵"  // 直接在標籤加入 emoji
+            switchValue={isMusicOn}
+            onPress={handleMusicToggle}
+          />
+        </Section>
         {/* 🔔 通知設定區 */}
         <Section title="Notifications">
           <Row
@@ -135,13 +152,20 @@ function Row({
 }) {
   return (
     <View style={styles.rowWrapper}>
-      <TouchableOpacity onPress={onPress} disabled={!onPress} style={styles.row}>
+      <TouchableOpacity 
+        onPress={switchValue !== undefined && onPress ? onPress : onPress} 
+        disabled={!onPress} 
+        style={styles.row}
+      >
         <View style={styles.rowLeft}>
           {icon && <View style={{ marginRight: 10 }}>{icon}</View>}
           <Text style={styles.rowLabel}>{label}</Text>
         </View>
         {switchValue !== undefined ? (
-          <Switch value={true} />
+          <Switch 
+            value={switchValue}  // 👈 改為使用傳入的值
+            onValueChange={onPress}  // 👈 處理變更
+          />
         ) : (
           <Text style={styles.rowRight}>{right}</Text>
         )}

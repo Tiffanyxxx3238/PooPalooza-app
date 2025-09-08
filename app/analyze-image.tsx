@@ -330,7 +330,11 @@ const EnhancedPoopColorSelector = ({
                 isSelected && styles.selectedColorOption,
                 isAIDetected && styles.aiDetectedColorOption,
               ]}
-              onPress={() => onSelectColor(colorItem.id)}
+              onPress={() => {
+                requestAnimationFrame(() => {
+                  onSelectColor(colorItem.id);
+                });
+              }}
             >
               <View 
                 style={[
@@ -539,12 +543,20 @@ const SmartNonPoopDetectionDisplay = ({ result, onRetake, onSelectOther }: {
       <View style={styles.actionButtonsContainer}>
         <Button
           title="Retake the picture"
-          onPress={onRetake}
+          onPress={() => {
+            requestAnimationFrame(() => {
+              onRetake();
+            });
+          }}
           style={styles.retakeButton}
         />
         <Button
           title="Select a different picture"
-          onPress={onSelectOther}
+          onPress={() => {
+            requestAnimationFrame(() => {
+              onSelectOther();
+            });
+          }}
           variant="outline"
           style={styles.selectOtherButton}
         />
