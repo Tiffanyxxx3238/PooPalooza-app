@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect,useRef } from 'react';
 import { 
   View, 
   Text, 
@@ -20,6 +20,12 @@ import Colors from '@/constants/colors';
 import PoopCard from '@/components/PoopCard';
 import API_BASE_URL from '@/config';
 import { useUserStore } from '@/store/userStore';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
+import * as Print from 'expo-print';
+import ViewShot from 'react-native-view-shot';
+import XLSX from 'xlsx';
+
 
 // 簡化的圖標組件
 const ChevronLeft = () => <Text style={{fontSize: 24, color: Colors.primary.text}}>‹</Text>;
@@ -43,6 +49,7 @@ export default function LibraryScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const viewShotRef = useRef<ViewShot>(null);
   
   const currentUserId = user_id;
   const entries = dbPoopRecords.length > 0 ? dbPoopRecords : localEntries;
@@ -497,9 +504,743 @@ export default function LibraryScreen() {
     setShowImages(newState);
   };
   
-  const handleExport = () => {
-    alert('Export functionality would be implemented here');
-  };
+const handleExport = () => {
+  Alert.alert(
+    'Export Records',
+    'Choose export format',
+    [
+      {
+        text: 'Cancel',
+        style: 'cancel',
+      },
+      {
+        text: 'Excel',
+        onPress: () => exportToExcel(),
+      },
+      {
+        text: 'PDF',
+        onPress: () => exportToPDF(),
+      },
+    ],
+    { cancelable: true }
+  );
+};
+
+const exportToExcel = async () => {
+  try {
+    setIsLoading(true);
+    
+    // 準備完整的資料 - 加入安全檢查
+    const exportData = entries.map(entry => ({
+      'ID': entry.id || '',
+      'Date': new Date(entry.date).toLocaleDateString(),
+      'Time': new Date(entry.date).toLocaleTimeString(),
+      'Bristol Scale': entry.originalRecord?.bristol_scale || (entry.type ? String(entry.type).replace('Type ', '') : ''),
+      'Color': entry.originalRecord?.color || entry.color || '',
+      'Consistency': entry.originalRecord?.consistency || '',
+      'Volume': entry.originalRecord?.volume || entry.volume || '',
+      'Odor': entry.originalRecord?.odor || '',
+      'Notes': entry.originalRecord?.notes || entry.notes || '',
+      'AI Type Analysis': entry.originalRecord?.ai_poop_type || '',
+      'AI Color Analysis': entry.originalRecord?.ai_poop_color || '',
+      'AI Volume Analysis': entry.originalRecord?.ai_poop_volume || '',
+      'AI Diagnosis Summary': entry.originalRecord?.ai_diagnosis_summary || '',
+      'Health Recommendations': entry.originalRecord?.health_recommendations || '',
+      'Health Indicators': entry.originalRecord?.health_indicators || '',
+      'Image URL': entry.originalRecord?.image_url || entry.image || '',
+    }));
+
+    // 建立工作表
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Poop Records');
+
+    // 轉換為 base64
+    const wbout = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
+    
+    // 儲存檔案
+    const fileName = `poop_records_${new Date().toISOString().split('T')[0]}.xlsx`;
+    const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+    
+    await FileSystem.writeAsStringAsync(fileUri, wbout, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+
+    // 分享檔案
+    if (await Sharing.isAvailableAsync()) {
+      await Sharing.shareAsync(fileUri);
+    } else {
+      Alert.alert('Success', `File saved to: ${fileUri}`);
+    }
+
+  } catch (error) {
+    console.error('Export to Excel error:', error);
+    Alert.alert('Export Failed', 'Failed to export Excel file');
+  } finally {
+    setIsLoading(false);
+  }
+};
+
+// 匯出為 PDF
+const exportToPDF = async () => {
+  try {
+    setIsLoading(true);
+
+    // 建立可愛風格的 HTML 內容（英文版）
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <title>My Poop Diary</title>
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=Comic+Neue:wght@400;700&display=swap');
+            
+            body {
+              font-family: 'Comic Neue', cursive, Arial, sans-serif;
+              padding: 30px;
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              color: #333;
+            }
+            
+            .container {
+              background: white;
+              border-radius: 20px;
+              padding: 30px;
+              box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            }
+            
+            h1 {
+              color: #8B4513;
+              text-align: center;
+              font-size: 36px;
+              margin-bottom: 10px;
+              text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+            }
+            
+            .subtitle {
+              text-align: center;
+              color: #666;
+              font-size: 18px;
+              margin-bottom: 30px;
+            }
+            
+            .stats {
+              background: linear-gradient(135deg, #FFF8DC 0%, #F5DEB3 100%);
+              padding: 20px;
+              border-radius: 15px;
+              margin: 20px 0;
+              border: 2px solid #DEB887;
+            }
+            
+            .stats h2 {
+              color: #8B4513;
+              margin-bottom: 15px;
+              font-size: 24px;
+            }
+            
+            .stat-grid {
+              display: grid;
+              grid-template-columns: repeat(3, 1fr);
+              gap: 15px;
+            }
+            
+            .stat-item {
+              text-align: center;
+              padding: 10px;
+              background: white;
+              border-radius: 10px;
+            }
+            
+            .stat-number {
+              font-size: 24px;
+              font-weight: bold;
+              color: #8B4513;
+            }
+            
+            .stat-label {
+              font-size: 14px;
+              color: #666;
+              margin-top: 5px;
+            }
+            
+            .record {
+              background: #FFFAF0;
+              border: 2px solid #DEB887;
+              padding: 20px;
+              margin: 15px 0;
+              border-radius: 15px;
+              page-break-inside: avoid;
+              position: relative;
+            }
+            
+            .record-header {
+              display: flex;
+              justify-content: space-between;
+              margin-bottom: 15px;
+              font-weight: bold;
+              color: #8B4513;
+            }
+            
+            .tag {
+              display: inline-block;
+              padding: 6px 12px;
+              margin: 3px;
+              border-radius: 20px;
+              font-size: 14px;
+              font-weight: 600;
+            }
+            
+            .type-1 { background: #FFCDD2; color: #C62828; }
+            .type-2 { background: #FFE0B2; color: #E65100; }
+            .type-3 { background: #FFF9C4; color: #F57F17; }
+            .type-4 { background: #E8F5E8; color: #2E7D32; }
+            .type-5 { background: #E1F5FE; color: #0277BD; }
+            .type-6 { background: #F3E5F5; color: #7B1FA2; }
+            .type-7 { background: #FCE4EC; color: #AD1457; }
+            
+            .easy { background: #C8E6C9; color: #2E7D32; }
+            .medium { background: #FFE082; color: #F57C00; }
+            .difficult { background: #FFCDD2; color: #C62828; }
+            
+            .small { background: #E1F5FE; color: #0277BD; }
+            .medium-size { background: #FFF9C4; color: #F57F17; }
+            .large { background: #FFE0B2; color: #E65100; }
+            
+            .notes {
+              margin-top: 10px;
+              padding: 10px;
+              background: white;
+              border-radius: 10px;
+              font-style: italic;
+              color: #555;
+            }
+            
+            .ai-analysis {
+              margin-top: 10px;
+              padding: 10px;
+              background: #E3F2FD;
+              border-radius: 10px;
+              border-left: 4px solid #2196F3;
+            }
+            
+            .poop-emoji {
+              position: absolute;
+              top: 10px;
+              right: 10px;
+              font-size: 30px;
+              opacity: 0.8;
+            }
+            
+            .footer {
+              margin-top: 40px;
+              text-align: center;
+              padding: 20px;
+              background: linear-gradient(135deg, #FFF8DC 0%, #F5DEB3 100%);
+              border-radius: 15px;
+            }
+            
+            .footer-emoji {
+              font-size: 40px;
+              margin: 10px 0;
+            }
+            
+            .footer-text {
+              color: #8B4513;
+              font-size: 16px;
+              font-weight: bold;
+            }
+            
+            .footer-date {
+              color: #666;
+              font-size: 14px;
+              margin-top: 10px;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <h1>💩 My Poop Diary 💩</h1>
+            <div class="subtitle">Recording Every Beautiful Moment</div>
+            
+            <div class="stats">
+              <h2>📊 Statistics Summary</h2>
+              <div class="stat-grid">
+                <div class="stat-item">
+                  <div class="stat-number">${entries.length}</div>
+                  <div class="stat-label">Total Records</div>
+                </div>
+                <div class="stat-item">
+                  <div class="stat-number">${entries.length > 0 ? (entries.length / 30).toFixed(1) : 0}</div>
+                  <div class="stat-label">Avg per Day</div>
+                </div>
+                <div class="stat-item">
+                  <div class="stat-number">${currentUserId || 'Guest'}</div>
+                  <div class="stat-label">User</div>
+                </div>
+              </div>
+            </div>
+
+            <h2 style="color: #8B4513; margin-top: 30px;">📝 Detailed Records</h2>
+            ${entries.slice(0, 50).map(entry => {
+              // 安全地處理 type
+              const typeStr = entry.type || '';
+              const typeNum = entry.originalRecord?.bristol_scale || 
+                            (typeStr ? typeStr.replace(/[^0-9]/g, '') : '') || 
+                            '4';
+              const volumeClass = entry.volume === 'Small' ? 'small' : 
+                                entry.volume === 'Large' ? 'large' : 'medium-size';
+              
+              return `
+                <div class="record">
+                  <span class="poop-emoji">💩</span>
+                  <div class="record-header">
+                    <span>📅 ${new Date(entry.date).toLocaleDateString()}</span>
+                    <span>⏰ ${new Date(entry.date).toLocaleTimeString()}</span>
+                  </div>
+                  <div>
+                    <span class="tag type-${typeNum}">Bristol ${typeNum}</span>
+                    <span class="tag ${entry.difficulty || 'medium'}">${
+                      entry.difficulty === 'easy' ? '😌 Easy' : 
+                      entry.difficulty === 'difficult' ? '😣 Difficult' : '😐 Medium'
+                    }</span>
+                    <span class="tag ${volumeClass}">${
+                      entry.volume === 'Small' ? '🔹 Small' :
+                      entry.volume === 'Large' ? '🔷 Large' : '🔶 Medium'
+                    }</span>
+                    ${entry.originalRecord?.color ? `<span class="tag">🎨 ${entry.originalRecord.color}</span>` : ''}
+                    ${entry.originalRecord?.odor ? `<span class="tag">👃 ${entry.originalRecord.odor}</span>` : ''}
+                  </div>
+                  ${entry.notes ? `<div class="notes">📝 ${entry.notes}</div>` : ''}
+                  ${entry.originalRecord?.ai_diagnosis_summary ? 
+                    `<div class="ai-analysis">🤖 AI Analysis: ${entry.originalRecord.ai_diagnosis_summary}</div>` : ''}
+                  ${entry.originalRecord?.health_recommendations ? 
+                    `<div class="ai-analysis">💡 Health Tips: ${entry.originalRecord.health_recommendations}</div>` : ''}
+                </div>
+              `;
+            }).join('')}
+            
+            ${entries.length > 50 ? `<p style="text-align: center; color: #666;">... ${entries.length - 50} more records not shown ...</p>` : ''}
+
+            <div class="footer">
+              <div class="footer-emoji">🚽 💩 🧻</div>
+              <div class="footer-text">Poopalooza - Your Personal Poop Tracker</div>
+              <div class="footer-date">Report Generated: ${new Date().toLocaleString()}</div>
+            </div>
+          </div>
+        </body>
+      </html>
+    `;
+
+    // 產生 PDF
+    const { uri } = await Print.printToFileAsync({ 
+      html: htmlContent,
+      base64: false
+    });
+
+    // 分享 PDF
+    if (await Sharing.isAvailableAsync()) {
+      await Sharing.shareAsync(uri);
+    } else {
+      Alert.alert('Success', `PDF saved to: ${uri}`);
+    }
+
+  } catch (error) {
+    console.error('Export to PDF error:', error);
+    Alert.alert('Export Failed', 'Failed to export PDF file');
+  } finally {
+    setIsLoading(false);
+  }
+};
+
+// 匯出為圖片
+const exportToImage = async () => {
+  try {
+    setIsLoading(true);
+
+    // 建立一個簡單的統計圖表視圖
+    Alert.alert(
+      'Export as Image',
+      'Choose what to export',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Current View',
+          onPress: async () => {
+            if (viewShotRef.current) {
+              const uri = await viewShotRef.current.capture();
+              
+              if (await Sharing.isAvailableAsync()) {
+                await Sharing.shareAsync(uri);
+              } else {
+                Alert.alert('Success', `Image saved to: ${uri}`);
+              }
+            }
+          },
+        },
+        {
+          text: 'Statistics Chart',
+          onPress: () => exportStatisticsImage(),
+        },
+      ]
+    );
+
+  } catch (error) {
+    console.error('Export to image error:', error);
+    Alert.alert('Export Failed', 'Failed to export image');
+  } finally {
+    setIsLoading(false);
+  }
+};
+
+// 匯出統計圖表為圖片
+const exportStatisticsImage = async () => {
+  try {
+    setIsLoading(true);
+    
+    // Calculate statistics
+    const typeStats = entries.reduce((acc, entry) => {
+      const type = entry.type || 'Unknown';
+      acc[type] = (acc[type] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
+    const difficultyStats = entries.reduce((acc, entry) => {
+      const difficulty = entry.difficulty || 'unknown';
+      acc[difficulty] = (acc[difficulty] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
+    // Create beautiful HTML chart
+    const chartHtml = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <title>Poop Statistics</title>
+          <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=Comic+Neue:wght@400;700&display=swap');
+            
+            body {
+              font-family: 'Comic Neue', cursive, Arial, sans-serif;
+              padding: 20px;
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              margin: 0;
+            }
+            
+            .container {
+              background: white;
+              border-radius: 20px;
+              padding: 30px;
+              box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+              max-width: 1200px;
+              margin: 0 auto;
+            }
+            
+            h1 {
+              color: #8B4513;
+              text-align: center;
+              font-size: 32px;
+              margin-bottom: 30px;
+              text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+            }
+            
+            .stats-summary {
+              display: grid;
+              grid-template-columns: repeat(3, 1fr);
+              gap: 20px;
+              margin-bottom: 30px;
+            }
+            
+            .stat-card {
+              background: linear-gradient(135deg, #FFF8DC 0%, #F5DEB3 100%);
+              padding: 20px;
+              border-radius: 15px;
+              text-align: center;
+              border: 2px solid #DEB887;
+              box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            }
+            
+            .stat-emoji {
+              font-size: 32px;
+              margin-bottom: 10px;
+            }
+            
+            .stat-number {
+              font-size: 36px;
+              font-weight: bold;
+              color: #8B4513;
+              margin: 10px 0;
+            }
+            
+            .stat-label {
+              font-size: 16px;
+              color: #666;
+              margin-top: 5px;
+            }
+            
+            .chart-container {
+              position: relative;
+              height: 400px;
+              margin: 30px 0;
+              background: #FFFAF0;
+              padding: 20px;
+              border-radius: 15px;
+              border: 2px solid #DEB887;
+              box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            }
+            
+            .footer {
+              text-align: center;
+              margin-top: 30px;
+              padding: 20px;
+              background: linear-gradient(135deg, #FFF8DC 0%, #F5DEB3 100%);
+              border-radius: 15px;
+              border: 2px solid #DEB887;
+            }
+            
+            .footer-emoji {
+              font-size: 40px;
+              margin: 10px 0;
+            }
+            
+            .footer-text {
+              color: #8B4513;
+              font-size: 16px;
+              font-weight: bold;
+              margin: 10px 0;
+            }
+            
+            .footer-date {
+              color: #666;
+              font-size: 14px;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <h1>💩 Poopalooza Statistics Report 💩</h1>
+            
+            <div class="stats-summary">
+              <div class="stat-card">
+                <div class="stat-emoji">💩</div>
+                <div class="stat-number">${entries.length}</div>
+                <div class="stat-label">Total Poops</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-emoji">📊</div>
+                <div class="stat-number">${Object.keys(typeStats).length}</div>
+                <div class="stat-label">Different Types</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-emoji">📅</div>
+                <div class="stat-number">${(entries.length / 30).toFixed(1)}</div>
+                <div class="stat-label">Daily Average</div>
+              </div>
+            </div>
+            
+            <div class="chart-container">
+              <canvas id="typeChart"></canvas>
+            </div>
+            
+            <div class="chart-container">
+              <canvas id="difficultyChart"></canvas>
+            </div>
+            
+            <div class="footer">
+              <div class="footer-emoji">🚽 💩 🧻</div>
+              <div class="footer-text">Poopalooza - Your Personal Poop Tracker</div>
+              <div class="footer-date">Generated on ${new Date().toLocaleString()}</div>
+            </div>
+          </div>
+
+          <script>
+            // Bristol Type Distribution - Doughnut Chart
+            new Chart(document.getElementById('typeChart'), {
+              type: 'doughnut',
+              data: {
+                labels: ${JSON.stringify(Object.keys(typeStats))},
+                datasets: [{
+                  data: ${JSON.stringify(Object.values(typeStats))},
+                  backgroundColor: [
+                    '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', 
+                    '#9966FF', '#FF9F40', '#FF6B6B', '#C9CBCF'
+                  ],
+                  borderWidth: 3,
+                  borderColor: '#fff',
+                  hoverOffset: 10
+                }]
+              },
+              options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                  title: {
+                    display: true,
+                    text: 'Bristol Scale Distribution',
+                    font: {
+                      size: 20,
+                      weight: 'bold',
+                      family: "'Comic Neue', cursive"
+                    },
+                    color: '#8B4513',
+                    padding: 20
+                  },
+                  legend: {
+                    position: 'bottom',
+                    labels: {
+                      padding: 15,
+                      font: {
+                        size: 14,
+                        family: "'Comic Neue', cursive"
+                      },
+                      generateLabels: function(chart) {
+                        const data = chart.data;
+                        if (data.labels.length && data.datasets.length) {
+                          return data.labels.map((label, i) => {
+                            const value = data.datasets[0].data[i];
+                            const total = data.datasets[0].data.reduce((a, b) => a + b, 0);
+                            const percentage = ((value / total) * 100).toFixed(1);
+                            return {
+                              text: label + ' (' + percentage + '%)',
+                              fillStyle: data.datasets[0].backgroundColor[i],
+                              hidden: false,
+                              index: i
+                            };
+                          });
+                        }
+                        return [];
+                      }
+                    }
+                  },
+                  tooltip: {
+                    callbacks: {
+                      label: function(context) {
+                        const label = context.label || '';
+                        const value = context.parsed;
+                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                        const percentage = ((value / total) * 100).toFixed(1);
+                        return label + ': ' + value + ' (' + percentage + '%)';
+                      }
+                    }
+                  }
+                }
+              }
+            });
+
+            // Difficulty Distribution - Bar Chart
+            const difficultyLabels = ${JSON.stringify(Object.keys(difficultyStats).map(d => 
+              d === 'easy' ? '😌 Easy' : 
+              d === 'difficult' ? '😣 Difficult' : 
+              d === 'medium' ? '😐 Medium' : d
+            ))};
+            
+            new Chart(document.getElementById('difficultyChart'), {
+              type: 'bar',
+              data: {
+                labels: difficultyLabels,
+                datasets: [{
+                  label: 'Number of Poops',
+                  data: ${JSON.stringify(Object.values(difficultyStats))},
+                  backgroundColor: [
+                    'rgba(76, 175, 80, 0.8)',
+                    'rgba(255, 193, 7, 0.8)',
+                    'rgba(244, 67, 54, 0.8)'
+                  ],
+                  borderColor: [
+                    'rgba(76, 175, 80, 1)',
+                    'rgba(255, 193, 7, 1)',
+                    'rgba(244, 67, 54, 1)'
+                  ],
+                  borderWidth: 2,
+                  borderRadius: 10
+                }]
+              },
+              options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                  title: {
+                    display: true,
+                    text: 'Difficulty Distribution',
+                    font: {
+                      size: 20,
+                      weight: 'bold',
+                      family: "'Comic Neue', cursive"
+                    },
+                    color: '#8B4513',
+                    padding: 20
+                  },
+                  legend: {
+                    display: false
+                  },
+                  tooltip: {
+                    callbacks: {
+                      label: function(context) {
+                        return 'Count: ' + context.parsed.y;
+                      }
+                    }
+                  }
+                },
+                scales: {
+                  y: {
+                    beginAtZero: true,
+                    grid: {
+                      color: 'rgba(0,0,0,0.1)',
+                      borderDash: [5, 5]
+                    },
+                    ticks: {
+                      font: {
+                        family: "'Comic Neue', cursive",
+                        size: 12
+                      }
+                    }
+                  },
+                  x: {
+                    grid: {
+                      display: false
+                    },
+                    ticks: {
+                      font: {
+                        family: "'Comic Neue', cursive",
+                        size: 14,
+                        weight: 'bold'
+                      }
+                    }
+                  }
+                }
+              }
+            });
+          </script>
+        </body>
+      </html>
+    `;
+
+    // Generate PDF with charts
+    const { uri } = await Print.printToFileAsync({ 
+      html: chartHtml,
+      base64: false
+    });
+
+    if (await Sharing.isAvailableAsync()) {
+      await Sharing.shareAsync(uri);
+    } else {
+      Alert.alert('Success', `Statistics saved to: ${uri}`);
+    }
+
+  } catch (error) {
+    console.error('Export statistics error:', error);
+    Alert.alert('Export Failed', 'Failed to export statistics');
+  } finally {
+    setIsLoading(false);
+  }
+};
+
   
   const clearSearch = () => {
     setSearchQuery('');

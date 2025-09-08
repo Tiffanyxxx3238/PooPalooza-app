@@ -1,12 +1,11 @@
-// app/(tabs)/calendar.tsx - 成就徽章頁面（連接資料庫版本）
+// app/(tabs)/calendar.tsx - Fixed version
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, FlatList, ScrollView, Alert, ActivityIndicator, RefreshControl } from 'react-native';
 import Colors from '@/constants/colors';
 import { usePoopStore } from '@/store/poopStore';
 import { useFocusEffect } from '@react-navigation/native';
-import  API_BASE_URL  from '@/config';
+import API_BASE_URL from '@/config';
 import { useUserStore } from '@/store/userStore';
-// API 設定 - 使用你的 IP
 
 interface Achievement {
   id: string;
@@ -34,7 +33,6 @@ interface Challenge {
   maxProgress: number;
 }
 
-// 資料庫的成就資料結構
 interface DBAchievement {
   achievement_id: number;
   user_id: number;
@@ -43,7 +41,6 @@ interface DBAchievement {
   achieved_at: string;
 }
 
-// 資料庫的排便記錄資料結構
 interface DBPoopRecord {
   record_id: number;
   user_id: number;
@@ -58,7 +55,7 @@ interface DBPoopRecord {
 }
 
 export default function CalendarScreen() {
-  const { entries } = usePoopStore(); // 保留本地資料作為備用
+  const { entries } = usePoopStore();
   const [selectedTab, setSelectedTab] = useState<'achievements' | 'challenges'>('achievements');
   const [activeChallenges, setActiveChallenges] = useState<Challenge[]>([]);
   const [dbAchievements, setDbAchievements] = useState<DBAchievement[]>([]);
@@ -67,117 +64,116 @@ export default function CalendarScreen() {
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [isProcessingAchievements, setIsProcessingAchievements] = useState(false);
-  const { user_id } = useUserStore(); 
+  const { user_id } = useUserStore();
   const currentUserId = user_id || 49;
 
-  // 從資料庫獲取成就資料
-const fetchAchievements = async () => {
-  try {
-    console.log('Fetching achievements...');
-    const response = await fetch('https://poopalooza-backend-api-af34f62d7c87.herokuapp.com/achievements');
-    
-    if (!response.ok) {
-      console.log('Response not OK:', response.status);
-      throw new Error(`Failed to fetch achievements: ${response.status}`);
-    }
-    
-    const data = await response.json();
-    console.log('All achievements:', data.length);
-    
-    // Filter for current user's achievements
-    const userAchievements = data.filter((achievement: DBAchievement) => 
-      achievement.user_id === currentUserId
-    );
-    console.log('User achievements:', userAchievements.length);
-    setDbAchievements(userAchievements);
-  } catch (err) {
-    console.error('Error fetching achievements:', err);
-  }
-};
-
-  // 從資料庫獲取排便記錄
-const fetchPoopRecords = async () => {
-  try {
-    console.log('Fetching poop records...');
-    const response = await fetch('https://poopalooza-backend-api-af34f62d7c87.herokuapp.com/poop-records');
-    
-    if (!response.ok) {
-      console.log('Response not OK:', response.status);
-      throw new Error(`Failed to fetch poop records: ${response.status}`);
-    }
-    
-    const data = await response.json();
-    console.log('All poop records:', data.length);
-    
-    // 現在會正確過濾 user_id = 49 的記錄
-    const userRecords = data.filter((record: DBPoopRecord) => record.user_id === currentUserId);
-    console.log('User records for user_id', currentUserId, ':', userRecords.length);
-    setDbPoopRecords(userRecords);
-  } catch (err) {
-    console.error('Error fetching poop records:', err);
-  }
-};
-
-  // 創建新成就到資料庫
-const createAchievement = async (achievementName: string, achievementDescription: string) => {
-  try {
-    // Check if already exists in local state to prevent duplicate API calls
-    const alreadyExists = dbAchievements.some(
-      a => a.achievement_name === achievementName && a.user_id === currentUserId
-    );
-    
-    if (alreadyExists) {
-      console.log('Achievement already exists locally:', achievementName);
-      return;
-    }
-
-    console.log('Creating new achievement:', achievementName);
-    
-    const url = 'https://poopalooza-backend-api-af34f62d7c87.herokuapp.com/achievements';
-    
-    const payload = {
-      user_id: currentUserId,
-      achievement_name: achievementName,
-      achievement_description: achievementDescription
-    };
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload)
-    });
-
-    if (!response.ok) {
-      console.log('Failed to create achievement:', response.status);
-      return;
-    }
-
-    const result = await response.json();
-    console.log('Achievement created successfully:', achievementName);
-    
-    // Immediately update local state to prevent duplicate creation
-    setDbAchievements(prev => {
-      // Check again to prevent race conditions
-      if (prev.some(a => a.achievement_name === achievementName && a.user_id === currentUserId)) {
-        return prev;
+  // Fetch achievements from database
+  const fetchAchievements = async () => {
+    try {
+      console.log('Fetching achievements...');
+      const response = await fetch('https://poopalooza-backend-api-af34f62d7c87.herokuapp.com/achievements');
+      
+      if (!response.ok) {
+        console.log('Response not OK:', response.status);
+        throw new Error(`Failed to fetch achievements: ${response.status}`);
       }
-      return [...prev, {
-        achievement_id: Date.now(),
+      
+      const data = await response.json();
+      console.log('All achievements:', data.length);
+      
+      // Filter for current user's achievements
+      const userAchievements = data.filter((achievement: DBAchievement) => 
+        achievement.user_id === currentUserId
+      );
+      console.log('User achievements:', userAchievements.length);
+      setDbAchievements(userAchievements);
+    } catch (err) {
+      console.error('Error fetching achievements:', err);
+    }
+  };
+
+  // Fetch poop records from database
+  const fetchPoopRecords = async () => {
+    try {
+      console.log('Fetching poop records...');
+      const response = await fetch('https://poopalooza-backend-api-af34f62d7c87.herokuapp.com/poop-records');
+      
+      if (!response.ok) {
+        console.log('Response not OK:', response.status);
+        throw new Error(`Failed to fetch poop records: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log('All poop records:', data.length);
+      
+      const userRecords = data.filter((record: DBPoopRecord) => record.user_id === currentUserId);
+      console.log('User records for user_id', currentUserId, ':', userRecords.length);
+      setDbPoopRecords(userRecords);
+    } catch (err) {
+      console.error('Error fetching poop records:', err);
+    }
+  };
+
+  // Create new achievement in database
+  const createAchievement = async (achievementName: string, achievementDescription: string) => {
+    try {
+      // Check if already exists in local state to prevent duplicate API calls
+      const alreadyExists = dbAchievements.some(
+        a => a.achievement_name === achievementName && a.user_id === currentUserId
+      );
+      
+      if (alreadyExists) {
+        console.log('Achievement already exists locally:', achievementName);
+        return;
+      }
+
+      console.log('Creating new achievement:', achievementName);
+      
+      const url = 'https://poopalooza-backend-api-af34f62d7c87.herokuapp.com/achievements';
+      
+      const payload = {
         user_id: currentUserId,
         achievement_name: achievementName,
-        achievement_description: achievementDescription,
-        achieved_at: new Date().toISOString()
-      }];
-    });
-    
-  } catch (error) {
-    console.error('Error creating achievement:', error);
-  }
-};
+        achievement_description: achievementDescription
+      };
 
-  // 載入資料的函數
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        console.log('Failed to create achievement:', response.status);
+        return;
+      }
+
+      const result = await response.json();
+      console.log('Achievement created successfully:', achievementName);
+      
+      // Immediately update local state to prevent duplicate creation
+      setDbAchievements(prev => {
+        // Check again to prevent race conditions
+        if (prev.some(a => a.achievement_name === achievementName && a.user_id === currentUserId)) {
+          return prev;
+        }
+        return [...prev, {
+          achievement_id: Date.now(),
+          user_id: currentUserId,
+          achievement_name: achievementName,
+          achievement_description: achievementDescription,
+          achieved_at: new Date().toISOString()
+        }];
+      });
+      
+    } catch (error) {
+      console.error('Error creating achievement:', error);
+    }
+  };
+
+  // Load data function
   const loadData = useCallback(async (showLoading = true) => {
     if (showLoading) setLoading(true);
     setError(null);
@@ -194,34 +190,34 @@ const createAchievement = async (achievementName: string, achievementDescription
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [currentUserId]); // Add currentUserId as dependency
 
   useEffect(() => {
-    if (user_id) {  // 有 user_id 時才載入
+    if (user_id) {
       console.log('User logged in, loading data for user:', user_id);
       loadData(true);
     }
-  }, [user_id]); // 依賴 user_id
+  }, [user_id, loadData]);
 
-  // 當頁面獲得焦點時重新載入（從其他頁面返回時）
+  // Reload when screen gets focus
   useFocusEffect(
     useCallback(() => {
       console.log('Calendar screen focused, reloading data...');
-      loadData(false); // 不顯示載入畫面，靜默更新
-    }, [])
+      loadData(false);
+    }, [loadData])
   );
 
-  // 下拉更新
+  // Pull to refresh
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     loadData(false);
-  }, []);
+  }, [loadData]);
 
-  // 初始化挑戰
+  // Initialize challenges
   useEffect(() => {
     const initialChallenges: Challenge[] = [
       {
-        id: '1',
+        id: 'challenge-1', // Changed to ensure unique IDs
         title: '7-Day Hydration Challenge',
         description: 'Drink 8 glasses of water daily for a week',
         icon: '💧',
@@ -232,7 +228,7 @@ const createAchievement = async (achievementName: string, achievementDescription
         maxProgress: 7
       },
       {
-        id: '2',
+        id: 'challenge-2',
         title: 'Fiber Focus Week',
         description: 'Include fiber-rich foods in every meal',
         icon: '🥬',
@@ -243,7 +239,7 @@ const createAchievement = async (achievementName: string, achievementDescription
         maxProgress: 7
       },
       {
-        id: '3',
+        id: 'challenge-3',
         title: 'Mindful Bathroom Breaks',
         description: 'Practice relaxation during bathroom visits',
         icon: '🧘',
@@ -257,9 +253,8 @@ const createAchievement = async (achievementName: string, achievementDescription
     setActiveChallenges(initialChallenges);
   }, []);
 
-  // 計算成就進度（結合本地和資料庫資料）
-  const calculateAchievements = (): Achievement[] => {
-    // 優先使用資料庫記錄，如果沒有則用本地資料
+  // Calculate achievements progress
+  const calculateAchievements = useCallback((): Achievement[] => {
     const recordsToUse = dbPoopRecords.length > 0 ? dbPoopRecords : entries;
     const totalEntries = recordsToUse.length;
     
@@ -269,21 +264,28 @@ const createAchievement = async (achievementName: string, achievementDescription
     const thisWeek = recordsToUse.filter(record => {
       const recordDate = 'record_time' in record 
         ? new Date(record.record_time) 
-        : new Date(record.date);
+        : new Date((record as any).date || '');
       const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
       return recordDate >= weekAgo;
     }).length;
 
-    // 計算連續天數
+    // Calculate streak
     const calculateStreak = (): number => {
       if (recordsToUse.length === 0) return 0;
       
       const dates = recordsToUse.map(record => {
-        const date = 'record_time' in record 
-          ? new Date(record.record_time) 
-          : new Date(record.date);
-        return date.toDateString();
-      });
+        const dateStr = 'record_time' in record 
+          ? record.record_time 
+          : (record as any).date;
+        
+        // Check if dateStr is valid before creating Date
+        if (!dateStr || typeof dateStr !== 'string') return null;
+        
+        const date = new Date(dateStr);
+        return isNaN(date.getTime()) ? null : date.toDateString();
+      }).filter(Boolean) as string[];
+      
+      if (dates.length === 0) return 0;
       
       const uniqueDates = [...new Set(dates)].sort((a, b) => 
         new Date(b).getTime() - new Date(a).getTime()
@@ -313,14 +315,14 @@ const createAchievement = async (achievementName: string, achievementDescription
 
     const currentStreak = calculateStreak();
 
-    // 檢查資料庫中是否已有該成就
+    // Check if achievement exists in database
     const hasAchievement = (name: string) => {
       return dbAchievements.some(a => a.achievement_name === name);
     };
 
     const achievements: Achievement[] = [
       {
-        id: '1',
+        id: 'achievement-1', // Changed to ensure unique IDs
         title: 'First Drop',
         description: 'Record your first poop entry',
         icon: '💩',
@@ -329,7 +331,7 @@ const createAchievement = async (achievementName: string, achievementDescription
         color: '#4CAF50'
       },
       {
-        id: '2',
+        id: 'achievement-2',
         title: 'Week Warrior',
         description: 'Track your bathroom visits for 7 days',
         icon: '📅',
@@ -340,7 +342,7 @@ const createAchievement = async (achievementName: string, achievementDescription
         color: '#2196F3'
       },
       {
-        id: '3',
+        id: 'achievement-3',
         title: 'Consistency Champion',
         description: 'Maintain a 3-day streak',
         icon: '🔥',
@@ -351,7 +353,7 @@ const createAchievement = async (achievementName: string, achievementDescription
         color: '#FF5722'
       },
       {
-        id: '4',
+        id: 'achievement-4',
         title: 'Poop Tracker Pro',
         description: 'Record 10 entries in total',
         icon: '🏆',
@@ -362,7 +364,7 @@ const createAchievement = async (achievementName: string, achievementDescription
         color: '#FF9800'
       },
       {
-        id: '5',
+        id: 'achievement-5',
         title: 'Consistency King',
         description: 'Maintain regular bathroom habits (20 entries)',
         icon: '👑',
@@ -373,7 +375,7 @@ const createAchievement = async (achievementName: string, achievementDescription
         color: '#9C27B0'
       },
       {
-        id: '6',
+        id: 'achievement-6',
         title: 'Health Guardian',
         description: 'Track for 30 entries',
         icon: '🛡️',
@@ -384,7 +386,7 @@ const createAchievement = async (achievementName: string, achievementDescription
         color: '#607D8B'
       },
       {
-        id: '7',
+        id: 'achievement-7',
         title: 'Bathroom Master',
         description: 'Complete 50 entries',
         icon: '🎯',
@@ -395,7 +397,7 @@ const createAchievement = async (achievementName: string, achievementDescription
         color: '#795548'
       },
       {
-        id: '8',
+        id: 'achievement-8',
         title: 'Week Streak Master',
         description: 'Maintain a 7-day streak',
         icon: '⚡',
@@ -406,33 +408,34 @@ const createAchievement = async (achievementName: string, achievementDescription
         color: '#FFC107'
       }
     ];
- // Process new achievements only if not already processing
-  if (!isProcessingAchievements) {
-    const newAchievements = achievements.filter(
-      achievement => achievement.isUnlocked && !hasAchievement(achievement.title)
-    );
-    
-    if (newAchievements.length > 0) {
-      setIsProcessingAchievements(true);
-      
-      // Process all new achievements
-      Promise.all(
-        newAchievements.map(achievement => 
-          createAchievement(achievement.title, achievement.description)
-        )
-      ).finally(() => {
-        setIsProcessingAchievements(false);
-      });
-    }
-  }
 
-  return achievements;
-};
+    // Process new achievements only if not already processing
+    if (!isProcessingAchievements) {
+      const newAchievements = achievements.filter(
+        achievement => achievement.isUnlocked && !hasAchievement(achievement.title)
+      );
+      
+      if (newAchievements.length > 0) {
+        setIsProcessingAchievements(true);
+        
+        // Process all new achievements
+        Promise.all(
+          newAchievements.map(achievement => 
+            createAchievement(achievement.title, achievement.description)
+          )
+        ).finally(() => {
+          setIsProcessingAchievements(false);
+        });
+      }
+    }
+
+    return achievements;
+  }, [dbPoopRecords, entries, dbAchievements, isProcessingAchievements, currentUserId]);
 
   const achievements = calculateAchievements();
   const unlockedCount = achievements.filter(a => a.isUnlocked).length;
 
-  // 開始挑戰
+  // Start challenge
   const startChallenge = (challengeId: string) => {
     Alert.alert(
       'Start Challenge',
@@ -464,7 +467,7 @@ const createAchievement = async (achievementName: string, achievementDescription
     );
   };
 
-  // 更新挑戰進度
+  // Update challenge progress
   const updateChallengeProgress = (challengeId: string) => {
     setActiveChallenges(prev => 
       prev.map(challenge => 
@@ -479,7 +482,7 @@ const createAchievement = async (achievementName: string, achievementDescription
     Alert.alert('Progress Updated!', 'Keep going! 💪');
   };
 
-  // 重置挑戰
+  // Reset challenge
   const resetChallenge = (challengeId: string) => {
     Alert.alert(
       'Reset Challenge',
@@ -629,7 +632,7 @@ const createAchievement = async (achievementName: string, achievementDescription
     </View>
   );
 
-  // 載入中畫面
+  // Loading screen
   if (loading) {
     return (
       <View style={[styles.container, styles.centerContent]}>
@@ -680,7 +683,7 @@ const createAchievement = async (achievementName: string, achievementDescription
           </TouchableOpacity>
         </View>
         
-        {/* 顯示資料來源 */}
+        {/* Display data source */}
         <Text style={styles.dataSourceText}>
           {dbPoopRecords.length > 0 
             ? `📊 資料庫記錄: ${dbPoopRecords.length} 筆`
