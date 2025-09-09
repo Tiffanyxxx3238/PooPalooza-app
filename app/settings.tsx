@@ -50,6 +50,18 @@ export default function ProfileScreen() {
   return (
     <>
       <Stack.Screen options={{ title: 'Profile' }} />
+            {/* 測試區域 - 加在這裡 */}
+      <View style={{ padding: 20, backgroundColor: 'yellow', marginBottom: 20 }}>
+        <Text>測試開關（應該要能切換）：</Text>
+        <Switch
+          value={isMusicOn}
+          onValueChange={(value) => {
+            console.log('測試開關改變為:', value);
+            setIsMusicOn(value);
+          }}
+        />
+        <Text>當前值：{isMusicOn ? '開' : '關'}</Text>
+      </View>
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
         {/* 使用者資訊 */}
         <View style={styles.profileHeader}>
@@ -181,11 +193,7 @@ function Row({
 }) {
   return (
     <View style={styles.rowWrapper}>
-      <TouchableOpacity 
-        onPress={switchValue !== undefined ? undefined : onPress}
-        disabled={switchValue !== undefined || !onPress}
-        style={styles.row}
-      >
+      <View style={styles.row}>
         <View style={styles.rowLeft}>
           {icon && <View style={{ marginRight: 10 }}>{icon}</View>}
           <Text style={styles.rowLabel}>{label}</Text>
@@ -193,16 +201,21 @@ function Row({
         {switchValue !== undefined ? (
           <Switch 
             value={switchValue}
-            onValueChange={() => {
-              if (onPress) onPress();
+            onValueChange={(newValue) => {
+              console.log(`Switch ${label} 改變為: ${newValue}`);
+              if (onPress) {
+                onPress();
+              }
             }}
-            trackColor={{ false: '#767577', true: Colors.primary.accent }}
-            thumbColor={switchValue ? '#f4f3f4' : '#f4f3f4'}
           />
-        ) : (
+        ) : right ? (
           <Text style={styles.rowRight}>{right}</Text>
-        )}
-      </TouchableOpacity>
+        ) : onPress ? (
+          <TouchableOpacity onPress={onPress}>
+            <Text style={styles.rowRight}>{'>'}</Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
     </View>
   );
 }

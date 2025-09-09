@@ -321,7 +321,7 @@ export const EnhancedLoadingScreen: React.FC<EnhancedLoadingProps> = ({
         </Text>
       </View>
 
-      {showGame && progress < 80 && (
+      {showGame && progress < 95 && (
         <View style={styles.gameWrapper}>
           <Text style={styles.gameHint}>Play while you wait! 🎮</Text>
           <PoopRunnerGame isPlaying={true} />

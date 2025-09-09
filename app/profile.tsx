@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, Switch, TouchableOpacity } from 'react-native';
 import { useRouter, Stack } from 'expo-router';
 import { useUserStore } from '@/store/userStore';
@@ -6,6 +6,7 @@ import { usePoopStore } from '@/store/poopStore';
 import Colors from '@/constants/colors';
 import Button from '@/components/Button';
 import { ChevronRight } from 'lucide-react-native';
+import backgroundMusicService from '@/services/backgroundMusicService';
 import {
   User, Bell, Volume2, Trophy, ImageIcon, Paintbrush, AppWindow, Smartphone, Watch,
   Users, Mic, Ruler, Droplet, Mail, Calendar, BadgeCheck, Store, FileText, Lightbulb, Upload, AlarmClock, Heart, Cloud, Activity, Wrench, HelpCircle,
@@ -16,11 +17,21 @@ export default function ProfileScreen() {
   const router = useRouter();
   const { username, email, logout } = useUserStore();
   const { entries, longestStreak } = usePoopStore();
-
-  const avgMinutes =
-    entries.length > 0
-      ? Math.round(entries.reduce((sum, entry) => sum + entry.duration, 0) / entries.length / 60)
-      : 0;
+  
+  // 所有 Switch 的狀態
+  const [achievementAlerts, setAchievementAlerts] = useState(true);
+  const [stickersInAlerts, setStickersInAlerts] = useState(true);
+  const [sharing, setSharing] = useState(false);
+  const [sounds, setSounds] = useState(!backgroundMusicService.getIsMuted());
+  const [fitbit, setFitbit] = useState(false);
+  const [showTips, setShowTips] = useState(true);
+useEffect(() => {
+  setSounds(!backgroundMusicService.getIsMuted());
+}, []);
+const avgMinutes =
+  entries.length > 0
+    ? Math.round(entries.reduce((sum, entry) => sum + (entry.duration || 0), 0) / entries.length / 60)
+    : 0;
 
   const handleLogout = () => {
     logout();
@@ -39,19 +50,21 @@ export default function ProfileScreen() {
           <Text style={styles.email}>{email || 'guest@example.com'}</Text>
         </View>
 
-        {/* <View style={styles.statsContainer}>
-          <Stat label="Total Poops" value={entries.length} />
-          <Divider />
-          <Stat label="Longest Streak" value={longestStreak} />
-          <Divider />
-          <Stat label="Avg Minutes" value={avgMinutes} />
-        </View> */}
-
         <Section title="Notifications">
           <Row label="Poop Reminders" icon={<Bell size={18} color={Colors.primary.text} />} onPress={() => router.push('/reminder-settings')} />
           <Row label="Notification Sounds" icon={<Volume2 size={18} color={Colors.primary.text} />} onPress={() => router.push('/notification-sounds')} />
-          <Row label="Achievement Alerts" switchValue icon={<Trophy size={18} color={Colors.primary.text} />} />
-          <Row label="Stickers in Alerts" switchValue icon={<ImageIcon size={18} color={Colors.primary.text} />} />
+          <Row 
+            label="Achievement Alerts" 
+            switchValue={achievementAlerts}
+            icon={<Trophy size={18} color={Colors.primary.text} />}
+            onPress={() => setAchievementAlerts(!achievementAlerts)}
+          />
+          <Row 
+            label="Stickers in Alerts" 
+            switchValue={stickersInAlerts}
+            icon={<ImageIcon size={18} color={Colors.primary.text} />}
+            onPress={() => setStickersInAlerts(!stickersInAlerts)}
+          />
         </Section>
 
         <Section title="Appearance">
@@ -59,7 +72,12 @@ export default function ProfileScreen() {
           <Row label="App Icon" right="💩" icon={<AppWindow size={18} color={Colors.primary.text} />} onPress={() => router.push('/app-icon')} />
           <Row label="Home Screen" icon={<Smartphone size={18} color={Colors.primary.text} />} onPress={() => router.push('/home-screen')} />
           <Row label="Apple Watch" icon={<Watch size={18} color={Colors.primary.text} />} onPress={() => router.push('/apple-watch')} />
-          <Row label="Sharing" switchValue icon={<Users size={18} color={Colors.primary.text} />} />
+          <Row 
+            label="Sharing" 
+            switchValue={sharing}
+            icon={<Users size={18} color={Colors.primary.text} />}
+            onPress={() => setSharing(!sharing)}
+          />
         </Section>
 
         <Section title="General">
@@ -67,10 +85,33 @@ export default function ProfileScreen() {
           <Row label="Units" right="ml, kg" icon={<Ruler size={18} color={Colors.primary.text} />} onPress={() => router.push('/units')} />
           <Row label="Week Start" right="Sunday" icon={<Calendar size={18} color={Colors.primary.text} />} onPress={() => router.push('/week-start')}/>
           <Row label="Day Reset Time" right="12:00 AM 🔒" icon={<AlarmClock size={18} color={Colors.primary.text} />} />
-          <Row label="Sounds" switchValue icon={<Volume2 size={18} color={Colors.primary.text} />} />
+          <Row 
+            label="Sounds" 
+            switchValue={sounds}
+            icon={<Volume2 size={18} color={Colors.primary.text} />}
+            onPress={async () => {
+              const newSoundState = !sounds;
+              setSounds(newSoundState);
+              
+              // 控制音樂
+              if (newSoundState) {
+                await backgroundMusicService.play();
+              } else {
+                await backgroundMusicService.pause();
+              }
+              
+              // 儲存設定
+              await backgroundMusicService.toggleMute();
+            }}
+          />
           <Row label="Apple Health Sync" right="On" icon={<Heart size={18} color={Colors.primary.text} />} onPress={() => router.push('/apple-health')}/>
           <Row label="iCloud Sync" right="On" icon={<Cloud size={18} color={Colors.primary.text} />} onPress={() => router.push('/icloud')} />
-          <Row label="Fitbit" switchValue={false} icon={<Activity size={18} color={Colors.primary.text} />} />
+          <Row 
+            label="Fitbit" 
+            switchValue={fitbit}
+            icon={<Activity size={18} color={Colors.primary.text} />}
+            onPress={() => setFitbit(!fitbit)}
+          />
           <Row label="Advanced" icon={<Wrench size={18} color={Colors.primary.text} />} onPress={() => router.push('/advanced')} />
         </Section>
 
@@ -94,7 +135,12 @@ export default function ProfileScreen() {
           <Row label="Rate Our App" icon={<Star size={18} color={Colors.primary.text} />} onPress={() => router.push('/rate')} />
           <Row label="Export" icon={<Upload size={18} color={Colors.primary.text} />} onPress={() => router.push('/export')} />
           <Row label="Share" icon={<Share2 size={18} color={Colors.primary.text} />} onPress={() => router.push('/share')} />
-          <Row label="Show Tips" icon={<Lightbulb size={18} color={Colors.primary.text} />} switchValue />
+          <Row 
+            label="Show Tips" 
+            icon={<Lightbulb size={18} color={Colors.primary.text} />}
+            switchValue={showTips}
+            onPress={() => setShowTips(!showTips)}
+          />
           <Row label="Premium Features" icon={<BadgeCheck size={18} color={Colors.primary.text} />} onPress={() => router.push('/premium')} />
           <Row label="About Us" icon={<Store size={18} color={Colors.primary.text} />} onPress={() => router.push('/about-us')} />
         </Section>
@@ -107,19 +153,6 @@ export default function ProfileScreen() {
       </ScrollView>
     </>
   );
-}
-
-function Stat({ label, value }: { label: string; value: number }) {
-  return (
-    <View style={styles.statItem}>
-      <Text style={styles.statValue}>{value}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
-    </View>
-  );
-}
-
-function Divider() {
-  return <View style={styles.statDivider} />;
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -148,31 +181,43 @@ function Row({
 
   return (
     <View style={styles.rowWrapper}>
-      <TouchableOpacity onPress={onPress} disabled={!onPress} style={styles.row}>
-        <View style={styles.rowLeft}>
-          {icon && <View style={{ marginRight: 10 }}>{icon}</View>}
-          <Text style={styles.rowLabel}>{label}</Text>
+      {switchValue !== undefined ? (
+        // Switch 版本
+        <View style={styles.row}>
+          <View style={styles.rowLeft}>
+            {icon && <View style={{ marginRight: 10 }}>{icon}</View>}
+            <Text style={styles.rowLabel}>{label}</Text>
+          </View>
+          <Switch 
+            value={switchValue}
+            onValueChange={() => {
+              if (onPress) onPress();
+            }}
+          />
         </View>
-        <View style={styles.rowRightContent}>
-          {switchValue !== undefined ? (
-            <Switch value={switchValue} />
-          ) : (
-            <>
-              {typeof right === 'string' ? <Text style={styles.rowRight}>{right}</Text> : right}
-              {showChevron && (
-                <ChevronRight
-                  size={18}
-                  color={Colors.primary.lightText}
-                  style={{ marginLeft: 8 }}
-                />
-              )}
-            </>
-          )}
-        </View>
-      </TouchableOpacity>
+      ) : (
+        // 按鈕版本
+        <TouchableOpacity onPress={onPress} disabled={!onPress} style={styles.row}>
+          <View style={styles.rowLeft}>
+            {icon && <View style={{ marginRight: 10 }}>{icon}</View>}
+            <Text style={styles.rowLabel}>{label}</Text>
+          </View>
+          <View style={styles.rowRightContent}>
+            {typeof right === 'string' ? <Text style={styles.rowRight}>{right}</Text> : right}
+            {showChevron && (
+              <ChevronRight
+                size={18}
+                color={Colors.primary.lightText}
+                style={{ marginLeft: 8 }}
+              />
+            )}
+          </View>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.primary.background },
   content: { padding: 16, paddingBottom: 40 },
@@ -184,17 +229,6 @@ const styles = StyleSheet.create({
   },
   username: { fontSize: 24, fontWeight: 'bold', color: Colors.primary.text, marginBottom: 4 },
   email: { fontSize: 16, color: Colors.primary.lightText },
-  statsContainer: {
-    flexDirection: 'row',
-    backgroundColor: Colors.primary.card,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 24,
-  },
-  statItem: { flex: 1, alignItems: 'center' },
-  statValue: { fontSize: 24, fontWeight: 'bold', color: Colors.primary.accent, marginBottom: 4 },
-  statLabel: { fontSize: 14, color: Colors.primary.lightText },
-  statDivider: { width: 1, height: '100%', backgroundColor: Colors.primary.border },
   section: { marginBottom: 24 },
   sectionTitle: { fontSize: 18, fontWeight: '600', color: Colors.primary.text, marginBottom: 8 },
   sectionBox: {
@@ -212,9 +246,9 @@ const styles = StyleSheet.create({
     alignItems: 'center', paddingVertical: 14, paddingHorizontal: 12,
   },
   rowRightContent: {
-  flexDirection: 'row',
-  alignItems: 'center',
-},
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   rowLeft: { flexDirection: 'row', alignItems: 'center' },
   rowLabel: { fontSize: 16, color: Colors.primary.text },
   rowRight: { fontSize: 16, color: Colors.primary.lightText },

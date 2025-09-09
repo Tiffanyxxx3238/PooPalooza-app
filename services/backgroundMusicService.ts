@@ -44,7 +44,7 @@ class BackgroundMusicService {
         require('../assets/sounds/lo-fi.wav'),
         { 
           isLooping: true,
-          volume: 0.3,
+          volume: 0.1,
           shouldPlay: false  // 改為 false
         }
       );
