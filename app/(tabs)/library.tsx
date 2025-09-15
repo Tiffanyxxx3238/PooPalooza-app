@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect,useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   View, 
   Text, 
@@ -23,9 +23,8 @@ import { useUserStore } from '@/store/userStore';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as Print from 'expo-print';
-import ViewShot from 'react-native-view-shot';
+import ViewShot, { captureRef } from 'react-native-view-shot';
 import XLSX from 'xlsx';
-
 
 // 簡化的圖標組件
 const ChevronLeft = () => <Text style={{fontSize: 24, color: Colors.primary.text}}>‹</Text>;
@@ -65,9 +64,9 @@ export default function LibraryScreen() {
   // Library state
   const [searchQuery, setSearchQuery] = useState('');
   const [filterBy, setFilterBy] = useState<string>('all');
-  
-  // 所有標籤樣式函數
-  const getDifficultyTagStyle = (difficulty) => {
+
+  // 所有標籤樣式函數 - 添加類型定義
+  const getDifficultyTagStyle = (difficulty: string | undefined) => {
     switch (difficulty?.toLowerCase()) {
       case 'easy':
         return { backgroundColor: '#E8F5E8' };
@@ -81,7 +80,7 @@ export default function LibraryScreen() {
     }
   };
 
-  const getDifficultyTagTextStyle = (difficulty) => {
+  const getDifficultyTagTextStyle = (difficulty: string | undefined) => {
     switch (difficulty?.toLowerCase()) {
       case 'easy':
         return { color: '#2E7D32' };
@@ -95,7 +94,7 @@ export default function LibraryScreen() {
     }
   };
 
-  const getTypeTagStyle = (type) => {
+  const getTypeTagStyle = (type: string | undefined) => {
     const typeNumber = parseInt(type?.replace(/[^0-9]/g, '') || '4');
     
     switch (typeNumber) {
@@ -118,7 +117,7 @@ export default function LibraryScreen() {
     }
   };
 
-  const getTypeTagTextStyle = (type) => {
+  const getTypeTagTextStyle = (type: string | undefined) => {
     const typeNumber = parseInt(type?.replace(/[^0-9]/g, '') || '4');
     
     switch (typeNumber) {
@@ -141,7 +140,7 @@ export default function LibraryScreen() {
     }
   };
 
-  const getVolumeTagStyle = (volume) => {
+  const getVolumeTagStyle = (volume: string | undefined) => {
     switch (volume) {
       case 'Small':
         return { backgroundColor: '#E8F5E8' };
@@ -154,7 +153,7 @@ export default function LibraryScreen() {
     }
   };
 
-  const getVolumeTagTextStyle = (volume) => {
+  const getVolumeTagTextStyle = (volume: string | undefined) => {
     switch (volume) {
       case 'Small':
         return { color: '#2E7D32' };
@@ -166,7 +165,7 @@ export default function LibraryScreen() {
         return { color: '#7B1FA2' };
     }
   };
-  
+
   // 從資料庫獲取記錄
   const fetchPoopRecords = async () => {
     try {
@@ -204,6 +203,8 @@ export default function LibraryScreen() {
       console.log('👤 Filtered user records:', userRecords.length);
       
       const transformedRecords = userRecords.map((record: any) => {
+        console.log('🖼️ Processing record:', record.record_id, 'Image URL:', record.image_url);
+        
         // 處理 bristol_scale 或 ai_poop_type
         let poopType = 'Type 4';
         if (record.bristol_scale) {
@@ -258,21 +259,152 @@ export default function LibraryScreen() {
         return transformed;
       });
       
-      console.log('✅ Final transformed records:', transformedRecords.length);
-      setDbPoopRecords(transformedRecords);
+      console.log('✅ DB records with images:', transformedRecords.filter((r: any) => r.image).length);
       
-    } catch (error) {
+      // 合併本地記錄
+      const mergedRecords = mergeWithLocalRecords(transformedRecords);
+      console.log('📱 Total merged records:', mergedRecords.length);
+      
+      setDbPoopRecords(mergedRecords);
+      
+    } catch (error: any) {
       console.error('❌ Error fetching poop records:', error);
       setError(error.message || 'Failed to fetch records');
       
       if (localEntries && localEntries.length > 0) {
         console.log('📱 Falling back to local entries:', localEntries.length);
-        setDbPoopRecords(localEntries);
+        const processedLocal = processLocalEntries(localEntries);
+        setDbPoopRecords(processedLocal);
       }
     } finally {
       setIsLoading(false);
     }
   };
+
+  // 合併本地和資料庫記錄
+  const mergeWithLocalRecords = (dbRecords: any[]) => {
+    const recordMap = new Map();
+    
+    // 先加入資料庫記錄
+    dbRecords.forEach(record => {
+      recordMap.set(record.id, record);
+    });
+    
+    // 檢查本地記錄是否有新的（還沒上傳的）
+    localEntries.forEach((entry: any) => {
+      const imageUrl = (entry as any).image_url || 
+                       (entry as any).image || 
+                       (entry as any).imageUri || 
+                       null;
+      
+      if (!recordMap.has(entry.id || entry.user_id)) {
+        console.log('📱 Found local-only record with image:', imageUrl);
+        
+        // 轉換本地記錄格式
+        const localRecord = {
+          id: entry.id || Math.random().toString(),
+          date: entry.date || new Date().toISOString(),
+          type: `Type ${entry.ai_poop_type || '4'}`,
+          difficulty: 'medium',
+          notes: entry.ai_diagnosis_summary || entry.health_recommendations || '',
+          color: entry.color || 'brown',
+          hasBlood: entry.has_blood || false,
+          hasMucus: entry.has_mucus || false,
+          image: imageUrl,
+          volume: entry.volume || 'Medium',
+          originalRecord: entry
+        };
+        
+        recordMap.set(localRecord.id, localRecord);
+      }
+    });
+    
+    return Array.from(recordMap.values()).sort((a: any, b: any) => 
+      new Date(b.date).getTime() - new Date(a.date).getTime()
+    );
+  };
+
+  // 處理純本地記錄（當資料庫失敗時）
+  const processLocalEntries = (entries: any[]) => {
+    return entries.map((entry: any) => {
+      const imageUrl = entry.image_url || entry.image || entry.imageUri || null;
+      
+      return {
+        id: entry.id || Math.random().toString(),
+        date: entry.date || new Date().toISOString(),
+        type: `Type ${entry.ai_poop_type || entry.bristol_scale || '4'}`,
+        difficulty: 'medium',
+        notes: entry.ai_diagnosis_summary || entry.health_recommendations || entry.notes || '',
+        color: entry.color || entry.ai_poop_color || 'brown',
+        hasBlood: entry.has_blood || false,
+        hasMucus: entry.has_mucus || false,
+        image: imageUrl,
+        volume: entry.volume || entry.ai_poop_volume || 'Medium',
+        originalRecord: entry
+      };
+    });
+  };
+
+// 在 SmartPoopImage 組件中加入更多調試信息
+const SmartPoopImage = ({ imageUri }: { imageUri: string | null }) => {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  
+  if (!imageUri) return null;
+  
+  const isCloudinaryUrl = imageUri.startsWith('http://') || imageUri.startsWith('https://');
+  const isLocalFile = imageUri.startsWith('file://') || imageUri.startsWith('/var/');
+  const isJustFilename = !isCloudinaryUrl && !isLocalFile;
+  
+  if (isJustFilename) return null;
+  
+  // 優化 Cloudinary URL - 這是關鍵！
+  let optimizedUri = imageUri;
+  if (isCloudinaryUrl && imageUri.includes('res.cloudinary.com')) {
+    // 將圖片縮小到 200x200，使用自動質量和格式
+    const parts = imageUri.split('/upload/');
+    if (parts.length === 2) {
+      optimizedUri = `${parts[0]}/upload/w_200,h_200,c_fill,q_auto,f_auto/${parts[1]}`;
+      console.log('📸 Optimized URL:', optimizedUri);
+    }
+  }
+  
+  // 設置超時機制
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      if (loading) {
+        console.log('⏱️ Image loading timeout');
+        setError(true);
+        setLoading(false);
+      }
+    }, 10000); // 10 秒超時
+    
+    return () => clearTimeout(timeout);
+  }, [loading]);
+  
+  if (error) return null;
+  
+  return (
+    <>
+      <Image 
+        source={{ uri: optimizedUri }} 
+        style={styles.libraryCardImage}
+        resizeMode="cover"
+        onLoadStart={() => setLoading(true)}
+        onLoadEnd={() => setLoading(false)}
+        onError={() => {
+          setError(true);
+          setLoading(false);
+        }}
+      />
+      {loading && (
+        <View style={[styles.libraryCardNoImage, { position: 'absolute', top: 0, left: 0 }]}>
+          <ActivityIndicator size="small" color={Colors.primary.accent} />
+        </View>
+      )}
+    </>
+  );
+};
   
   useEffect(() => {
     console.log('🚀 LibraryScreen mounted, user_id:', currentUserId);
@@ -504,361 +636,349 @@ export default function LibraryScreen() {
     setShowImages(newState);
   };
   
-const handleExport = () => {
-  Alert.alert(
-    'Export Records',
-    'Choose export format',
-    [
-      {
-        text: 'Cancel',
-        style: 'cancel',
-      },
-      {
-        text: 'Excel',
-        onPress: () => exportToExcel(),
-      },
-      {
-        text: 'PDF',
-        onPress: () => exportToPDF(),
-      },
-    ],
-    { cancelable: true }
-  );
-};
+  const handleExport = () => {
+    Alert.alert(
+      'Export Records',
+      'Choose export format',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Excel',
+          onPress: () => exportToExcel(),
+        },
+        {
+          text: 'PDF',
+          onPress: () => exportToPDF(),
+        },
+      ],
+      { cancelable: true }
+    );
+  };
 
-const exportToExcel = async () => {
-  try {
-    setIsLoading(true);
-    
-    // 準備完整的資料 - 加入安全檢查
-    const exportData = entries.map(entry => ({
-      'ID': entry.id || '',
-      'Date': new Date(entry.date).toLocaleDateString(),
-      'Time': new Date(entry.date).toLocaleTimeString(),
-      'Bristol Scale': entry.originalRecord?.bristol_scale || (entry.type ? String(entry.type).replace('Type ', '') : ''),
-      'Color': entry.originalRecord?.color || entry.color || '',
-      'Consistency': entry.originalRecord?.consistency || '',
-      'Volume': entry.originalRecord?.volume || entry.volume || '',
-      'Odor': entry.originalRecord?.odor || '',
-      'Notes': entry.originalRecord?.notes || entry.notes || '',
-      'AI Type Analysis': entry.originalRecord?.ai_poop_type || '',
-      'AI Color Analysis': entry.originalRecord?.ai_poop_color || '',
-      'AI Volume Analysis': entry.originalRecord?.ai_poop_volume || '',
-      'AI Diagnosis Summary': entry.originalRecord?.ai_diagnosis_summary || '',
-      'Health Recommendations': entry.originalRecord?.health_recommendations || '',
-      'Health Indicators': entry.originalRecord?.health_indicators || '',
-      'Image URL': entry.originalRecord?.image_url || entry.image || '',
-    }));
+  const exportToExcel = async () => {
+    try {
+      setIsLoading(true);
+      
+      const exportData = entries.map(entry => ({
+        'ID': entry.id || '',
+        'Date': new Date(entry.date).toLocaleDateString(),
+        'Time': new Date(entry.date).toLocaleTimeString(),
+        'Bristol Scale': entry.originalRecord?.bristol_scale || (entry.type ? String(entry.type).replace('Type ', '') : ''),
+        'Color': entry.originalRecord?.color || entry.color || '',
+        'Consistency': entry.originalRecord?.consistency || '',
+        'Volume': entry.originalRecord?.volume || entry.volume || '',
+        'Odor': entry.originalRecord?.odor || '',
+        'Notes': entry.originalRecord?.notes || entry.notes || '',
+        'AI Type Analysis': entry.originalRecord?.ai_poop_type || '',
+        'AI Color Analysis': entry.originalRecord?.ai_poop_color || '',
+        'AI Volume Analysis': entry.originalRecord?.ai_poop_volume || '',
+        'AI Diagnosis Summary': entry.originalRecord?.ai_diagnosis_summary || '',
+        'Health Recommendations': entry.originalRecord?.health_recommendations || '',
+        'Health Indicators': entry.originalRecord?.health_indicators || '',
+        'Image URL': entry.originalRecord?.image_url || entry.image || '',
+      }));
 
-    // 建立工作表
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Poop Records');
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Poop Records');
 
-    // 轉換為 base64
-    const wbout = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
-    
-    // 儲存檔案
-    const fileName = `poop_records_${new Date().toISOString().split('T')[0]}.xlsx`;
-    const fileUri = `${FileSystem.documentDirectory}${fileName}`;
-    
-    await FileSystem.writeAsStringAsync(fileUri, wbout, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
+      const wbout = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
+      
+      const fileName = `poop_records_${new Date().toISOString().split('T')[0]}.xlsx`;
+      const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+      
+      await FileSystem.writeAsStringAsync(fileUri, wbout, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
 
-    // 分享檔案
-    if (await Sharing.isAvailableAsync()) {
-      await Sharing.shareAsync(fileUri);
-    } else {
-      Alert.alert('Success', `File saved to: ${fileUri}`);
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(fileUri);
+      } else {
+        Alert.alert('Success', `File saved to: ${fileUri}`);
+      }
+
+    } catch (error) {
+      console.error('Export to Excel error:', error);
+      Alert.alert('Export Failed', 'Failed to export Excel file');
+    } finally {
+      setIsLoading(false);
     }
+  };
 
-  } catch (error) {
-    console.error('Export to Excel error:', error);
-    Alert.alert('Export Failed', 'Failed to export Excel file');
-  } finally {
-    setIsLoading(false);
-  }
-};
+  const exportToPDF = async () => {
+    try {
+      setIsLoading(true);
 
-// 匯出為 PDF
-const exportToPDF = async () => {
-  try {
-    setIsLoading(true);
-
-    // 建立可愛風格的 HTML 內容（英文版）
-    const htmlContent = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <title>My Poop Diary</title>
-          <style>
-            @import url('https://fonts.googleapis.com/css2?family=Comic+Neue:wght@400;700&display=swap');
-            
-            body {
-              font-family: 'Comic Neue', cursive, Arial, sans-serif;
-              padding: 30px;
-              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-              color: #333;
-            }
-            
-            .container {
-              background: white;
-              border-radius: 20px;
-              padding: 30px;
-              box-shadow: 0 10px 40px rgba(0,0,0,0.1);
-            }
-            
-            h1 {
-              color: #8B4513;
-              text-align: center;
-              font-size: 36px;
-              margin-bottom: 10px;
-              text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
-            }
-            
-            .subtitle {
-              text-align: center;
-              color: #666;
-              font-size: 18px;
-              margin-bottom: 30px;
-            }
-            
-            .stats {
-              background: linear-gradient(135deg, #FFF8DC 0%, #F5DEB3 100%);
-              padding: 20px;
-              border-radius: 15px;
-              margin: 20px 0;
-              border: 2px solid #DEB887;
-            }
-            
-            .stats h2 {
-              color: #8B4513;
-              margin-bottom: 15px;
-              font-size: 24px;
-            }
-            
-            .stat-grid {
-              display: grid;
-              grid-template-columns: repeat(3, 1fr);
-              gap: 15px;
-            }
-            
-            .stat-item {
-              text-align: center;
-              padding: 10px;
-              background: white;
-              border-radius: 10px;
-            }
-            
-            .stat-number {
-              font-size: 24px;
-              font-weight: bold;
-              color: #8B4513;
-            }
-            
-            .stat-label {
-              font-size: 14px;
-              color: #666;
-              margin-top: 5px;
-            }
-            
-            .record {
-              background: #FFFAF0;
-              border: 2px solid #DEB887;
-              padding: 20px;
-              margin: 15px 0;
-              border-radius: 15px;
-              page-break-inside: avoid;
-              position: relative;
-            }
-            
-            .record-header {
-              display: flex;
-              justify-content: space-between;
-              margin-bottom: 15px;
-              font-weight: bold;
-              color: #8B4513;
-            }
-            
-            .tag {
-              display: inline-block;
-              padding: 6px 12px;
-              margin: 3px;
-              border-radius: 20px;
-              font-size: 14px;
-              font-weight: 600;
-            }
-            
-            .type-1 { background: #FFCDD2; color: #C62828; }
-            .type-2 { background: #FFE0B2; color: #E65100; }
-            .type-3 { background: #FFF9C4; color: #F57F17; }
-            .type-4 { background: #E8F5E8; color: #2E7D32; }
-            .type-5 { background: #E1F5FE; color: #0277BD; }
-            .type-6 { background: #F3E5F5; color: #7B1FA2; }
-            .type-7 { background: #FCE4EC; color: #AD1457; }
-            
-            .easy { background: #C8E6C9; color: #2E7D32; }
-            .medium { background: #FFE082; color: #F57C00; }
-            .difficult { background: #FFCDD2; color: #C62828; }
-            
-            .small { background: #E1F5FE; color: #0277BD; }
-            .medium-size { background: #FFF9C4; color: #F57F17; }
-            .large { background: #FFE0B2; color: #E65100; }
-            
-            .notes {
-              margin-top: 10px;
-              padding: 10px;
-              background: white;
-              border-radius: 10px;
-              font-style: italic;
-              color: #555;
-            }
-            
-            .ai-analysis {
-              margin-top: 10px;
-              padding: 10px;
-              background: #E3F2FD;
-              border-radius: 10px;
-              border-left: 4px solid #2196F3;
-            }
-            
-            .poop-emoji {
-              position: absolute;
-              top: 10px;
-              right: 10px;
-              font-size: 30px;
-              opacity: 0.8;
-            }
-            
-            .footer {
-              margin-top: 40px;
-              text-align: center;
-              padding: 20px;
-              background: linear-gradient(135deg, #FFF8DC 0%, #F5DEB3 100%);
-              border-radius: 15px;
-            }
-            
-            .footer-emoji {
-              font-size: 40px;
-              margin: 10px 0;
-            }
-            
-            .footer-text {
-              color: #8B4513;
-              font-size: 16px;
-              font-weight: bold;
-            }
-            
-            .footer-date {
-              color: #666;
-              font-size: 14px;
-              margin-top: 10px;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <h1>💩 My Poop Diary 💩</h1>
-            <div class="subtitle">Recording Every Beautiful Moment</div>
-            
-            <div class="stats">
-              <h2>📊 Statistics Summary</h2>
-              <div class="stat-grid">
-                <div class="stat-item">
-                  <div class="stat-number">${entries.length}</div>
-                  <div class="stat-label">Total Records</div>
-                </div>
-                <div class="stat-item">
-                  <div class="stat-number">${entries.length > 0 ? (entries.length / 30).toFixed(1) : 0}</div>
-                  <div class="stat-label">Avg per Day</div>
-                </div>
-                <div class="stat-item">
-                  <div class="stat-number">${currentUserId || 'Guest'}</div>
-                  <div class="stat-label">User</div>
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8">
+            <title>My Poop Diary</title>
+            <style>
+              @import url('https://fonts.googleapis.com/css2?family=Comic+Neue:wght@400;700&display=swap');
+              
+              body {
+                font-family: 'Comic Neue', cursive, Arial, sans-serif;
+                padding: 30px;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: #333;
+              }
+              
+              .container {
+                background: white;
+                border-radius: 20px;
+                padding: 30px;
+                box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+              }
+              
+              h1 {
+                color: #8B4513;
+                text-align: center;
+                font-size: 36px;
+                margin-bottom: 10px;
+                text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+              }
+              
+              .subtitle {
+                text-align: center;
+                color: #666;
+                font-size: 18px;
+                margin-bottom: 30px;
+              }
+              
+              .stats {
+                background: linear-gradient(135deg, #FFF8DC 0%, #F5DEB3 100%);
+                padding: 20px;
+                border-radius: 15px;
+                margin: 20px 0;
+                border: 2px solid #DEB887;
+              }
+              
+              .stats h2 {
+                color: #8B4513;
+                margin-bottom: 15px;
+                font-size: 24px;
+              }
+              
+              .stat-grid {
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 15px;
+              }
+              
+              .stat-item {
+                text-align: center;
+                padding: 10px;
+                background: white;
+                border-radius: 10px;
+              }
+              
+              .stat-number {
+                font-size: 24px;
+                font-weight: bold;
+                color: #8B4513;
+              }
+              
+              .stat-label {
+                font-size: 14px;
+                color: #666;
+                margin-top: 5px;
+              }
+              
+              .record {
+                background: #FFFAF0;
+                border: 2px solid #DEB887;
+                padding: 20px;
+                margin: 15px 0;
+                border-radius: 15px;
+                page-break-inside: avoid;
+                position: relative;
+              }
+              
+              .record-header {
+                display: flex;
+                justify-content: space-between;
+                margin-bottom: 15px;
+                font-weight: bold;
+                color: #8B4513;
+              }
+              
+              .tag {
+                display: inline-block;
+                padding: 6px 12px;
+                margin: 3px;
+                border-radius: 20px;
+                font-size: 14px;
+                font-weight: 600;
+              }
+              
+              .type-1 { background: #FFCDD2; color: #C62828; }
+              .type-2 { background: #FFE0B2; color: #E65100; }
+              .type-3 { background: #FFF9C4; color: #F57F17; }
+              .type-4 { background: #E8F5E8; color: #2E7D32; }
+              .type-5 { background: #E1F5FE; color: #0277BD; }
+              .type-6 { background: #F3E5F5; color: #7B1FA2; }
+              .type-7 { background: #FCE4EC; color: #AD1457; }
+              
+              .easy { background: #C8E6C9; color: #2E7D32; }
+              .medium { background: #FFE082; color: #F57C00; }
+              .difficult { background: #FFCDD2; color: #C62828; }
+              
+              .small { background: #E1F5FE; color: #0277BD; }
+              .medium-size { background: #FFF9C4; color: #F57F17; }
+              .large { background: #FFE0B2; color: #E65100; }
+              
+              .notes {
+                margin-top: 10px;
+                padding: 10px;
+                background: white;
+                border-radius: 10px;
+                font-style: italic;
+                color: #555;
+              }
+              
+              .ai-analysis {
+                margin-top: 10px;
+                padding: 10px;
+                background: #E3F2FD;
+                border-radius: 10px;
+                border-left: 4px solid #2196F3;
+              }
+              
+              .poop-emoji {
+                position: absolute;
+                top: 10px;
+                right: 10px;
+                font-size: 30px;
+                opacity: 0.8;
+              }
+              
+              .footer {
+                margin-top: 40px;
+                text-align: center;
+                padding: 20px;
+                background: linear-gradient(135deg, #FFF8DC 0%, #F5DEB3 100%);
+                border-radius: 15px;
+              }
+              
+              .footer-emoji {
+                font-size: 40px;
+                margin: 10px 0;
+              }
+              
+              .footer-text {
+                color: #8B4513;
+                font-size: 16px;
+                font-weight: bold;
+              }
+              
+              .footer-date {
+                color: #666;
+                font-size: 14px;
+                margin-top: 10px;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <h1>💩 My Poop Diary 💩</h1>
+              <div class="subtitle">Recording Every Beautiful Moment</div>
+              
+              <div class="stats">
+                <h2>📊 Statistics Summary</h2>
+                <div class="stat-grid">
+                  <div class="stat-item">
+                    <div class="stat-number">${entries.length}</div>
+                    <div class="stat-label">Total Records</div>
+                  </div>
+                  <div class="stat-item">
+                    <div class="stat-number">${entries.length > 0 ? (entries.length / 30).toFixed(1) : 0}</div>
+                    <div class="stat-label">Avg per Day</div>
+                  </div>
+                  <div class="stat-item">
+                    <div class="stat-number">${currentUserId || 'Guest'}</div>
+                    <div class="stat-label">User</div>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <h2 style="color: #8B4513; margin-top: 30px;">📝 Detailed Records</h2>
-            ${entries.slice(0, 50).map(entry => {
-              // 安全地處理 type
-              const typeStr = entry.type || '';
-              const typeNum = entry.originalRecord?.bristol_scale || 
-                            (typeStr ? typeStr.replace(/[^0-9]/g, '') : '') || 
-                            '4';
-              const volumeClass = entry.volume === 'Small' ? 'small' : 
-                                entry.volume === 'Large' ? 'large' : 'medium-size';
+              <h2 style="color: #8B4513; margin-top: 30px;">📝 Detailed Records</h2>
+              ${entries.slice(0, 50).map(entry => {
+                const typeStr = entry.type || '';
+                const typeNum = entry.originalRecord?.bristol_scale || 
+                              (typeStr ? typeStr.replace(/[^0-9]/g, '') : '') || 
+                              '4';
+                const volumeClass = entry.volume === 'Small' ? 'small' : 
+                                  entry.volume === 'Large' ? 'large' : 'medium-size';
+                
+                return `
+                  <div class="record">
+                    <span class="poop-emoji">💩</span>
+                    <div class="record-header">
+                      <span>📅 ${new Date(entry.date).toLocaleDateString()}</span>
+                      <span>⏰ ${new Date(entry.date).toLocaleTimeString()}</span>
+                    </div>
+                    <div>
+                      <span class="tag type-${typeNum}">Bristol ${typeNum}</span>
+                      <span class="tag ${entry.difficulty || 'medium'}">${
+                        entry.difficulty === 'easy' ? '😌 Easy' : 
+                        entry.difficulty === 'difficult' ? '😣 Difficult' : '😐 Medium'
+                      }</span>
+                      <span class="tag ${volumeClass}">${
+                        entry.volume === 'Small' ? '🔹 Small' :
+                        entry.volume === 'Large' ? '🔷 Large' : '🔶 Medium'
+                      }</span>
+                      ${entry.originalRecord?.color ? `<span class="tag">🎨 ${entry.originalRecord.color}</span>` : ''}
+                      ${entry.originalRecord?.odor ? `<span class="tag">👃 ${entry.originalRecord.odor}</span>` : ''}
+                    </div>
+                    ${entry.notes ? `<div class="notes">📝 ${entry.notes}</div>` : ''}
+                    ${entry.originalRecord?.ai_diagnosis_summary ? 
+                      `<div class="ai-analysis">🤖 AI Analysis: ${entry.originalRecord.ai_diagnosis_summary}</div>` : ''}
+                    ${entry.originalRecord?.health_recommendations ? 
+                      `<div class="ai-analysis">💡 Health Tips: ${entry.originalRecord.health_recommendations}</div>` : ''}
+                  </div>
+                `;
+              }).join('')}
               
-              return `
-                <div class="record">
-                  <span class="poop-emoji">💩</span>
-                  <div class="record-header">
-                    <span>📅 ${new Date(entry.date).toLocaleDateString()}</span>
-                    <span>⏰ ${new Date(entry.date).toLocaleTimeString()}</span>
-                  </div>
-                  <div>
-                    <span class="tag type-${typeNum}">Bristol ${typeNum}</span>
-                    <span class="tag ${entry.difficulty || 'medium'}">${
-                      entry.difficulty === 'easy' ? '😌 Easy' : 
-                      entry.difficulty === 'difficult' ? '😣 Difficult' : '😐 Medium'
-                    }</span>
-                    <span class="tag ${volumeClass}">${
-                      entry.volume === 'Small' ? '🔹 Small' :
-                      entry.volume === 'Large' ? '🔷 Large' : '🔶 Medium'
-                    }</span>
-                    ${entry.originalRecord?.color ? `<span class="tag">🎨 ${entry.originalRecord.color}</span>` : ''}
-                    ${entry.originalRecord?.odor ? `<span class="tag">👃 ${entry.originalRecord.odor}</span>` : ''}
-                  </div>
-                  ${entry.notes ? `<div class="notes">📝 ${entry.notes}</div>` : ''}
-                  ${entry.originalRecord?.ai_diagnosis_summary ? 
-                    `<div class="ai-analysis">🤖 AI Analysis: ${entry.originalRecord.ai_diagnosis_summary}</div>` : ''}
-                  ${entry.originalRecord?.health_recommendations ? 
-                    `<div class="ai-analysis">💡 Health Tips: ${entry.originalRecord.health_recommendations}</div>` : ''}
-                </div>
-              `;
-            }).join('')}
-            
-            ${entries.length > 50 ? `<p style="text-align: center; color: #666;">... ${entries.length - 50} more records not shown ...</p>` : ''}
+              ${entries.length > 50 ? `<p style="text-align: center; color: #666;">... ${entries.length - 50} more records not shown ...</p>` : ''}
 
-            <div class="footer">
-              <div class="footer-emoji">🚽 💩 🧻</div>
-              <div class="footer-text">Poopalooza - Your Personal Poop Tracker</div>
-              <div class="footer-date">Report Generated: ${new Date().toLocaleString()}</div>
+              <div class="footer">
+                <div class="footer-emoji">🚽 💩 🧻</div>
+                <div class="footer-text">Poopalooza - Your Personal Poop Tracker</div>
+                <div class="footer-date">Report Generated: ${new Date().toLocaleString()}</div>
+              </div>
             </div>
-          </div>
-        </body>
-      </html>
-    `;
+          </body>
+        </html>
+      `;
 
-    // 產生 PDF
-    const { uri } = await Print.printToFileAsync({ 
-      html: htmlContent,
-      base64: false
-    });
+      const { uri } = await Print.printToFileAsync({ 
+        html: htmlContent,
+        base64: false
+      });
 
-    // 分享 PDF
-    if (await Sharing.isAvailableAsync()) {
-      await Sharing.shareAsync(uri);
-    } else {
-      Alert.alert('Success', `PDF saved to: ${uri}`);
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(uri);
+      } else {
+        Alert.alert('Success', `PDF saved to: ${uri}`);
+      }
+
+    } catch (error) {
+      console.error('Export to PDF error:', error);
+      Alert.alert('Export Failed', 'Failed to export PDF file');
+    } finally {
+      setIsLoading(false);
     }
+  };
 
-  } catch (error) {
-    console.error('Export to PDF error:', error);
-    Alert.alert('Export Failed', 'Failed to export PDF file');
-  } finally {
-    setIsLoading(false);
-  }
-};
-
-// 匯出為圖片
 const exportToImage = async () => {
   try {
     setIsLoading(true);
 
-    // 建立一個簡單的統計圖表視圖
     Alert.alert(
       'Export as Image',
       'Choose what to export',
@@ -870,14 +990,21 @@ const exportToImage = async () => {
         {
           text: 'Current View',
           onPress: async () => {
-            if (viewShotRef.current) {
-              const uri = await viewShotRef.current.capture();
-              
-              if (await Sharing.isAvailableAsync()) {
-                await Sharing.shareAsync(uri);
-              } else {
-                Alert.alert('Success', `Image saved to: ${uri}`);
+            if (viewShotRef.current?.capture) {  // 加上 optional chaining
+              try {
+                const uri = await viewShotRef.current.capture();
+                
+                if (await Sharing.isAvailableAsync()) {
+                  await Sharing.shareAsync(uri);
+                } else {
+                  Alert.alert('Success', `Image saved to: ${uri}`);
+                }
+              } catch (error) {
+                console.error('Capture error:', error);
+                Alert.alert('Error', 'Failed to capture view');
               }
+            } else {
+              Alert.alert('Error', 'View capture not available');
             }
           },
         },
@@ -896,352 +1023,345 @@ const exportToImage = async () => {
   }
 };
 
-// 匯出統計圖表為圖片
-const exportStatisticsImage = async () => {
-  try {
-    setIsLoading(true);
-    
-    // Calculate statistics
-    const typeStats = entries.reduce((acc, entry) => {
-      const type = entry.type || 'Unknown';
-      acc[type] = (acc[type] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
+  const exportStatisticsImage = async () => {
+    try {
+      setIsLoading(true);
+      
+      const typeStats = entries.reduce((acc, entry) => {
+        const type = entry.type || 'Unknown';
+        acc[type] = (acc[type] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
 
-    const difficultyStats = entries.reduce((acc, entry) => {
-      const difficulty = entry.difficulty || 'unknown';
-      acc[difficulty] = (acc[difficulty] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
+      const difficultyStats = entries.reduce((acc, entry) => {
+        const difficulty = entry.difficulty || 'unknown';
+        acc[difficulty] = (acc[difficulty] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
 
-    // Create beautiful HTML chart
-    const chartHtml = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1">
-          <title>Poop Statistics</title>
-          <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-          <style>
-            @import url('https://fonts.googleapis.com/css2?family=Comic+Neue:wght@400;700&display=swap');
-            
-            body {
-              font-family: 'Comic Neue', cursive, Arial, sans-serif;
-              padding: 20px;
-              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-              margin: 0;
-            }
-            
-            .container {
-              background: white;
-              border-radius: 20px;
-              padding: 30px;
-              box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-              max-width: 1200px;
-              margin: 0 auto;
-            }
-            
-            h1 {
-              color: #8B4513;
-              text-align: center;
-              font-size: 32px;
-              margin-bottom: 30px;
-              text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
-            }
-            
-            .stats-summary {
-              display: grid;
-              grid-template-columns: repeat(3, 1fr);
-              gap: 20px;
-              margin-bottom: 30px;
-            }
-            
-            .stat-card {
-              background: linear-gradient(135deg, #FFF8DC 0%, #F5DEB3 100%);
-              padding: 20px;
-              border-radius: 15px;
-              text-align: center;
-              border: 2px solid #DEB887;
-              box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-            }
-            
-            .stat-emoji {
-              font-size: 32px;
-              margin-bottom: 10px;
-            }
-            
-            .stat-number {
-              font-size: 36px;
-              font-weight: bold;
-              color: #8B4513;
-              margin: 10px 0;
-            }
-            
-            .stat-label {
-              font-size: 16px;
-              color: #666;
-              margin-top: 5px;
-            }
-            
-            .chart-container {
-              position: relative;
-              height: 400px;
-              margin: 30px 0;
-              background: #FFFAF0;
-              padding: 20px;
-              border-radius: 15px;
-              border: 2px solid #DEB887;
-              box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-            }
-            
-            .footer {
-              text-align: center;
-              margin-top: 30px;
-              padding: 20px;
-              background: linear-gradient(135deg, #FFF8DC 0%, #F5DEB3 100%);
-              border-radius: 15px;
-              border: 2px solid #DEB887;
-            }
-            
-            .footer-emoji {
-              font-size: 40px;
-              margin: 10px 0;
-            }
-            
-            .footer-text {
-              color: #8B4513;
-              font-size: 16px;
-              font-weight: bold;
-              margin: 10px 0;
-            }
-            
-            .footer-date {
-              color: #666;
-              font-size: 14px;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <h1>💩 Poopalooza Statistics Report 💩</h1>
-            
-            <div class="stats-summary">
-              <div class="stat-card">
-                <div class="stat-emoji">💩</div>
-                <div class="stat-number">${entries.length}</div>
-                <div class="stat-label">Total Poops</div>
+      const chartHtml = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>Poop Statistics</title>
+            <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+            <style>
+              @import url('https://fonts.googleapis.com/css2?family=Comic+Neue:wght@400;700&display=swap');
+              
+              body {
+                font-family: 'Comic Neue', cursive, Arial, sans-serif;
+                padding: 20px;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                margin: 0;
+              }
+              
+              .container {
+                background: white;
+                border-radius: 20px;
+                padding: 30px;
+                box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+                max-width: 1200px;
+                margin: 0 auto;
+              }
+              
+              h1 {
+                color: #8B4513;
+                text-align: center;
+                font-size: 32px;
+                margin-bottom: 30px;
+                text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+              }
+              
+              .stats-summary {
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 20px;
+                margin-bottom: 30px;
+              }
+              
+              .stat-card {
+                background: linear-gradient(135deg, #FFF8DC 0%, #F5DEB3 100%);
+                padding: 20px;
+                border-radius: 15px;
+                text-align: center;
+                border: 2px solid #DEB887;
+                box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+              }
+              
+              .stat-emoji {
+                font-size: 32px;
+                margin-bottom: 10px;
+              }
+              
+              .stat-number {
+                font-size: 36px;
+                font-weight: bold;
+                color: #8B4513;
+                margin: 10px 0;
+              }
+              
+              .stat-label {
+                font-size: 16px;
+                color: #666;
+                margin-top: 5px;
+              }
+              
+              .chart-container {
+                position: relative;
+                height: 400px;
+                margin: 30px 0;
+                background: #FFFAF0;
+                padding: 20px;
+                border-radius: 15px;
+                border: 2px solid #DEB887;
+                box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+              }
+              
+              .footer {
+                text-align: center;
+                margin-top: 30px;
+                padding: 20px;
+                background: linear-gradient(135deg, #FFF8DC 0%, #F5DEB3 100%);
+                border-radius: 15px;
+                border: 2px solid #DEB887;
+              }
+              
+              .footer-emoji {
+                font-size: 40px;
+                margin: 10px 0;
+              }
+              
+              .footer-text {
+                color: #8B4513;
+                font-size: 16px;
+                font-weight: bold;
+                margin: 10px 0;
+              }
+              
+              .footer-date {
+                color: #666;
+                font-size: 14px;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <h1>💩 Poopalooza Statistics Report 💩</h1>
+              
+              <div class="stats-summary">
+                <div class="stat-card">
+                  <div class="stat-emoji">💩</div>
+                  <div class="stat-number">${entries.length}</div>
+                  <div class="stat-label">Total Poops</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-emoji">📊</div>
+                  <div class="stat-number">${Object.keys(typeStats).length}</div>
+                  <div class="stat-label">Different Types</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-emoji">📅</div>
+                  <div class="stat-number">${(entries.length / 30).toFixed(1)}</div>
+                  <div class="stat-label">Daily Average</div>
+                </div>
               </div>
-              <div class="stat-card">
-                <div class="stat-emoji">📊</div>
-                <div class="stat-number">${Object.keys(typeStats).length}</div>
-                <div class="stat-label">Different Types</div>
+              
+              <div class="chart-container">
+                <canvas id="typeChart"></canvas>
               </div>
-              <div class="stat-card">
-                <div class="stat-emoji">📅</div>
-                <div class="stat-number">${(entries.length / 30).toFixed(1)}</div>
-                <div class="stat-label">Daily Average</div>
+              
+              <div class="chart-container">
+                <canvas id="difficultyChart"></canvas>
+              </div>
+              
+              <div class="footer">
+                <div class="footer-emoji">🚽 💩 🧻</div>
+                <div class="footer-text">Poopalooza - Your Personal Poop Tracker</div>
+                <div class="footer-date">Generated on ${new Date().toLocaleString()}</div>
               </div>
             </div>
-            
-            <div class="chart-container">
-              <canvas id="typeChart"></canvas>
-            </div>
-            
-            <div class="chart-container">
-              <canvas id="difficultyChart"></canvas>
-            </div>
-            
-            <div class="footer">
-              <div class="footer-emoji">🚽 💩 🧻</div>
-              <div class="footer-text">Poopalooza - Your Personal Poop Tracker</div>
-              <div class="footer-date">Generated on ${new Date().toLocaleString()}</div>
-            </div>
-          </div>
 
-          <script>
-            // Bristol Type Distribution - Doughnut Chart
-            new Chart(document.getElementById('typeChart'), {
-              type: 'doughnut',
-              data: {
-                labels: ${JSON.stringify(Object.keys(typeStats))},
-                datasets: [{
-                  data: ${JSON.stringify(Object.values(typeStats))},
-                  backgroundColor: [
-                    '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', 
-                    '#9966FF', '#FF9F40', '#FF6B6B', '#C9CBCF'
-                  ],
-                  borderWidth: 3,
-                  borderColor: '#fff',
-                  hoverOffset: 10
-                }]
-              },
-              options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                  title: {
-                    display: true,
-                    text: 'Bristol Scale Distribution',
-                    font: {
-                      size: 20,
-                      weight: 'bold',
-                      family: "'Comic Neue', cursive"
-                    },
-                    color: '#8B4513',
-                    padding: 20
-                  },
-                  legend: {
-                    position: 'bottom',
-                    labels: {
-                      padding: 15,
+            <script>
+              new Chart(document.getElementById('typeChart'), {
+                type: 'doughnut',
+                data: {
+                  labels: ${JSON.stringify(Object.keys(typeStats))},
+                  datasets: [{
+                    data: ${JSON.stringify(Object.values(typeStats))},
+                    backgroundColor: [
+                      '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', 
+                      '#9966FF', '#FF9F40', '#FF6B6B', '#C9CBCF'
+                    ],
+                    borderWidth: 3,
+                    borderColor: '#fff',
+                    hoverOffset: 10
+                  }]
+                },
+                options: {
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: {
+                    title: {
+                      display: true,
+                      text: 'Bristol Scale Distribution',
                       font: {
-                        size: 14,
+                        size: 20,
+                        weight: 'bold',
                         family: "'Comic Neue', cursive"
                       },
-                      generateLabels: function(chart) {
-                        const data = chart.data;
-                        if (data.labels.length && data.datasets.length) {
-                          return data.labels.map((label, i) => {
-                            const value = data.datasets[0].data[i];
-                            const total = data.datasets[0].data.reduce((a, b) => a + b, 0);
-                            const percentage = ((value / total) * 100).toFixed(1);
-                            return {
-                              text: label + ' (' + percentage + '%)',
-                              fillStyle: data.datasets[0].backgroundColor[i],
-                              hidden: false,
-                              index: i
-                            };
-                          });
+                      color: '#8B4513',
+                      padding: 20
+                    },
+                    legend: {
+                      position: 'bottom',
+                      labels: {
+                        padding: 15,
+                        font: {
+                          size: 14,
+                          family: "'Comic Neue', cursive"
+                        },
+                        generateLabels: function(chart) {
+                          const data = chart.data;
+                          if (data.labels.length && data.datasets.length) {
+                            return data.labels.map((label, i) => {
+                              const value = data.datasets[0].data[i];
+                              const total = data.datasets[0].data.reduce((a, b) => a + b, 0);
+                              const percentage = ((value / total) * 100).toFixed(1);
+                              return {
+                                text: label + ' (' + percentage + '%)',
+                                fillStyle: data.datasets[0].backgroundColor[i],
+                                hidden: false,
+                                index: i
+                              };
+                            });
+                          }
+                          return [];
                         }
-                        return [];
                       }
-                    }
-                  },
-                  tooltip: {
-                    callbacks: {
-                      label: function(context) {
-                        const label = context.label || '';
-                        const value = context.parsed;
-                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                        const percentage = ((value / total) * 100).toFixed(1);
-                        return label + ': ' + value + ' (' + percentage + '%)';
+                    },
+                    tooltip: {
+                      callbacks: {
+                        label: function(context) {
+                          const label = context.label || '';
+                          const value = context.parsed;
+                          const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                          const percentage = ((value / total) * 100).toFixed(1);
+                          return label + ': ' + value + ' (' + percentage + '%)';
+                        }
                       }
                     }
                   }
                 }
-              }
-            });
+              });
 
-            // Difficulty Distribution - Bar Chart
-            const difficultyLabels = ${JSON.stringify(Object.keys(difficultyStats).map(d => 
-              d === 'easy' ? '😌 Easy' : 
-              d === 'difficult' ? '😣 Difficult' : 
-              d === 'medium' ? '😐 Medium' : d
-            ))};
-            
-            new Chart(document.getElementById('difficultyChart'), {
-              type: 'bar',
-              data: {
-                labels: difficultyLabels,
-                datasets: [{
-                  label: 'Number of Poops',
-                  data: ${JSON.stringify(Object.values(difficultyStats))},
-                  backgroundColor: [
-                    'rgba(76, 175, 80, 0.8)',
-                    'rgba(255, 193, 7, 0.8)',
-                    'rgba(244, 67, 54, 0.8)'
-                  ],
-                  borderColor: [
-                    'rgba(76, 175, 80, 1)',
-                    'rgba(255, 193, 7, 1)',
-                    'rgba(244, 67, 54, 1)'
-                  ],
-                  borderWidth: 2,
-                  borderRadius: 10
-                }]
-              },
-              options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                  title: {
-                    display: true,
-                    text: 'Difficulty Distribution',
-                    font: {
-                      size: 20,
-                      weight: 'bold',
-                      family: "'Comic Neue', cursive"
-                    },
-                    color: '#8B4513',
-                    padding: 20
-                  },
-                  legend: {
-                    display: false
-                  },
-                  tooltip: {
-                    callbacks: {
-                      label: function(context) {
-                        return 'Count: ' + context.parsed.y;
-                      }
-                    }
-                  }
+              const difficultyLabels = ${JSON.stringify(Object.keys(difficultyStats).map(d => 
+                d === 'easy' ? '😌 Easy' : 
+                d === 'difficult' ? '😣 Difficult' : 
+                d === 'medium' ? '😐 Medium' : d
+              ))};
+              
+              new Chart(document.getElementById('difficultyChart'), {
+                type: 'bar',
+                data: {
+                  labels: difficultyLabels,
+                  datasets: [{
+                    label: 'Number of Poops',
+                    data: ${JSON.stringify(Object.values(difficultyStats))},
+                    backgroundColor: [
+                      'rgba(76, 175, 80, 0.8)',
+                      'rgba(255, 193, 7, 0.8)',
+                      'rgba(244, 67, 54, 0.8)'
+                    ],
+                    borderColor: [
+                      'rgba(76, 175, 80, 1)',
+                      'rgba(255, 193, 7, 1)',
+                      'rgba(244, 67, 54, 1)'
+                    ],
+                    borderWidth: 2,
+                    borderRadius: 10
+                  }]
                 },
-                scales: {
-                  y: {
-                    beginAtZero: true,
-                    grid: {
-                      color: 'rgba(0,0,0,0.1)',
-                      borderDash: [5, 5]
-                    },
-                    ticks: {
+                options: {
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: {
+                    title: {
+                      display: true,
+                      text: 'Difficulty Distribution',
                       font: {
-                        family: "'Comic Neue', cursive",
-                        size: 12
-                      }
-                    }
-                  },
-                  x: {
-                    grid: {
+                        size: 20,
+                        weight: 'bold',
+                        family: "'Comic Neue', cursive"
+                      },
+                      color: '#8B4513',
+                      padding: 20
+                    },
+                    legend: {
                       display: false
                     },
-                    ticks: {
-                      font: {
-                        family: "'Comic Neue', cursive",
-                        size: 14,
-                        weight: 'bold'
+                    tooltip: {
+                      callbacks: {
+                        label: function(context) {
+                          return 'Count: ' + context.parsed.y;
+                        }
+                      }
+                    }
+                  },
+                  scales: {
+                    y: {
+                      beginAtZero: true,
+                      grid: {
+                        color: 'rgba(0,0,0,0.1)',
+                        borderDash: [5, 5]
+                      },
+                      ticks: {
+                        font: {
+                          family: "'Comic Neue', cursive",
+                          size: 12
+                        }
+                      }
+                    },
+                    x: {
+                      grid: {
+                        display: false
+                      },
+                      ticks: {
+                        font: {
+                          family: "'Comic Neue', cursive",
+                          size: 14,
+                          weight: 'bold'
+                        }
                       }
                     }
                   }
                 }
-              }
-            });
-          </script>
-        </body>
-      </html>
-    `;
+              });
+            </script>
+          </body>
+        </html>
+      `;
 
-    // Generate PDF with charts
-    const { uri } = await Print.printToFileAsync({ 
-      html: chartHtml,
-      base64: false
-    });
+      const { uri } = await Print.printToFileAsync({ 
+        html: chartHtml,
+        base64: false
+      });
 
-    if (await Sharing.isAvailableAsync()) {
-      await Sharing.shareAsync(uri);
-    } else {
-      Alert.alert('Success', `Statistics saved to: ${uri}`);
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(uri);
+      } else {
+        Alert.alert('Success', `Statistics saved to: ${uri}`);
+      }
+
+    } catch (error) {
+      console.error('Export statistics error:', error);
+      Alert.alert('Export Failed', 'Failed to export statistics');
+    } finally {
+      setIsLoading(false);
     }
+  };
 
-  } catch (error) {
-    console.error('Export statistics error:', error);
-    Alert.alert('Export Failed', 'Failed to export statistics');
-  } finally {
-    setIsLoading(false);
-  }
-};
-
-  
   const clearSearch = () => {
     setSearchQuery('');
   };
@@ -1465,21 +1585,11 @@ const exportStatisticsImage = async () => {
                       )}
                     </View>
                     
-                    {showImages && (
-                      <View style={styles.libraryCardImageContainer}>
-                        {entry.image ? (
-                          <Image 
-                            source={{ uri: entry.image }} 
-                            style={styles.libraryCardImage}
-                          />
-                        ) : (
-                          <View style={styles.libraryCardNoImage}>
-                            <Text style={styles.noImageIcon}>📸</Text>
-                            <Text style={styles.noImageText}>No Photo</Text>
-                          </View>
-                        )}
-                      </View>
-                    )}
+                  {showImages && entry.image && (
+                    <View style={styles.libraryCardImageContainer}>
+                      <SmartPoopImage imageUri={entry.image} />
+                    </View>
+                  )}
                   </View>
                   
                   {entry.notes && (
@@ -1559,7 +1669,7 @@ const exportStatisticsImage = async () => {
         <Text style={styles.debugText}>
           Total entries: {entries.length} | Filtered: {filteredAndSearchedEntries.length} | 
           User: {currentUserId || 'None'}
-        </Text>
+          </Text>
       </View>
       
       {filteredAndSearchedEntries.length === 0 ? (
@@ -1589,7 +1699,7 @@ const exportStatisticsImage = async () => {
         <FlatList
           data={filteredAndSearchedEntries}
           keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
+          renderItem={({ item }) =>  (
             <TouchableOpacity
               style={styles.libraryCardContainer}
               onPress={() => handleEntryPress(item.id)}
@@ -1630,17 +1740,7 @@ const exportStatisticsImage = async () => {
                   
                   {showImages && (
                     <View style={styles.libraryCardImageContainer}>
-                      {item.image ? (
-                        <Image 
-                          source={{ uri: item.image }} 
-                          style={styles.libraryCardImage}
-                        />
-                      ) : (
-                        <View style={styles.libraryCardNoImage}>
-                          <Text style={styles.noImageIcon}>📸</Text>
-                          <Text style={styles.noImageText}>No Photo</Text>
-                        </View>
-                      )}
+                      <SmartPoopImage imageUri={item.image} />
                     </View>
                   )}
                 </View>
@@ -1679,6 +1779,12 @@ const exportStatisticsImage = async () => {
               onRefresh={onRefresh}
             />
           }
+            removeClippedSubviews={true}
+            maxToRenderPerBatch={5}
+            initialNumToRender={5}
+            windowSize={5}
+            updateCellsBatchingPeriod={100}
+            onEndReachedThreshold={0.5}
         />
       )}
     </View>
@@ -2264,6 +2370,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: 'hidden',
     marginLeft: 12,
+    position: 'relative',
   },
   
   libraryCardImage: {

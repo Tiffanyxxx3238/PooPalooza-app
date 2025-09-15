@@ -1,3 +1,17 @@
+// 為了顯示用途擴展 PoopEntry
+interface LibraryPoopEntry {
+  id: string;
+  date: string;
+  type: string;
+  difficulty: 'easy' | 'medium' | 'difficult';
+  notes?: string;
+  color?: string;
+  hasBlood?: boolean;
+  hasMucus?: boolean;
+  image?: string;  // 統一使用 image 作為顯示用
+  volume?: string;
+  originalRecord?: any;
+}
 export interface PoopEntry {
   id?: string;
   user_id: number;

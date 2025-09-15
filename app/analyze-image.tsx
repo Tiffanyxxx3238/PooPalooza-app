@@ -12,6 +12,8 @@ import * as FileSystem from 'expo-file-system';
 import { Platform } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { EnhancedLoadingScreen } from '../components/EnhancedLoadingScreen';
+import cloudinaryService from '@/services/cloudinaryService';
+import { useUserStore } from '@/store/userStore';
 
 // 在 import 區塊後加入
 const HEALTH_ADVISOR_API_URL = 'https://poop-analysis-recommendation-system.onrender.com'; 
@@ -1583,19 +1585,46 @@ const formatComprehensiveAIAdvice = (aiAdvice: any): string => {
       }
     }, 1500);
   };
-const handleContinue = () => {
-    router.push({
-      pathname: '/add-entry',
-      params: {
-        imageUri: imageUri || '',
-        type: selectedType.toString(),
-        volume: selectedVolume.toString(),
-        color: selectedColor.toString(),
-        analysisDetails: encodeURIComponent(analysisDetails),
-        recommendations: encodeURIComponent(recommendations)
-      }
-    });
-  };
+const handleContinue = async () => {
+    try {
+        // 顯示上傳中
+        Alert.alert('Uploading', 'Saving your photo to cloud...');
+        
+        // 1. 上傳到 Cloudinary 並保存到後端
+        const uploadResult = await cloudinaryService.uploadImage(
+            imageUri || '',
+            useUserStore.getState().user_id,  // 獲取當前用戶 ID
+            {
+                bristolScale: selectedType,
+                color: selectedColor,
+                volume: selectedVolume,
+                aiDiagnosis: analysisDetails,
+                recommendations: recommendations
+            }
+        );
+        
+        if (uploadResult.success) {
+            // 2. 導航到下一頁，帶著所有資料
+            router.push({
+                pathname: '/add-entry',
+                params: {
+                    imageUri: uploadResult.url || imageUri || '',  // 使用 Cloudinary URL
+                    recordId: uploadResult.recordId?.toString() || '',
+                    type: selectedType.toString(),
+                    volume: selectedVolume.toString(),
+                    color: selectedColor.toString(),
+                    analysisDetails: encodeURIComponent(analysisDetails),
+                    recommendations: encodeURIComponent(recommendations)
+                }
+            });
+        } else {
+            Alert.alert('Upload Failed', uploadResult.error || 'Please try again');
+        }
+    } catch (error) {
+        console.error('Continue error:', error);
+        Alert.alert('Error', 'Failed to save photo');
+    }
+};
   
   const handleRetry = () => {
     if (imageUri) {
