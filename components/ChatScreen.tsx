@@ -141,16 +141,15 @@ export default function ChatScreen({ onClose }: ChatScreenProps) {
     
     setIsTyping(true);
     
-    // CORRECT URL with /api/assistant
     console.log('🚀 發送請求到: https://poopalooza-server.onrender.com/api/assistant');
     console.log('📝 問題:', question);
     
-    // THE CORRECT URL - Notice the /api/ prefix
+    // 🔥 修改重點：timeout 改為 60000 (60秒)
     axios.post<ApiResponse>(
-      'https://poopalooza-server.onrender.com/api/assistant', // ← MUST BE /api/assistant
-      { question },  // ← Your server expects { question } which is correct
+      'https://poopalooza-server.onrender.com/api/assistant',
+      { question },
       { 
-        timeout: 30000,
+        timeout: 60000,  // 🔥 從 30000 改成 60000 (60秒)
         headers: {
           'Content-Type': 'application/json'
         }
@@ -192,7 +191,7 @@ export default function ChatScreen({ onClose }: ChatScreenProps) {
       } else if (error.code === 'ECONNREFUSED') {
         errorMessage = 'Cannot connect to server.\n\nPlease check your internet connection.';
       } else if (error.message.includes('timeout')) {
-        errorMessage = 'Request timeout.\n\nServer might be starting up (takes 30-60 seconds), please try again.';
+        errorMessage = '⏰ AI is deeply analyzing your question (usually takes 30-40 seconds).\n\nPlease try again or simplify your question.';
       }
       
       const errorBotMessage: IMessage = {
@@ -230,14 +229,12 @@ export default function ChatScreen({ onClose }: ChatScreenProps) {
         messages={messages}
         onSend={onSend}
         user={{ _id: 1 }}
-        isTyping={false}  // 關閉內建的 typing indicator
+        isTyping={false}
         renderBubble={props => (
           <View style={styles.bubbleWrapper}>
-            {/* 強制左對齊容器 */}
             {props.position === 'left' ? (
               <View style={styles.leftMessageWrapper}>
                 <View style={styles.botMessageContainer}>
-                  {/* 機器人頭像和標題 */}
                   <View style={styles.botHeader}>
                     <View style={styles.botAvatarWrapper}>
                       <Text style={styles.botAvatar}>💩</Text>
@@ -253,7 +250,6 @@ export default function ChatScreen({ onClose }: ChatScreenProps) {
                     </View>
                   </View>
                   
-                  {/* 訊息內容氣泡 */}
                   <View style={styles.botMessageBubble}>
                     <ColoredText text={props.currentMessage.text} />
                   </View>
@@ -294,7 +290,6 @@ export default function ChatScreen({ onClose }: ChatScreenProps) {
               />
             )}
             
-            {/* 用戶訊息時間標籤 */}
             {props.position === 'right' && (
               <View style={styles.userTimeWrapper}>
                 <Text style={styles.userTimeText}>
@@ -336,7 +331,6 @@ export default function ChatScreen({ onClose }: ChatScreenProps) {
         renderTime={() => null}
       />
       
-      {/* 大便掉落遊戲覆蓋層 - 放在 GiftedChat 外面 */}
       {isTyping && (
         <View style={styles.gameOverlay}>
           <LoadingWithGame isLoading={isTyping} />
@@ -352,7 +346,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5E6C4',
   },
   
-  // 精緻的標題欄設計
   headerContainer: {
     backgroundColor: '#F5E6C4',
   },
@@ -402,33 +395,30 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
   },
   
-  // 訊息容器
   messagesContainer: {
-    paddingHorizontal: 0, // 移除水平間距
+    paddingHorizontal: 0,
     paddingVertical: 8,
     backgroundColor: '#F5E6C4',
   },
   
   bubbleWrapper: {
     marginVertical: 1,
-    width: '100%', // 確保容器佔滿寬度
+    width: '100%',
   },
   
-  // 強制左對齊的包裝器
   leftMessageWrapper: {
     width: '100%',
-    alignItems: 'flex-start', // 強制內容靠左
-    paddingLeft: 0, // 移除左邊距
-    paddingRight: 60, // 右邊留空間給用戶訊息
+    alignItems: 'flex-start',
+    paddingLeft: 0,
+    paddingRight: 60,
   },
   
-  // 機器人訊息設計 - 更像真實聊天 app
   botMessageContainer: {
     backgroundColor: 'transparent',
     marginVertical: 4,
-    marginLeft: 4, // 減少左邊距
-    width: 'auto', // 自動寬度
-    maxWidth: '90%', // 增加最大寬度
+    marginLeft: 4,
+    width: 'auto',
+    maxWidth: '90%',
   },
   
   botHeader: {
@@ -471,14 +461,13 @@ const styles = StyleSheet.create({
     fontWeight: '400',
   },
   
-  // 機器人訊息氣泡
   botMessageBubble: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    borderTopLeftRadius: 4, // 左上角小圓角，模仿聊天氣泡
+    borderTopLeftRadius: 4,
     paddingHorizontal: 14,
     paddingVertical: 10,
-    marginLeft: 32, // 減少左邊距，更靠近頭像
+    marginLeft: 32,
     elevation: 1,
     shadowColor: '#8B4513',
     shadowOffset: { width: 0, height: 1 },
@@ -488,7 +477,6 @@ const styles = StyleSheet.create({
     borderColor: '#F0E6D2',
   },
   
-  // 用戶時間顯示
   userTimeWrapper: {
     alignItems: 'flex-end',
     marginTop: 2,
@@ -502,7 +490,6 @@ const styles = StyleSheet.create({
     fontWeight: '400',
   },
   
-  // 精緻的輸入欄設計
   inputContainer: {
     backgroundColor: '#FFFFFF',
     borderTopWidth: 0.5,
@@ -540,12 +527,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   
-  // 彩色文字容器
   coloredTextContainer: {
     width: '100%',
   },
   
-  // 調整內容樣式
   normalContainer: {
     marginVertical: 2,
   },
@@ -672,13 +657,12 @@ const styles = StyleSheet.create({
     color: '#5D4E37',
   },
   
-  // 遊戲覆蓋層樣式
   gameOverlay: {
     position: 'absolute',
-    top: 60,  // 避開標題欄
+    top: 60,
     left: 0,
     right: 0,
-    bottom: 60,  // 避開輸入欄
+    bottom: 60,
     backgroundColor: 'rgba(245, 230, 196, 0.95)',
     zIndex: 1000,
   },
