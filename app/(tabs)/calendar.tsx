@@ -637,7 +637,7 @@ export default function CalendarScreen() {
     return (
       <View style={[styles.container, styles.centerContent]}>
         <ActivityIndicator size="large" color={Colors.primary.accent} />
-        <Text style={styles.loadingText}>載入資料中...</Text>
+        <Text style={styles.loadingText}>loading data...</Text>
       </View>
     );
   }
@@ -648,7 +648,7 @@ export default function CalendarScreen() {
       <View style={styles.header}>
         {error && (
           <View style={styles.errorBanner}>
-            <Text style={styles.errorBannerText}>⚠️ 使用本地資料</Text>
+            <Text style={styles.errorBannerText}>⚠️ using local data</Text>
           </View>
         )}
         <View style={styles.tabContainer}>
@@ -686,8 +686,8 @@ export default function CalendarScreen() {
         {/* Display data source */}
         <Text style={styles.dataSourceText}>
           {dbPoopRecords.length > 0 
-            ? `📊 資料庫記錄: ${dbPoopRecords.length} 筆`
-            : `📱 本地記錄: ${entries.length} 筆`}
+            ? `📊 database record: ${dbPoopRecords.length} 筆`
+            : `📱 local record: ${entries.length} 筆`}
         </Text>
       </View>
 

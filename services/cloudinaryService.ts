@@ -59,6 +59,65 @@ class CloudinaryService {
     return this.config !== null;
   }
   
+  // 🆕 新增：只上傳圖片到 Cloudinary，不保存到後端
+  async uploadImageOnly(localUri: string, userId: number): Promise<string | null> {
+    try {
+      // Verify configuration exists
+      if (!this.config) {
+        await this.loadConfig();
+        if (!this.config) {
+          console.error('Please configure Cloudinary first');
+          return null;
+        }
+      }
+      
+      console.log('Starting image upload to Cloudinary...');
+      
+      // Create FormData
+      const formData = new FormData();
+      
+      // Add image file - React Native format
+      const photo = {
+        uri: localUri,
+        type: 'image/jpeg',
+        name: `poop_${userId}_${Date.now()}.jpg`
+      } as any;
+      
+      formData.append('file', photo);
+      formData.append('upload_preset', this.config.uploadPreset);
+      formData.append('folder', `poopalooza/user_${userId}`);
+      
+      // Upload URL
+      const uploadUrl = `https://api.cloudinary.com/v1_1/${this.config.cloudName}/image/upload`;
+      
+      console.log('Uploading to:', uploadUrl);
+      
+      // Execute upload to Cloudinary
+      const response = await fetch(uploadUrl, {
+        method: 'POST',
+        body: formData,
+      });
+      
+      console.log('Response status:', response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Upload failed:', errorText);
+        throw new Error(`Upload failed: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log('✅ Upload successful! URL:', data.secure_url);
+      
+      // 只返回 URL，不保存到後端
+      return data.secure_url;
+      
+    } catch (error: any) {
+      console.error('Cloudinary upload error:', error);
+      return null;
+    }
+  }
+  
   // Upload image to Cloudinary AND save to backend
   async uploadImage(localUri: string, userId: number, additionalData?: any): Promise<UploadResult> {
     try {

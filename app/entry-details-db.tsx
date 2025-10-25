@@ -82,6 +82,16 @@ export default function EntryDetailsDBScreen() {
     );
   }
 
+  // 🔍 除錯：看看各個欄位的值
+console.log('===== ENTRY DEBUG =====');
+console.log('entry.notes:', entry.notes);
+console.log('entry.notes type:', typeof entry.notes);
+console.log('entry.notes length:', entry.notes?.length);
+console.log('entry.originalRecord:', entry.originalRecord);
+console.log('entry.originalRecord.ai_diagnosis_summary:', entry.originalRecord?.ai_diagnosis_summary);
+console.log('entry.originalRecord.health_recommendations:', entry.originalRecord?.health_recommendations);
+console.log('=====================');
+
   // Extract data from entry
   const bristolType = parseInt(entry.type?.replace('Type ', '') || '4');
   const volume = entry.difficulty === 'small' ? 1 : entry.difficulty === 'large' ? 3 : 2;
@@ -157,22 +167,19 @@ export default function EntryDetailsDBScreen() {
           <View style={styles.recommendationsContainer}>
             <View style={styles.recommendationsHeader}>
               <Text style={styles.recommendationsTitle}>
-                {isEnglish ? '🏥 Health Recommendations & Improvement Plan' : '🏥 健康建議與改善方案'}
+                🏥 Health Recommendations & Improvement Plan
               </Text>
-              <TouchableOpacity 
-                style={styles.languageToggle}
-                onPress={() => setIsEnglish(!isEnglish)}
-              >
-                <Globe size={16} color={Colors.primary.accent} />
-                <Text style={styles.languageToggleText}>
-                  {isEnglish ? '中文' : 'EN'}
-                </Text>
-              </TouchableOpacity>
             </View>
             <RecommendationDisplay 
-              recommendations={getRecommendations(bristolType)} 
+              recommendations={
+                (entry.originalRecord?.health_recommendations && entry.originalRecord.health_recommendations.trim() !== '') 
+                  ? entry.originalRecord.health_recommendations 
+                  : (entry.notes && entry.notes.trim() !== '')
+                    ? entry.notes
+                    : getRecommendations(bristolType)
+              } 
               bristolType={bristolType}
-              isEnglish={isEnglish}
+              isEnglish={true}
             />
           </View>
         </View>

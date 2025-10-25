@@ -184,9 +184,9 @@ LogBox.ignoreLogs(['useInsertionEffect must not schedule updates']);
       
       // 👇 加入 Cloudinary 上傳邏輯
       if (isCloudinaryConfigured) {
-        const uploadResult = await cloudinaryService.uploadImage(localUri, currentUserId);
-        if (uploadResult.success && uploadResult.url) {
-          finalUri = uploadResult.url;
+        const cloudinaryUrl = await cloudinaryService.uploadImageOnly(localUri, currentUserId);
+        if (cloudinaryUrl) {
+          finalUri = cloudinaryUrl;
           console.log('✅ 已上傳到雲端:', finalUri);
         }
       }
@@ -218,9 +218,9 @@ LogBox.ignoreLogs(['useInsertionEffect must not schedule updates']);
       
       // 👇 加入 Cloudinary 上傳邏輯
       if (isCloudinaryConfigured) {
-        const uploadResult = await cloudinaryService.uploadImage(finalUri, currentUserId);
-        if (uploadResult.success && uploadResult.url) {
-          finalUri = uploadResult.url;
+        const cloudinaryUrl = await cloudinaryService.uploadImageOnly(finalUri, currentUserId);
+        if (cloudinaryUrl) {
+          finalUri = cloudinaryUrl;
           console.log('✅ 已上傳到雲端:', finalUri);
         }
       }

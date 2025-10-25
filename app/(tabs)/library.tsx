@@ -247,7 +247,7 @@ export default function LibraryScreen() {
           date: record.record_time || new Date().toISOString(),
           type: poopType,
           difficulty: difficulty,
-          notes: record.ai_diagnosis_summary || record.health_recommendations || '',
+          notes: record.health_recommendations || record.ai_diagnosis_summary || '',
           color: record.color || record.ai_poop_color || 'brown',
           hasBlood: record.has_blood || false,
           hasMucus: record.has_mucus || false,
@@ -281,48 +281,74 @@ export default function LibraryScreen() {
     }
   };
 
-  // 合併本地和資料庫記錄
-  const mergeWithLocalRecords = (dbRecords: any[]) => {
-    const recordMap = new Map();
-    
-    // 先加入資料庫記錄
-    dbRecords.forEach(record => {
-      recordMap.set(record.id, record);
-    });
-    
-    // 檢查本地記錄是否有新的（還沒上傳的）
-    localEntries.forEach((entry: any) => {
-      const imageUrl = (entry as any).image_url || 
-                       (entry as any).image || 
-                       (entry as any).imageUri || 
-                       null;
-      
-      if (!recordMap.has(entry.id || entry.user_id)) {
-        console.log('📱 Found local-only record with image:', imageUrl);
-        
-        // 轉換本地記錄格式
-        const localRecord = {
-          id: entry.id || Math.random().toString(),
-          date: entry.date || new Date().toISOString(),
-          type: `Type ${entry.ai_poop_type || '4'}`,
-          difficulty: 'medium',
-          notes: entry.ai_diagnosis_summary || entry.health_recommendations || '',
-          color: entry.color || 'brown',
-          hasBlood: entry.has_blood || false,
-          hasMucus: entry.has_mucus || false,
-          image: imageUrl,
-          volume: entry.volume || 'Medium',
-          originalRecord: entry
-        };
-        
-        recordMap.set(localRecord.id, localRecord);
+// 合併本地和資料庫記錄 - 使用 image URL 去重
+const mergeWithLocalRecords = (dbRecords: any[]) => {
+  const recordMap = new Map();
+  
+  // 先加入資料庫記錄 - 使用 image URL 作為 key（如果有的話）
+  dbRecords.forEach(record => {
+    // 如果有圖片URL，用URL作為key；否則用ID
+    const key = record.image || `id_${record.id}`;
+    if (!recordMap.has(key)) {
+      recordMap.set(key, record);
+    } else {
+      // 如果已存在，保留 record_id 較大的（較新的記錄）
+      const existing = recordMap.get(key);
+      const existingId = parseInt(existing.id);
+      const newId = parseInt(record.id);
+      if (newId > existingId) {
+        console.log(`🔄 Replacing duplicate record ${existingId} with ${newId} for image:`, record.image?.substring(0, 50));
+        recordMap.set(key, record);
       }
-    });
+    }
+  });
+  
+  // 檢查本地記錄是否有新的（還沒上傳的）
+  localEntries.forEach((entry: any) => {
+    const imageUrl = (entry as any).image_url || 
+                     (entry as any).image || 
+                     (entry as any).imageUri || 
+                     null;
     
-    return Array.from(recordMap.values()).sort((a: any, b: any) => 
-      new Date(b.date).getTime() - new Date(a.date).getTime()
-    );
-  };
+    // 如果有圖片URL，用URL作為key；否則用ID
+    const key = imageUrl || `local_${entry.id || entry.user_id}`;
+    
+    // 如果這個key不存在，才加入（避免重複）
+    if (!recordMap.has(key)) {
+      console.log('📱 Found local-only record with image:', imageUrl);
+      
+      // 轉換本地記錄格式
+      const localRecord = {
+        id: entry.id || Math.random().toString(),
+        date: entry.date || new Date().toISOString(),
+        type: `Type ${entry.ai_poop_type || '4'}`,
+        difficulty: 'medium',
+        notes: entry.ai_diagnosis_summary || entry.health_recommendations || '',
+        color: entry.color || 'brown',
+        hasBlood: entry.has_blood || false,
+        hasMucus: entry.has_mucus || false,
+        image: imageUrl,
+        volume: entry.volume || 'Medium',
+        originalRecord: entry
+      };
+      
+      recordMap.set(key, localRecord);
+    } else {
+      console.log('⚠️ Skipping duplicate local record with image:', imageUrl?.substring(0, 50));
+    }
+  });
+  
+  const mergedRecords = Array.from(recordMap.values()).sort((a: any, b: any) => 
+    new Date(b.date).getTime() - new Date(a.date).getTime()
+  );
+  
+  console.log('🔄 Deduplication complete:');
+  console.log('   - Database records:', dbRecords.length);
+  console.log('   - Local entries:', localEntries.length);
+  console.log('   - Unique merged records:', mergedRecords.length);
+  
+  return mergedRecords;
+};
 
   // 處理純本地記錄（當資料庫失敗時）
   const processLocalEntries = (entries: any[]) => {
@@ -461,23 +487,47 @@ const SmartPoopImage = ({ imageUri }: { imageUri: string | null }) => {
     });
   };
   
-  const filteredAndSearchedEntries = useMemo(() => {
-    let result = [...entries];
-    
-    if (searchQuery.trim()) {
-      result = result.filter(entry => 
-        entry.notes?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        entry.type?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        entry.difficulty?.toLowerCase().includes(searchQuery.toLowerCase())
+const filteredAndSearchedEntries = useMemo(() => {
+  let result = [...entries];
+  
+  // 搜尋功能 - 擴展搜尋範圍
+  if (searchQuery.trim()) {
+    const query = searchQuery.toLowerCase().trim();
+    result = result.filter(entry => {
+      // 搜尋日期
+      const dateStr = new Date(entry.date).toLocaleDateString().toLowerCase();
+      const timeStr = new Date(entry.date).toLocaleTimeString().toLowerCase();
+      
+      // 安全地轉換為字串
+      const safeToString = (value: any) => {
+        if (value === null || value === undefined) return '';
+        return String(value).toLowerCase();
+      };
+      
+      // 搜尋各種欄位
+      return (
+        dateStr.includes(query) ||
+        timeStr.includes(query) ||
+        safeToString(entry.notes).includes(query) ||
+        safeToString(entry.type).includes(query) ||
+        safeToString(entry.difficulty).includes(query) ||
+        safeToString(entry.color).includes(query) ||
+        safeToString(entry.volume).includes(query) ||
+        safeToString(entry.originalRecord?.ai_diagnosis_summary).includes(query) ||
+        safeToString(entry.originalRecord?.health_recommendations).includes(query) ||
+        safeToString(entry.originalRecord?.color).includes(query) ||
+        safeToString(entry.originalRecord?.odor).includes(query)
       );
-    }
-    
-    if (filterBy !== 'all') {
-      result = result.filter(entry => entry.difficulty === filterBy);
-    }
-    
-    return result.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [entries, searchQuery, filterBy]);
+    });
+  }
+  
+  // 難度篩選
+  if (filterBy !== 'all') {
+    result = result.filter(entry => entry.difficulty === filterBy);
+  }
+  
+  return result.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+}, [entries, searchQuery, filterBy]);
   
   const hasEntries = (date: Date | null) => {
     if (!date) return false;
@@ -1627,43 +1677,52 @@ const exportToImage = async () => {
   // Render Library View
   const renderLibraryView = () => (
     <View style={styles.libraryContainer}>
-      <View style={styles.searchSection}>
-        <View style={styles.searchInputContainer}>
-          <Search />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search entries..."
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            placeholderTextColor={Colors.primary.lightText}
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={clearSearch}>
-              <Text style={styles.clearSearch}>×</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-        
-        <View style={styles.filterContainer}>
-          {['all', 'easy', 'medium', 'difficult'].map((filter) => (
-            <TouchableOpacity
-              key={filter}
-              style={[
-                styles.filterButton,
-                filterBy === filter && styles.activeFilterButton,
-              ]}
-              onPress={() => setFilterBy(filter)}
-            >
-              <Text style={[
-                styles.filterButtonText,
-                filterBy === filter && styles.activeFilterButtonText,
-              ]}>
-                {filter.charAt(0).toUpperCase() + filter.slice(1)}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
+<View style={styles.searchSection}>
+  <View style={styles.searchInputContainer}>
+    <Search />
+    <TextInput
+      style={styles.searchInput}
+      placeholder="Search entries..."
+      value={searchQuery}
+      onChangeText={setSearchQuery}
+      placeholderTextColor={Colors.primary.lightText}
+    />
+    {searchQuery.length > 0 && (
+      <TouchableOpacity onPress={clearSearch}>
+        <Text style={styles.clearSearch}>×</Text>
+      </TouchableOpacity>
+    )}
+  </View>
+  
+  {/* 搜尋結果提示 */}
+  {searchQuery.trim() !== '' && (
+    <View style={styles.searchResultHint}>
+      <Text style={styles.searchResultText}>
+        Found {filteredAndSearchedEntries.length} result{filteredAndSearchedEntries.length !== 1 ? 's' : ''} for "{searchQuery}"
+      </Text>
+    </View>
+  )}
+  
+  <View style={styles.filterContainer}>
+    {['all', 'easy', 'medium', 'difficult'].map((filter) => (
+      <TouchableOpacity
+        key={filter}
+        style={[
+          styles.filterButton,
+          filterBy === filter && styles.activeFilterButton,
+        ]}
+        onPress={() => setFilterBy(filter)}
+      >
+        <Text style={[
+          styles.filterButtonText,
+          filterBy === filter && styles.activeFilterButtonText,
+        ]}>
+          {filter.charAt(0).toUpperCase() + filter.slice(1)}
+        </Text>
+      </TouchableOpacity>
+    ))}
+  </View>
+</View>
       
       <View style={styles.debugContainer}>
         <Text style={styles.debugText}>
@@ -2433,4 +2492,17 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 12,
   },
+  searchResultHint: {
+  backgroundColor: Colors.primary.accent + '15',
+  padding: 8,
+  borderRadius: 8,
+  marginTop: 8,
+  marginBottom: 4,
+},
+
+searchResultText: {
+  fontSize: 12,
+  color: Colors.primary.accent,
+  fontWeight: '600',
+},
 });

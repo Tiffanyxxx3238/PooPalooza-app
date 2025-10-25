@@ -1588,28 +1588,22 @@ const formatComprehensiveAIAdvice = (aiAdvice: any): string => {
 const handleContinue = async () => {
     try {
         // 顯示上傳中
-        Alert.alert('Uploading', 'Saving your photo to cloud...');
+        Alert.alert('Processing', 'Uploading your photo...');
         
-        // 1. 上傳到 Cloudinary 並保存到後端
-        const uploadResult = await cloudinaryService.uploadImage(
+        // 🆕 只上傳圖片到 Cloudinary，不保存記錄到後端
+        const cloudinaryUrl = await cloudinaryService.uploadImageOnly(
             imageUri || '',
-            useUserStore.getState().user_id,  // 獲取當前用戶 ID
-            {
-                bristolScale: selectedType,
-                color: selectedColor,
-                volume: selectedVolume,
-                aiDiagnosis: analysisDetails,
-                recommendations: recommendations
-            }
+            useUserStore.getState().user_id
         );
         
-        if (uploadResult.success) {
-            // 2. 導航到下一頁，帶著所有資料
+        if (cloudinaryUrl) {
+            console.log('✅ 已上傳到雲端:', cloudinaryUrl);
+            
+            // 導航到 add-entry，在那裡才保存完整記錄
             router.push({
                 pathname: '/add-entry',
                 params: {
-                    imageUri: uploadResult.url || imageUri || '',  // 使用 Cloudinary URL
-                    recordId: uploadResult.recordId?.toString() || '',
+                    imageUri: cloudinaryUrl,  // 使用 Cloudinary URL
                     type: selectedType.toString(),
                     volume: selectedVolume.toString(),
                     color: selectedColor.toString(),
@@ -1618,11 +1612,11 @@ const handleContinue = async () => {
                 }
             });
         } else {
-            Alert.alert('Upload Failed', uploadResult.error || 'Please try again');
+            Alert.alert('Upload Failed', 'Please try again');
         }
     } catch (error) {
         console.error('Continue error:', error);
-        Alert.alert('Error', 'Failed to save photo');
+        Alert.alert('Error', 'Failed to upload photo');
     }
 };
   
