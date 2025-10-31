@@ -2891,7 +2891,7 @@ return clusteredCheckIns.map((cluster: ClusterPoint) => (
   const renderNearbyList = () => (
     <View style={styles.listContainer}>
       <View style={styles.listHeader}>
-        <Text style={styles.sectionTitle}>Bathrooms within 500m</Text>
+        <Text style={styles.sectionTitle}>Bathrooms within near</Text>
         {nearbyBathrooms.length > 0 && (
           <View style={styles.statsContainer}>
             <Text style={styles.statsText}>
